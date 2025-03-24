@@ -1,0 +1,60 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35913.81
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bootstrapper", "Bootstrapper", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Modules", "Modules", "{3916D730-3038-4D5D-9E93-B641DCCFD237}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{A4484D99-1CE4-4699-8A00-10F4F65746C9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "Bootstrapper\Api\Api.csproj", "{53421F7C-8CAE-4209-ABBE-8937D4A58093}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Catalog", "Catalog", "{1EDAD02A-B691-46F1-A649-B6C5AFEA91A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog", "Modules\Catalog\Catalog\Catalog.csproj", "{76F94BC4-607D-4D5B-828E-335B93009F71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "Shared\Shared\Shared.csproj", "{5A6C8817-BE80-4D6E-AD81-862FE1E3C178}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GpsInterface", "GpsInterface", "{BDD44797-6133-4E56-BB21-898967150F2D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GpsInterface", "Modules\GpsInterface\GpsInterface\GpsInterface.csproj", "{67893F99-B15E-4141-BA46-60E64809DB6F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{53421F7C-8CAE-4209-ABBE-8937D4A58093}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53421F7C-8CAE-4209-ABBE-8937D4A58093}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53421F7C-8CAE-4209-ABBE-8937D4A58093}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53421F7C-8CAE-4209-ABBE-8937D4A58093}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76F94BC4-607D-4D5B-828E-335B93009F71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76F94BC4-607D-4D5B-828E-335B93009F71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76F94BC4-607D-4D5B-828E-335B93009F71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76F94BC4-607D-4D5B-828E-335B93009F71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A6C8817-BE80-4D6E-AD81-862FE1E3C178}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A6C8817-BE80-4D6E-AD81-862FE1E3C178}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A6C8817-BE80-4D6E-AD81-862FE1E3C178}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A6C8817-BE80-4D6E-AD81-862FE1E3C178}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67893F99-B15E-4141-BA46-60E64809DB6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67893F99-B15E-4141-BA46-60E64809DB6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67893F99-B15E-4141-BA46-60E64809DB6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67893F99-B15E-4141-BA46-60E64809DB6F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{53421F7C-8CAE-4209-ABBE-8937D4A58093} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{1EDAD02A-B691-46F1-A649-B6C5AFEA91A1} = {3916D730-3038-4D5D-9E93-B641DCCFD237}
+		{76F94BC4-607D-4D5B-828E-335B93009F71} = {1EDAD02A-B691-46F1-A649-B6C5AFEA91A1}
+		{5A6C8817-BE80-4D6E-AD81-862FE1E3C178} = {A4484D99-1CE4-4699-8A00-10F4F65746C9}
+		{BDD44797-6133-4E56-BB21-898967150F2D} = {3916D730-3038-4D5D-9E93-B641DCCFD237}
+		{67893F99-B15E-4141-BA46-60E64809DB6F} = {BDD44797-6133-4E56-BB21-898967150F2D}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C0434113-9DE9-4ACD-8670-440CFE2D323F}
+	EndGlobalSection
+EndGlobal
