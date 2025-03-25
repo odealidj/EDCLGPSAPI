@@ -1,0 +1,7 @@
+services:
+
+  edclgpsdb:
+    image: postgres
+
+volumes:
+  postgres_edclgpsdb:
