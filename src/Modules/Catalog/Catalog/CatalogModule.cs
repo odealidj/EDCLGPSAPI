@@ -9,6 +9,17 @@ namespace Catalog
         public static IServiceCollection AddCatalogModule(this IServiceCollection services,
             IConfiguration configuration)
         {
+            // Add service to the container
+            
+            // Api endppoint services
+            
+            // Application Use Case Services
+            
+            // Data - Infrastructure Services
+            var connectionString = configuration.GetConnectionString("Database");
+            services.AddDbContext<CatalogDbContext>(options =>
+                options.UseNpgsql(connectionString));
+            
             return services;
         }
         
