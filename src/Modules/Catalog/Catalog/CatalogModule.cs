@@ -2,7 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
-
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Shared.Data.Interceptors;
 
 namespace Catalog
 {
@@ -16,12 +17,23 @@ namespace Catalog
             // Api endppoint services
             
             // Application Use Case Services
+            // perlu di register karena pada primary constructor DispatchDomainEventsInterceptor mneg inject IMediator
+            services.AddMediatR(config =>
+            {
+                config.RegisterServicesFromAssemblies(Assembly.GetExecutingAssembly());
+            });
             
             // Data - Infrastructure Services
             var connectionString = configuration.GetConnectionString("Database");
             
-            services.AddDbContext<CatalogDbContext>(options =>
-                options.UseNpgsql(connectionString));
+            services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+            services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
+            
+            services.AddDbContext<CatalogDbContext>((sp, options) =>
+            {
+                options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());  // get services of type ISaveChangesInterceptor
+                options.UseNpgsql(connectionString);
+            });
             
             services.AddScoped<IDataSeeder, CatalogDataSeeder>();
             
