@@ -1,6 +1,5 @@
 namespace Catalog.Products.Features.GetProducts;
 
-
 public record GetProductsQuery(string Category)
     : IQuery<GetProductsResult>;
 public record GetProductsResult(IEnumerable<ProductDto> Products);
@@ -20,11 +19,15 @@ public class GetProductsHandler(CatalogDbContext dbContext)
             .ToListAsync(cancellationToken);
         
         //mapping product entity to productdto
-        var productDtos = ProjectToProductDto(products);
+        //var productDtos = ProjectToProductDto(products);
+        
+        var productDtos = products.Adapt<List<ProductDto>>();
 
         return new GetProductsResult(productDtos);
     }
 
+    /*
+    // menghilankan ini dengan mapster
     private List<ProductDto> ProjectToProductDto(List<Product> products)
     {
         foreach (var product in products)
@@ -34,4 +37,5 @@ public class GetProductsHandler(CatalogDbContext dbContext)
 
         return [];
     }
+    */
 }
