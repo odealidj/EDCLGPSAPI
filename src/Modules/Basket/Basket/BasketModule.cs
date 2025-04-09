@@ -10,6 +10,7 @@ using Shared.Data.Interceptors;
 namespace Basket;
 public static class BasketModule
 {
+    
     public static IServiceCollection AddBasketModule(this IServiceCollection services, 
         IConfiguration configuration)
     {
