@@ -1,15 +1,15 @@
 services:
-  edclgpsdb:
-    container_name: edclgpsdb
+  ae031db:
+    container_name: ae031db
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=EdclGpsDb
+      - POSTGRES_DB=AE031_EDCL_GPS_DB
     restart: always
     ports:
-      - "5434:5432"
+      - "5436:5432"
     volumes:
-      - postgres_edclgpsdb:/var/lib/postgresql/data/
+      - postgres_ae031db:/var/lib/postgresql/data/
 
   distributedcache:
     container_name: distributedcache
@@ -28,7 +28,7 @@ services:
 
   messagebus:
     container_name: messagebus
-    hostname: edclgps-mq
+    hostname: ecommerce-mq
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest

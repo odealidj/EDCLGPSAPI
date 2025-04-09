@@ -1,4 +1,3 @@
-using Mapster;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,13 +9,13 @@ builder.Host.UseSerilog((context, config) =>
 //common services: carter, mediatr, fluentvalidation
 var catalogAssembly = typeof(CatalogModule).Assembly;
 var basketAssembly = typeof(BasketModule).Assembly;
-var gpsInterfacingAssembly = typeof(GPSInterfacingModule).Assembly;
+var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
 
 builder.Services
-    .AddCarterWithAssemblies(catalogAssembly, basketAssembly, gpsInterfacingAssembly);
+    .AddCarterWithAssemblies(catalogAssembly, basketAssembly, geofenceMasterAssembly);
 
 builder.Services
-    .AddMediatRWithAssemblies(catalogAssembly, basketAssembly, gpsInterfacingAssembly);
+    .AddMediatRWithAssemblies(catalogAssembly, basketAssembly, geofenceMasterAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -24,16 +23,14 @@ builder.Services.AddStackExchangeRedisCache(options =>
 });
 
 builder.Services
-    .AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly, gpsInterfacingAssembly);
+    .AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly);
 
 //module services: catalog, basket, ordering
 builder.Services
     .AddCatalogModule(builder.Configuration)
     .AddBasketModule(builder.Configuration)
     .AddOrderingModule(builder.Configuration)
-    .AddGPSInterfacingModule(builder.Configuration);
-
-//TypeAdapterConfig.GlobalSettings.Scan(AppDomain.CurrentDomain.GetAssemblies());
+    .AddGeofenceMasterModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();
@@ -50,5 +47,6 @@ app
     .UseCatalogModule()
     .UseBasketModule()
     .UseOrderingModule()
-    .UseGPSInterfacingModule();
+    .UseGeofenceMasterModule();
+
 app.Run();

@@ -1,5 +1,5 @@
 services:
-  edclgpsdb:
+  ae031db:
     image: postgres
 
   distributedcache:
@@ -12,4 +12,4 @@ services:
     image: rabbitmq:management
 
 volumes:
-  postgres_edclgpsdb:
+  postgres_ae031db:
