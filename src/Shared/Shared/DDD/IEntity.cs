@@ -1,4 +1,4 @@
-namespace Shared.DDD;
+﻿namespace Shared.DDD;
 
 public interface IEntity<T> : IEntity
 {

@@ -1,5 +1,4 @@
-namespace Catalog.Data.Seed;
-
+﻿namespace Catalog.Data.Seed;
 public static class InitialData
 {
     public static IEnumerable<Product> Products =>

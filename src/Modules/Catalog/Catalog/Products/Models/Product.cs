@@ -1,5 +1,4 @@
-namespace Catalog.Products.Models;
-
+﻿namespace Catalog.Products.Models;
 public class Product : Aggregate<Guid>
 {
     public string Name { get; private set; } = default!;
@@ -8,8 +7,7 @@ public class Product : Aggregate<Guid>
     public string ImageFile { get; private set; } = default!;
     public decimal Price { get; private set; }
 
-    public static Product Create(Guid id, string name, List<string> category, string description, string imageFile,
-        decimal price)
+    public static Product Create(Guid id, string name, List<string> category, string description, string imageFile, decimal price)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(price);
@@ -38,15 +36,13 @@ public class Product : Aggregate<Guid>
         Name = name;
         Category = category;
         Description = description;
-        ImageFile = imageFile;
+        ImageFile = imageFile;        
 
         // if price has changed, raise ProductPriceChanged domain event
-        
         if (Price != price)
         {
             Price = price;
             AddDomainEvent(new ProductPriceChangedEvent(this));
         }
-        
     }
 }
