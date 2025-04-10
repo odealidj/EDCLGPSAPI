@@ -13,7 +13,9 @@ public class GetGeofenceMastersEndpoint : ICarterModule
             {
                 var result = await sender.Send(new GetGeofenceMasterQuery(request));
 
-                var response = result.Adapt<GetGeofenceMastersResponse>();
+                //var response = result.Adapt<GetGeofenceMastersResponse>();
+
+                var response = result;
 
                 return Results.Ok(response);
             })

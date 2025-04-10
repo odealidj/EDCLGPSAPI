@@ -42,7 +42,7 @@ public class GpsVendor: Aggregate<Guid>
         ArgumentException.ThrowIfNullOrEmpty(authtype);
 
 
-        var existingItem = Items.FirstOrDefault(x => x.GpsVendorId == gpsVendorId);
+        var existingItem = Items.FirstOrDefault(x => x.Id == id);
 
         if (existingItem != null)
         {

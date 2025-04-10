@@ -23,7 +23,26 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
             true, cancellationToken);
         
         //mapping product entity to ProductDto using Mapster
-        var geofenceMasters = gpsVendors.Adapt<List<GeofenceMasterDto>>();
+        //var geofenceMasters = gpsVendors.Adapt<List<GeofenceMasterDto>>();
+        
+        var geofenceMasters = gpsVendors.Select(gpsVendor => new GeofenceMasterDto
+        {
+            Id = gpsVendor.Id,
+            VendorName = gpsVendor.VendorName,
+            LpcdId = gpsVendor.LpcdId,
+            Timezone = gpsVendor.Timezone,
+            RequiredAuth = gpsVendor.RequiredAuth != null && gpsVendor.RequiredAuth.Value,
+            Items = gpsVendor.Items.Select(item => new GeofenceMasterAuthDto
+            {
+                Id = item.Id,
+                BaseUrl = item.BaseUrl,
+                Method = item.Method,
+                Authtype = item.Authtype,
+                Headers = item.Headers,
+                Params = item.Params,
+                Bodies = item.Bodies
+            }).ToList()
+        }).ToList();
         
         return new GetGeofenceMastersResult(
             new PaginatedResult<GeofenceMasterDto>(
