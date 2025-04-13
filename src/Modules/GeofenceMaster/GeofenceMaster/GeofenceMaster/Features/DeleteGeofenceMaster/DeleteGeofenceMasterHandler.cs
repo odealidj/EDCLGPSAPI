@@ -24,7 +24,7 @@ public class DeleteGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         
         var geofenceMasters = await dbContext.GpsVendors
             .Where(x => x.Id == command.Id)
-            .Include(v => v.Items) // Include child collection
+            .Include(v => v.GpsVendorAuths) // Include child collection
             .ToListAsync(cancellationToken);
 
         if (!geofenceMasters.Any())
@@ -33,7 +33,7 @@ public class DeleteGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         }
 
         // Hapus semua GpsVendorAuth terkait
-        dbContext.GpsVendorAuths.RemoveRange(geofenceMasters.First().Items);
+        dbContext.GpsVendorAuths.RemoveRange(geofenceMasters.First().GpsVendorAuths);
         
         // Hapus GpsVendor
         dbContext.GpsVendors.Remove(geofenceMasters.First());

@@ -5,11 +5,11 @@ public class GpsVendorAuth: Entity<Guid>
 {
     public Guid GpsVendorId { get; set; }
 
-    public string? BaseUrl { get; set; }
+    public string BaseUrl { get; set; } = string.Empty;
 
-    public string? Method { get; set; }
+    public string Method { get; set; } = string.Empty;
 
-    public string? Authtype { get; set; }
+    public string Authtype { get; set; } = string.Empty;
 
     // Gunakan System.Text.Json.Nodes.JsonObject atau JsonDocument untuk JSONB
     

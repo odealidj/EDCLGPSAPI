@@ -13,20 +13,17 @@ public record GeofenceMasterAuthDto(
 );
 */
 
+
 public class GeofenceMasterAuthDto
 {
     // Properti
-    public Guid Id { get; set; }
-    public Guid GpsVendorId { get; set; }
-    public string BaseUrl { get; set; }
-    public string Method { get; set; }
-    public string Authtype { get; set; }
-    //public JsonObject? Headers { get; set; }
+    public Guid Id { get; set; } = Guid.Empty;
+    public Guid GpsVendorId { get; set; } = Guid.Empty;
+    public string BaseUrl { get; set; } = string.Empty;
+    public string Method { get; set; } = string.Empty;
+    public string Authtype { get; set; } = string.Empty;
     public JsonObject? Headers { get; set; }
-    //public JsonObject? Params { get; set; }
-    public JsonObject Params { get; set; }
-    //public JsonObject? Bodies { get; set; }
-    
+    public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
 
     // Constructor tanpa parameter (default)
@@ -41,9 +38,9 @@ public class GeofenceMasterAuthDto
         string baseUrl,
         string method,
         string authtype,
-        JsonObject? headers = null,
-        JsonObject? @params = null,
-        JsonObject? bodies = null)
+        JsonObject? headers,
+        JsonObject? @params,
+        JsonObject? bodies)
     {
         Id = id;
         GpsVendorId = gpsVendorId;

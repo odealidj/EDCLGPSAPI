@@ -50,9 +50,21 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
 
         //Guid gpsVendorId, string baseUrl, string method, string authtype, 
         // JsonObject? headers, JsonObject? @params, JsonObject bodies
+        geofenceMasterDto.GeofenceMasterEndpoints.ForEach(item =>
+        {
+            newGpsVendor.AddGpsVendorEndpoint(
+                Guid.NewGuid(),
+                newGpsVendor.Id,
+                item.BaseUrl,
+                item.Method,
+                item.Headers,
+                item.Params,
+                item.Bodies
+            );
+        });
         
         
-        geofenceMasterDto.Items.ForEach(item =>
+        geofenceMasterDto.GeofenceMasterAuths.ForEach(item =>
         {
             newGpsVendor.AddGpsVendorAuth(
                 Guid.NewGuid(),
