@@ -1,9 +1,7 @@
 global using Microsoft.EntityFrameworkCore;
 global using System.Reflection;
-global using Microsoft.EntityFrameworkCore.Metadata.Builders;
 global using Mapster;
 global using MediatR;
-global using Microsoft.Extensions.Logging;
 global using Carter;
 global using Microsoft.AspNetCore.Builder;
 global using Microsoft.AspNetCore.Http;

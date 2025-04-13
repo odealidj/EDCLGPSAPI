@@ -19,7 +19,17 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                         request.GeofenceMaster.LpcdId,
                         request.GeofenceMaster.Timezone,
                         request.GeofenceMaster.RequiredAuth,
-                        request.GeofenceMaster.Items.Select(item =>
+                        request.GeofenceMaster.GeofenceMasterEndpoints.Select(item =>
+                            new GeofenceMasterEndpointDto(
+                                item.Id,
+                                item.GpsVendorId,
+                                item.BaseUrl,
+                                item.Method,
+                                item.Headers,
+                                item.Params,
+                                item.Bodies
+                            )).ToList(),
+                        request.GeofenceMaster.GeofenceMasterAuths.Select(item =>
                             new GeofenceMasterAuthDto(
                                 item.Id,
                                 item.GpsVendorId,

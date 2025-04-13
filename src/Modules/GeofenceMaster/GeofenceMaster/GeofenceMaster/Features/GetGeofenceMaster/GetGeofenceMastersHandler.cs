@@ -9,30 +9,57 @@ public record GetGeofenceMasterQuery(GetGeoferenceMasterDto GetGeoferenceMaster)
     : IQuery<GetGeofenceMastersResult>;
 public record GetGeofenceMastersResult(PaginatedResult<GeofenceMasterDto> GeofenceMasters);
 
+public class GetGeofenceMastersQueryValidator : AbstractValidator<GetGeofenceMasterQuery>
+{
+    public GetGeofenceMastersQueryValidator()
+    {
+        RuleFor(x => x.GetGeoferenceMaster.PageIndex).NotEmpty().WithMessage("PageIndex is required");
+        RuleFor(x => x.GetGeoferenceMaster.PageSize).NotEmpty().WithMessage("PageSize is required");
+        
+        RuleFor(x => x.GetGeoferenceMaster.PageIndex).LessThan(1).WithMessage("PageIndex must be greater than 0");
+    }
+}
 
 public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
     : IQueryHandler<GetGeofenceMasterQuery, GetGeofenceMastersResult>
 {
     public async Task<GetGeofenceMastersResult> Handle(GetGeofenceMasterQuery query, CancellationToken cancellationToken)
     {
-        // get geofenceMasters
-        var gpsVendors = await repository.GetGeofenceMaster(
+        
+
+        // Panggil kedua metode secara berurutan untuk menghindari masalah DbContext
+        var vendorsTask =  await repository.GetGeofenceMaster(
             query.GetGeoferenceMaster.VendorName, 
-            query.GetGeoferenceMaster.PageIndex, // GetGeoferenceMaster.PaginationRequest.PageIndex,
-            query.GetGeoferenceMaster.PageSize,
-            true, cancellationToken);
+            query.GetGeoferenceMaster.PageIndex, 
+            query.GetGeoferenceMaster.PageSize);
+
+        var totalCountTask = await repository.GetGeofenceMasterCount(
+            query.GetGeoferenceMaster.VendorName);
         
-        //mapping product entity to ProductDto using Mapster
-        //var geofenceMasters = gpsVendors.Adapt<List<GeofenceMasterDto>>();
+
+
+        // Tunggu kedua task selesai
+        //var vendors = await vendorsTask;  // Data untuk vendors
+        //var totalCount = await totalCountTask;  // Jumlah total data
         
-        var geofenceMasters = gpsVendors.Select(gpsVendor => new GeofenceMasterDto
+        
+        var getVendors = vendorsTask.Select(gpsVendor => new GeofenceMasterDto
         {
             Id = gpsVendor.Id,
             VendorName = gpsVendor.VendorName,
             LpcdId = gpsVendor.LpcdId,
             Timezone = gpsVendor.Timezone,
             RequiredAuth = gpsVendor.RequiredAuth != null && gpsVendor.RequiredAuth.Value,
-            Items = gpsVendor.Items.Select(item => new GeofenceMasterAuthDto
+            GeofenceMasterEndpoints = gpsVendor.GpsVendorEndpoints.Select(item => new GeofenceMasterEndpointDto
+            {
+                Id = item.Id,
+                BaseUrl = item.BaseUrl,
+                Method = item.Method,
+                Headers = item.Headers,
+                Params = item.Params,
+                Bodies = item.Bodies
+            }).ToList(),
+            GeofenceMasterAuths = gpsVendor.GpsVendorAuths.Select(item => new GeofenceMasterAuthDto
             {
                 Id = item.Id,
                 BaseUrl = item.BaseUrl,
@@ -48,9 +75,10 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
             new PaginatedResult<GeofenceMasterDto>(
                 query.GetGeoferenceMaster.PageIndex,
                 query.GetGeoferenceMaster.PageSize,
-                0,
-                geofenceMasters)
+                totalCountTask,
+                getVendors)
         );
+        
 
     }
 }

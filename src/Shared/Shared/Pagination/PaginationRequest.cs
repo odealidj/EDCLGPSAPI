@@ -1,2 +1,2 @@
 ﻿namespace Shared.Pagination;
-public record PaginationRequest(int PageIndex = 0, int PageSize = 10);
+public record PaginationRequest(int PageIndex = 1, int PageSize = 10);

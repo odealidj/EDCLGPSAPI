@@ -8,12 +8,6 @@ public static class GeofenceMasterModule
     public static IServiceCollection AddGeofenceMasterModule(this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Add services to the container.
-
-        // Api Endpoint services
-
-        // Application Use Case services       
-        services.AddScoped<IGeofenceMasterRepository, GeofenceMasterRepository>();
         
         // Data - Infrastructure services
         var connectionString = configuration.GetConnectionString("Database");
@@ -25,7 +19,27 @@ public static class GeofenceMasterModule
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseNpgsql(connectionString);
+            //.EnableSensitiveDataLogging()
+            //.LogTo(Console.WriteLine, LogLevel.Information);
+        },ServiceLifetime.Scoped);
+        
+        // Add services to the container.
+
+        // Api Endpoint services
+
+        // Application Use Case services       
+        services.AddScoped<IGeofenceMasterRepository, GeofenceMasterRepository>();
+        
+        // Tambahkan factory method untuk IGeofenceMasterRepository
+        /*
+        services.AddTransient<Func<IGeofenceMasterRepository>>(serviceProvider => () =>
+        {
+            var dbContext = serviceProvider.GetRequiredService<GeofenceMasterDbContext>();
+            return new GeofenceMasterRepository(dbContext);
         });
+        */
+        
+        
 
         ////services.AddScoped<IDataSeeder, CatalogDataSeeder>();
 

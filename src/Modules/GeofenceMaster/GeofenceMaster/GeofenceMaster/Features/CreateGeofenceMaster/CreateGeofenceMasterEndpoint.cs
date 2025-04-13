@@ -15,14 +15,24 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                 
                 var command = new CreateGeofenceMasterCommand(
                     new GeofenceMasterDto(
-                        Guid.NewGuid(),
+                        Guid.Empty,
                         request.GeofenceMaster.VendorName,
                         request.GeofenceMaster.LpcdId,
                         request.GeofenceMaster.Timezone,
                         request.GeofenceMaster.RequiredAuth,
-                        request.GeofenceMaster.Items.Select(item =>
+                        request.GeofenceMaster.GeofenceMasterEndpoints.Select(item =>
+                            new GeofenceMasterEndpointDto(
+                                Guid.Empty,
+                                item.GpsVendorId,
+                                item.BaseUrl,
+                                item.Method,
+                                item.Headers,
+                                item.Params,
+                                item.Bodies
+                            )).ToList(),
+                        request.GeofenceMaster.GeofenceMasterAuths.Select(item =>
                             new GeofenceMasterAuthDto(
-                                item.Id,
+                                Guid.Empty,
                                 item.GpsVendorId,
                                 item.BaseUrl,
                                 item.Method,

@@ -25,12 +25,13 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
     {
         var geofenceMasters = await dbContext.GpsVendors
             .Where(x => x.Id == command.GeofenceMaster.Id)
-            .Include( x => x.Items)
+            .Include( x => x.GpsVendorAuths)
             .ToListAsync(cancellationToken);
 
         if (!geofenceMasters.Any())
         {
-            throw new GeofenceMasterNotFoundException(command.GeofenceMaster.Id.Value);
+            if (command.GeofenceMaster.Id != null)
+                throw new GeofenceMasterNotFoundException(command.GeofenceMaster.Id.Value);
         }
         
         // Step 2: Update properti utama GpsVendor
@@ -39,8 +40,26 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         geofenceMasters.First().Timezone = command.GeofenceMaster.Timezone;
         geofenceMasters.First().RequiredAuth = command.GeofenceMaster.RequiredAuth;
         
+        
+        // Step 3: Update atau tambahkan GpsVendorEndpoint berdasarkan Items di GeofenceMasterDto
+        foreach (var itemDto in command.GeofenceMaster.GeofenceMasterEndpoints)
+        {
+            //var existingItem = geofenceMasters.First().Items
+            //    .FirstOrDefault(x => x.Id == itemDto.Id);
+            
+            geofenceMasters.First().AddGpsVendorEndpoint(
+                itemDto.Id,
+                geofenceMasters.First().Id,
+                itemDto.BaseUrl,
+                itemDto.Method,
+                itemDto.Headers,
+                itemDto.Params,
+                itemDto.Bodies);
+        }
+        
+        
         // Step 3: Update atau tambahkan GpsVendorAuth berdasarkan Items di GeofenceMasterDto
-        foreach (var itemDto in command.GeofenceMaster.Items)
+        foreach (var itemDto in command.GeofenceMaster.GeofenceMasterAuths)
         {
             //var existingItem = geofenceMasters.First().Items
             //    .FirstOrDefault(x => x.Id == itemDto.Id);

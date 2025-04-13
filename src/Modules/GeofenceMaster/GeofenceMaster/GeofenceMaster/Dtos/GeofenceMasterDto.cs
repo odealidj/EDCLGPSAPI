@@ -15,17 +15,19 @@ public record GeofenceMasterDto(
 public class GeofenceMasterDto
 {
     // Properti
-    public Guid? Id { get; set; }
-    public string VendorName { get; set; }
-    public string LpcdId { get; set; }
+    public Guid? Id { get; set; } = Guid.Empty; // Menggunakan Guid.Empty sebagai nilai default
+    public string VendorName { get; set; } = string.Empty; 
+    public string LpcdId { get; set; } = string.Empty;
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
-    public List<GeofenceMasterAuthDto> Items { get; set; }
+    public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; }
+    public List<GeofenceMasterAuthDto> GeofenceMasterAuths { get; set; }
 
     // Constructor tanpa parameter (default)
     public GeofenceMasterDto()
     {
-        Items = new List<GeofenceMasterAuthDto>(); // Inisialisasi list agar tidak null
+        GeofenceMasterEndpoints = new List<GeofenceMasterEndpointDto>();
+        GeofenceMasterAuths = new List<GeofenceMasterAuthDto>(); // Inisialisasi list agar tidak null
     }
 
     // Constructor dengan parameter
@@ -35,19 +37,21 @@ public class GeofenceMasterDto
         string lpcdId,
         string? timezone,
         bool requiredAuth,
-        List<GeofenceMasterAuthDto> items)
+        List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
+        List<GeofenceMasterAuthDto> geofenceMasterAuths)
     {
         Id = id;
         VendorName = vendorName;
         LpcdId = lpcdId;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
-        Items = items ?? new List<GeofenceMasterAuthDto>(); // Pastikan list tidak null
+        GeofenceMasterEndpoints = geofenceMasterEndpoints ?? new List<GeofenceMasterEndpointDto>(); // Pastikan list tidak null
+        GeofenceMasterAuths = geofenceMasterAuths ?? new List<GeofenceMasterAuthDto>(); // Pastikan list tidak null
     }
-
+    
     // Override ToString untuk debugging (opsional)
     public override string ToString()
     {
-        return $"Id: {Id}, VendorName: {VendorName}, LpcdId: {LpcdId}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, Items: [{string.Join(", ", Items)}]";
+        return $"Id: {Id}, VendorName: {VendorName}, LpcdId: {LpcdId}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, GeofenceMasterEndpoints: [{string.Join(", ", GeofenceMasterEndpoints)}], GeofenceMasterAuths: [{string.Join(", ", GeofenceMasterAuths)}]";
     }
 }

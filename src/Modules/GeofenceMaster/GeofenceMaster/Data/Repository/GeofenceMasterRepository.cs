@@ -3,6 +3,7 @@ using GeofenceMaster.GeofenceMaster.Models;
 
 namespace GeofenceMaster.Data.Repository;
 
+// GeofenceMasterDbContext dbContext
 public class GeofenceMasterRepository(GeofenceMasterDbContext dbContext)
     : IGeofenceMasterRepository
 {
@@ -13,44 +14,54 @@ public class GeofenceMasterRepository(GeofenceMasterDbContext dbContext)
         return gpsVendor;
     }
 
-    public async Task<IEnumerable<GpsVendor>> GetGeofenceMaster(string? vendorName, int pageIndex, int pageSize, bool asNoTracking = true, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<GpsVendor>> GetGeofenceMaster(
+        string? vendorName, 
+        int pageIndex, 
+        int pageSize, 
+        bool asNoTracking = true, 
+        CancellationToken cancellationToken = default)
     {
-        var baseQuery = dbContext.GpsVendors.AsQueryable();
+        var query = dbContext.GpsVendors
+            .AsQueryable();
 
+        // Filter by vendor name (optional)
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
-            baseQuery = baseQuery.Where(x => x.VendorName.Contains(vendorName));
+            query = query.Where(x => x.VendorName.Contains(vendorName));
         }
-
+        
         if (asNoTracking)
         {
-            baseQuery = baseQuery.AsNoTracking();
+            query = query.AsNoTracking();
+        }
+        
+        // Apply pagination and order by VendorName
+        var pagedVendors = await query
+            .OrderBy(x => x.VendorName) // Sorting by VendorName
+            .ThenBy(x => x.Id) // Sorting by Id for the vendors
+            .Skip(pageIndex * pageSize) // Pagination - Skip records for the current page
+            .Take(pageSize) // Take only the number of records specified by pageSize
+            .Include(x => x.GpsVendorEndpoints) // Include related GpsVendorEndpoints
+            .Include(x => x.GpsVendorAuths) // Include related GpsVendorAuths
+            .ToListAsync(cancellationToken); // Execute the query and retrieve the results
+
+        return pagedVendors;
+    }
+
+    public async Task<int> GetGeofenceMasterCount(string? vendorName, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.GpsVendors
+            .AsQueryable();
+
+        // Filter by vendor name (optional)
+        if (!string.IsNullOrWhiteSpace(vendorName))
+        {
+            query = query.Where(x => x.VendorName.Contains(vendorName));
         }
 
-        // Step 1: Ambil hasil paged dari baseQuery
-        var pagedList = await baseQuery
-            .OrderBy(x => x.VendorName)
-            .Skip(pageIndex * pageSize)
-            .Take(pageSize)
-            .Select(x => new { x.Id, x.VendorName }) // pilih Id dan jaga urutan
-            .ToListAsync(cancellationToken);
-
-        var orderedIds = pagedList.Select(x => x.Id).ToList();
-
-        // Step 2: Ambil detail + Include berdasarkan ID hasil paginasi
-        var pagedVendors = await dbContext.GpsVendors
-            .Where(x => orderedIds.Contains(x.Id))
-            .Include(x => x.Items)
-            .ToListAsync(cancellationToken);
-
-        // Step 3: Jaga urutan sesuai hasil paging sebelumnya
-        var result = orderedIds
-            .Join(pagedVendors, id => id, vendor => vendor.Id, (id, vendor) => vendor)
-            .ToList();
-
-        return result;
-        
-
+        // Return the total count
+        var count = await query.CountAsync(cancellationToken);
+        return count;
     }
 
     public async Task<int> SaveChangesAsync(string? userName = null, CancellationToken cancellationToken = default)
