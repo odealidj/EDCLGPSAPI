@@ -70,6 +70,7 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 itemDto.BaseUrl,
                 itemDto.Method,
                 itemDto.Authtype,
+                itemDto.TokenPath,
                 itemDto.Headers,
                 itemDto.Params,
                 itemDto.Bodies);
