@@ -36,6 +36,7 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                                 item.BaseUrl,
                                 item.Method,
                                 item.Authtype,
+                                item.TokenPath,
                                 item.Headers,
                                 item.Params,
                                 item.Bodies

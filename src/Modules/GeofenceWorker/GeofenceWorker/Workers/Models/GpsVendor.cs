@@ -61,7 +61,7 @@ public class GpsVendor: Aggregate<Guid>
         
     }
     
-    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
+    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype, string tokenPath,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
@@ -75,6 +75,7 @@ public class GpsVendor: Aggregate<Guid>
             Auth.BaseUrl = baseUrl;
             Auth.Method = method;
             Auth.Authtype = authtype;
+            Auth.TokenPath = tokenPath;
             Auth.Headers = headers;
             Auth.Params = @params;
             Auth.Bodies = bodies;
@@ -82,7 +83,7 @@ public class GpsVendor: Aggregate<Guid>
         else
         {
             // Create new GpsVendorEndpoint
-            Auth = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, headers, @params, bodies);
+            Auth = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, tokenPath, headers, @params, bodies);
         }
 
     }

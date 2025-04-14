@@ -151,15 +151,18 @@ public class Worker : BackgroundService
             if (tokenResponse.IsSuccessStatusCode)
             {
                 var tokenResult = await tokenResponse.Content.ReadAsStringAsync();
-                _logger.LogInformation("Successfully retrieved token for Vendor {VendorName}: {Token}", auth.GpsVendor.VendorName, tokenResult);
+                _logger.LogInformation("Successfully retrieved token for Vendor {VendorName}: {Token}", auth.GpsVendor?.VendorName, tokenResult);
 
-                // Parse the response to extract token from the JSON response
-                var jsonResponse = JsonSerializer.Deserialize<JsonObject>(tokenResult);
-                var token = jsonResponse?["message"]?["data"]?["token"]?.ToString();
+                // Parse the response to extract token dynamically based on TokenPath
+                var jsonResponse = JsonSerializer.Deserialize<JsonElement>(tokenResult); // Deserialize to JsonElement
+
+                // Use the TokenPath to extract the token dynamically
+                var tokenPath = auth.TokenPath?.Split('.') ?? Array.Empty<string>();
+                var token = ExtractTokenPath(jsonResponse, tokenPath); // Use ExtractToken with JsonElement
 
                 if (string.IsNullOrEmpty(token))
                 {
-                    _logger.LogError("Token not found in the response for Vendor {VendorName}", auth.GpsVendor.VendorName);
+                    _logger.LogError("Token not found in the response for Vendor {VendorName}", auth.GpsVendor?.VendorName);
                     return string.Empty; // Return empty string if no token found
                 }
 
@@ -167,14 +170,38 @@ public class Worker : BackgroundService
             }
             else
             {
-                _logger.LogError("Failed to get token for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", auth.GpsVendor.VendorName, tokenResponse.StatusCode, tokenResponse.ReasonPhrase);
+                _logger.LogError("Failed to get token for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", auth.GpsVendor?.VendorName, tokenResponse.StatusCode, tokenResponse.ReasonPhrase);
                 return string.Empty;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while retrieving token for Vendor {VendorName}", auth.GpsVendor.VendorName);
+            _logger.LogError(ex, "Error occurred while retrieving token for Vendor {VendorName}", auth.GpsVendor?.VendorName);
             return string.Empty;
         }
     }
+    
+    // Helper method to extract token dynamically using the TokenPath
+    private string ExtractTokenPath(JsonElement jsonResponse, string[] tokenPath)
+    {
+        JsonElement currentElement = jsonResponse;
+
+        foreach (var path in tokenPath)
+        {
+            // Try to get property based on the path
+            if (currentElement.TryGetProperty(path, out JsonElement nextElement))
+            {
+                currentElement = nextElement;
+            }
+            else
+            {
+                return string.Empty; // Return empty if path does not exist
+            }
+        }
+
+        return currentElement.GetString() ?? string.Empty; // Return the token or empty if not found
+    }
+
+    
+    
 }
