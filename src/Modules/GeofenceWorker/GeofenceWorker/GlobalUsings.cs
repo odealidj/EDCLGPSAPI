@@ -1,6 +1,1 @@
-namespace GeofenceWorker;
-
-public class GlobalUsings
-{
-    
-}
+global using Shared.DDD;
