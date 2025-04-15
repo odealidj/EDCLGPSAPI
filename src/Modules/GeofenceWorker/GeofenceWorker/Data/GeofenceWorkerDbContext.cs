@@ -1,10 +1,7 @@
 using System.Reflection;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using GeofenceWorker.Data.JsonConverters;
 using GeofenceWorker.Workers.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace GeofenceWorker.Data;
 
@@ -16,7 +13,13 @@ public class GeofenceWorkerDbContext: DbContext
     public DbSet<GpsVendor> GpsVendors => Set<GpsVendor>();
     public DbSet<GpsVendorEndpoint> GpsVendorEndpoints => Set<GpsVendorEndpoint>();
     
-    public DbSet<GpsVendorAuth> GpsVendorAuths => Set<GpsVendorAuth>();
+    public DbSet<Mapping> Mappings => Set<Mapping>();
+    
+    public DbSet<ResponseFormat> ResponseFormats => Set<ResponseFormat>();
+    
+    public DbSet<GpsLastPositionH> GpsLastPositionHs => Set<GpsLastPositionH>();
+    public DbSet<GpsLastPositionD> GpsLastPositionDs => Set<GpsLastPositionD>();
+    public DbSet<GpsLastPositionD> GpsDeliveries => Set<GpsLastPositionD>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -59,7 +62,11 @@ public class GeofenceWorkerDbContext: DbContext
                 .HasColumnType("jsonb");
         });
         
-
+        builder.Entity<Mapping>().ToTable("tb_m_mapping");
+        builder.Entity<ResponseFormat>().ToTable("tb_m_response_format");
+        builder.Entity<GpsLastPositionH>().ToTable("tb_r_gps_last_position_h");
+        builder.Entity<GpsLastPositionD>().ToTable("tb_r_gps_last_position_d");
+        builder.Entity<GpsDelivery>().ToTable("tb_r_gps_delivery");
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);

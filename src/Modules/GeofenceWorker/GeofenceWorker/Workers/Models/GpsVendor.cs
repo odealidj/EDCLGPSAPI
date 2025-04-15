@@ -38,6 +38,7 @@ public class GpsVendor: Aggregate<Guid>
     }
     
     public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
+        string contentType,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
@@ -49,6 +50,7 @@ public class GpsVendor: Aggregate<Guid>
             // Update existing GpsVendorEndpoint
             Endpoint.BaseUrl = baseUrl;
             Endpoint.Method = method;
+            Endpoint.ContentType = contentType;
             Endpoint.Headers = headers;
             Endpoint.Params = @params;
             Endpoint.Bodies = bodies;
@@ -56,12 +58,14 @@ public class GpsVendor: Aggregate<Guid>
         else
         {
             // Create new GpsVendorEndpoint
-            Endpoint = new GpsVendorEndpoint(id, gpsVendorId, baseUrl, method, headers, @params, bodies);
+            Endpoint = new GpsVendorEndpoint(id, gpsVendorId, baseUrl,  method, contentType, headers, @params, bodies);
         }
         
     }
     
-    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype, string tokenPath,
+    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
+        string contentType, string? username, string? password,
+        string tokenPath,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
@@ -75,6 +79,9 @@ public class GpsVendor: Aggregate<Guid>
             Auth.BaseUrl = baseUrl;
             Auth.Method = method;
             Auth.Authtype = authtype;
+            Auth.ContentType = contentType;
+            Auth.Username = username;
+            Auth.Password = password;
             Auth.TokenPath = tokenPath;
             Auth.Headers = headers;
             Auth.Params = @params;
@@ -83,7 +90,7 @@ public class GpsVendor: Aggregate<Guid>
         else
         {
             // Create new GpsVendorEndpoint
-            Auth = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, tokenPath, headers, @params, bodies);
+            Auth = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, contentType, username, password, tokenPath, headers, @params, bodies);
         }
 
     }
