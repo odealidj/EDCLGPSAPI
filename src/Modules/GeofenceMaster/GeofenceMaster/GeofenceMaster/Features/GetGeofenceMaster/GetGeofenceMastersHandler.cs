@@ -16,7 +16,7 @@ public class GetGeofenceMastersQueryValidator : AbstractValidator<GetGeofenceMas
         RuleFor(x => x.GetGeoferenceMaster.PageIndex).NotEmpty().WithMessage("PageIndex is required");
         RuleFor(x => x.GetGeoferenceMaster.PageSize).NotEmpty().WithMessage("PageSize is required");
         
-        RuleFor(x => x.GetGeoferenceMaster.PageIndex).LessThan(1).WithMessage("PageIndex must be greater than 0");
+        RuleFor(x => x.GetGeoferenceMaster.PageIndex).GreaterThan(0).WithMessage("PageIndex must be greater than 0");
     }
 }
 
@@ -53,6 +53,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
             GeofenceMasterEndpoints = gpsVendor.GpsVendorEndpoints.Select(item => new GeofenceMasterEndpointDto
             {
                 Id = item.Id,
+                GpsVendorId = item.GpsVendorId,
                 BaseUrl = item.BaseUrl,
                 Method = item.Method,
                 Headers = item.Headers,
@@ -62,6 +63,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
             GeofenceMasterAuths = gpsVendor.GpsVendorAuths.Select(item => new GeofenceMasterAuthDto
             {
                 Id = item.Id,
+                GpsVendorId = item.GpsVendorId,
                 BaseUrl = item.BaseUrl,
                 Method = item.Method,
                 Authtype = item.Authtype,
