@@ -15,4 +15,9 @@
       <Folder Include="Workers\Dtos\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="Workers\Models\GpsLastPositionD.cs" />
+      <Compile Remove="Workers\Models\GpsLastPositionH.cs" />
+    </ItemGroup>
+
 </Project>

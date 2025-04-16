@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\..\Modules\GeofenceWorker\GeofenceWorker\GeofenceWorker.csproj" />
+      <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
     </ItemGroup>
 
     <ItemGroup>

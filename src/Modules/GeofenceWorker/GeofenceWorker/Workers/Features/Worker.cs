@@ -147,20 +147,12 @@ public class Worker : BackgroundService
             dataItems = rootObject.SelectToken(dataPath)?.Children().ToList() ?? new List<JToken>();
         }
 
-        var gpsLastPositionH = new GpsLastPositionH
-        {
-            Id = Guid.NewGuid(),
-            GpsVendorId = gpsVendor.Id
-        };
-        
-        await _context.GpsLastPositionHs.AddAsync(gpsLastPositionH);
-
         foreach (var dataItem in dataItems)
         {
-            var gpsLastPositionD = new GpsLastPositionD
+            var gpsLastPosition = new GpsLastPosition
             {
                 Id = Guid.NewGuid(),
-                GpsLastPositionIdH = gpsLastPositionH.Id
+                GpsVendorId = gpsVendor.Id
             };
 
             foreach (var mapping in mappings)
@@ -172,7 +164,7 @@ public class Worker : BackgroundService
                     if (valueToken == null) continue;
 
                     // 5. Set properti di VehicleData menggunakan refleksi
-                    PropertyInfo? property = typeof(GpsLastPositionD).GetProperty(mapping.MappedField);
+                    PropertyInfo? property = typeof(GpsLastPosition).GetProperty(mapping.MappedField);
                     if (property == null) continue;
 
                     //object? value = valueToken.ToObject(property.PropertyType);
@@ -205,14 +197,14 @@ public class Worker : BackgroundService
                         value = valueToken.ToObject(property.PropertyType);
                     }
                     
-                    property.SetValue(gpsLastPositionD, value);
+                    property.SetValue(gpsLastPosition, value);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error mapping {mapping.MappedField}: {ex.Message}");
                 }
             }
-            await _context.GpsLastPositionDs.AddAsync(gpsLastPositionD);
+            await _context.GpsLastPositions.AddAsync(gpsLastPosition);
         }
 
         await _context.SaveChangesAsync();
