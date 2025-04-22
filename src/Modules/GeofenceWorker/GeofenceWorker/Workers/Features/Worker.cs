@@ -5,11 +5,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using GeofenceWorker.Data;
 using GeofenceWorker.Workers.Models;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
+using Shared.Messaging.Events;
 
 namespace GeofenceWorker.Workers.Features;
 
@@ -18,14 +20,21 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly HttpClient _httpClient;
-
+    private readonly IBus _bus;
+    ////private readonly IPublishEndpoint _publishEndpoint;
     public Worker( IServiceScopeFactory scopeFactory, 
+        IBus bus,
+        ////IPublishEndpoint publishEndpoint,
         HttpClient httpClient, 
         ILogger<Worker> logger)
     {
         _scopeFactory = scopeFactory;
         _httpClient = httpClient;
+        _bus = bus; 
+        ////_publishEndpoint = publishEndpoint;
         _logger = logger;
+        
+        
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -99,7 +108,25 @@ public class Worker : BackgroundService
                         var responseData = await response.Content.ReadAsStringAsync();
                         
                         
-                        await ProcessVendorResponse(vendor,responseData, context);
+                        var responseMapping = await ProcessVendorResponse(vendor,responseData, context);
+
+                        //await _bus.Publish(responseMapping, stoppingToken);
+                        
+                        var message = new TestMessage
+                        {
+                            Text = "Hello, MassTransit with RabbitMQ!"
+                        };
+
+                        var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();  // Mendapatkan IPublishEndpoint dari scope
+
+                        var listGpsLastPosition = new ListGpsLastPosition
+                        {
+                            GpsLastPositions = responseMapping
+                        };
+                        
+                        // Mengirim pesan ke RabbitMQ
+                        await _bus.Publish(listGpsLastPosition, stoppingToken);
+                        
                         _logger.LogInformation("Successfully called endpoint for Vendor {VendorName}: {ResponseData}", vendor.VendorName, responseData);
                         
                         
@@ -122,8 +149,18 @@ public class Worker : BackgroundService
         }
     }
     
+    public class TestMessage
+    {
+        public string Text { get; set; }
+    }
     
-    private async Task ProcessVendorResponse(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
+    public class ListGpsLastPosition
+    {
+        public List<GpsLastPosition> GpsLastPositions { get; set; }
+    }
+    
+    
+    private async Task ProcessVendorResponse1(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
     {
         // 1. Ambil semua mapping untuk vendor
         var mappings = await _context.Mappings
@@ -149,6 +186,8 @@ public class Worker : BackgroundService
 
         foreach (var dataItem in dataItems)
         {
+            
+            
             var gpsLastPosition = new GpsLastPosition
             {
                 Id = Guid.NewGuid(),
@@ -204,11 +243,123 @@ public class Worker : BackgroundService
                     Console.WriteLine($"Error mapping {mapping.MappedField}: {ex.Message}");
                 }
             }
-            await _context.GpsLastPositions.AddAsync(gpsLastPosition);
+
+
+            
+            await _context.GpsLastPositions.AddAsync(CreateNewGpsLastPosition(gpsLastPosition));
         }
 
         await _context.SaveChangesAsync();
     }
+    
+    private async Task<List<GpsLastPosition>> ProcessVendorResponse(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
+    {
+        // 1. Ambil semua mapping untuk vendor
+        var mappings = await _context.Mappings
+            .Where(v => v.GpsVendorId == gpsVendor.Id)
+            .ToListAsync();
+
+        // 2. Parse JSON sebagai JToken (bisa object atau array)
+        var token = JToken.Parse(jsonResponse);
+        List<JToken> dataItems = new List<JToken>();
+
+        // 3. Deteksi tipe root JSON
+        if (token is JArray rootArray)
+        {
+            // Jika root adalah array (contoh: [ {...}, {...} ])
+            dataItems = rootArray.Children().ToList();
+        }
+        else if (token is JObject rootObject)
+        {
+            // Jika root adalah object (contoh: { "data": [...] })
+            string dataPath = mappings.First().DataPath ?? string.Empty;
+            dataItems = rootObject.SelectToken(dataPath)?.Children().ToList() ?? new List<JToken>();
+        }
+
+        var gpsLastPositions = new List<GpsLastPosition>();
+
+        foreach (var dataItem in dataItems)
+        {
+            var gpsLastPosition = new GpsLastPosition
+            {
+                Id = Guid.NewGuid(),
+                GpsVendorId = gpsVendor.Id
+            };
+
+            foreach (var mapping in mappings)
+            {
+                try
+                {
+                    // 4. Ekstrak nilai dari JSON
+                    var valueToken = dataItem.SelectToken(mapping.ResponseField);
+                    if (valueToken == null) continue;
+
+                    // 5. Set properti di VehicleData menggunakan refleksi
+                    PropertyInfo? property = typeof(GpsLastPosition).GetProperty(mapping.MappedField);
+                    if (property == null) continue;
+
+                    object value;
+                    Type propType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+
+                    if (propType == typeof(DateTime))
+                    {
+                        if (valueToken.Type == JTokenType.Null)
+                        {
+                            value = null;
+                        }
+                        else
+                        {
+                            var dateTimeValue = valueToken.ToObject<DateTime>();
+                            value = dateTimeValue.Kind == DateTimeKind.Unspecified 
+                                ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc)
+                                : dateTimeValue.ToUniversalTime();
+                        }
+
+                        // Jika properti nullable, konversi ke tipe nullable
+                        if (property.PropertyType != propType)
+                        {
+                            value = Activator.CreateInstance(property.PropertyType, value);
+                        }
+                    }
+                    else
+                    {
+                        value = valueToken.ToObject(property.PropertyType);
+                    }
+                    
+                    property.SetValue(gpsLastPosition, value);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error mapping {mapping.MappedField}: {ex.Message}");
+                }
+            }
+
+            gpsLastPositions.Add(gpsLastPosition);
+        }
+
+        return gpsLastPositions;
+    }
+     
+    private GpsLastPosition CreateNewGpsLastPosition(GpsLastPosition gpsLastPosition)
+    {
+        var data = GpsLastPosition.Create(
+            Guid.NewGuid(),
+            gpsLastPosition.GpsVendorId,
+            gpsLastPosition.Lpcd,
+            gpsLastPosition.PlatNo ?? string.Empty,
+            gpsLastPosition.DeviceId ?? string.Empty,
+            gpsLastPosition.Datetime,
+            gpsLastPosition.X,
+            gpsLastPosition.Y,
+            gpsLastPosition.Speed,
+            gpsLastPosition.Course,
+            gpsLastPosition.StreetName?? String.Empty
+            );
+
+        return data;
+    }
+    
+    
     // Metode untuk menentukan path data array (jika root bukan array)
     private string GetDataArrayPath(string vendorName)
     {
