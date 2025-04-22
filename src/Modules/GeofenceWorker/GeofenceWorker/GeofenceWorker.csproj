@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
       <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
     </ItemGroup>
 
@@ -18,6 +19,12 @@
     <ItemGroup>
       <Compile Remove="Workers\Models\GpsLastPositionD.cs" />
       <Compile Remove="Workers\Models\GpsLastPositionH.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="MassTransit.Abstractions">
+        <HintPath>..\..\..\..\..\..\..\..\..\.nuget\packages\masstransit.abstractions\8.4.0\lib\net9.0\MassTransit.Abstractions.dll</HintPath>
+      </Reference>
     </ItemGroup>
 
 </Project>
