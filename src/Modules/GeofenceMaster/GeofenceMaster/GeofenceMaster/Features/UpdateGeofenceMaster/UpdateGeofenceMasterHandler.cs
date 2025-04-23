@@ -40,6 +40,8 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         geofenceMasters.First().Timezone = command.GeofenceMaster.Timezone;
         geofenceMasters.First().RequiredAuth = command.GeofenceMaster.RequiredAuth;
         geofenceMasters.First().ProcessingStrategy = command.GeofenceMaster.ProcessingStrategy;
+        geofenceMasters.First().ProcessingStrategyPathData = command.GeofenceMaster.ProcessingStrategyPathData;
+        geofenceMasters.First().ProcessingStrategyPathColumn = command.GeofenceMaster.ProcessingStrategyPathColumn;
         
         
         // Step 3: Update atau tambahkan GpsVendorEndpoint berdasarkan Items di GeofenceMasterDto
@@ -71,6 +73,9 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 itemDto.BaseUrl,
                 itemDto.Method,
                 itemDto.Authtype,
+                itemDto.ContentType,
+                itemDto.Username,
+                itemDto.Password,
                 itemDto.TokenPath,
                 itemDto.Headers,
                 itemDto.Params,

@@ -12,7 +12,9 @@ public class GpsVendor: Aggregate<Guid>
     
     public string ProcessingStrategy { get; set; } = "Individual";
     
-    public string? ProcessingStrategyColumn { get; set; }
+    public string? ProcessingStrategyPathData{ get; set; }
+    
+    public string ProcessingStrategyPathColumn { get; set; }
     
     private readonly List<GpsVendorEndpoint>  _gpsVendorEndpoints = new();
     public IReadOnlyList<GpsVendorEndpoint> GpsVendorEndpoints => _gpsVendorEndpoints.AsReadOnly();
@@ -21,7 +23,7 @@ public class GpsVendor: Aggregate<Guid>
     public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
     
     public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 
-        string processingStrategy, string? processingStrategyColumn)
+        string processingStrategy, string? processingStrategyPathData, string processingStrategyPathColumn)
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
         ArgumentException.ThrowIfNullOrEmpty(lpcdId);
@@ -34,7 +36,8 @@ public class GpsVendor: Aggregate<Guid>
             Timezone = timezone,
             RequiredAuth = requiredAuth,
             ProcessingStrategy = processingStrategy,
-            ProcessingStrategyColumn = processingStrategyColumn
+            ProcessingStrategyPathData = processingStrategyPathData,
+            ProcessingStrategyPathColumn = processingStrategyPathColumn
         };
 
         ////gpsVendor.AddDomainEvent(new GpsVendorCreatedEvent(gpsVendor));
@@ -68,7 +71,9 @@ public class GpsVendor: Aggregate<Guid>
         }
     }
     
-    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype, string tokenPath,
+    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
+        string contentType, string? username, string? password,
+        string tokenPath,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
@@ -85,6 +90,9 @@ public class GpsVendor: Aggregate<Guid>
             existingItem.BaseUrl = baseUrl;
             existingItem.Method = method;
             existingItem.Authtype = authtype;
+            existingItem.ContentType = contentType;
+            existingItem.Username = username;
+            existingItem.Password = password;
             existingItem.TokenPath = tokenPath;
             existingItem.Headers = headers;
             existingItem.Params = @params;
@@ -93,7 +101,16 @@ public class GpsVendor: Aggregate<Guid>
         }
         else
         {
-            var newItem = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, tokenPath, headers, @params, bodies);
+            var newItem = new GpsVendorAuth(
+                id, 
+                gpsVendorId, 
+                baseUrl, 
+                method, 
+                authtype, 
+                contentType,
+                username,
+                password,
+                tokenPath, headers, @params, bodies);
             _gpsVendorAuths.Add(newItem);
         }
     }
