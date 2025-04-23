@@ -47,7 +47,8 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
             geofenceMasterDto.Timezone,
             geofenceMasterDto.RequiredAuth,
             geofenceMasterDto.ProcessingStrategy,
-            geofenceMasterDto.ProcessingStrategyColumn
+            geofenceMasterDto.ProcessingStrategyPathData,
+            geofenceMasterDto.ProcessingStrategyPathColumn
             );
             
 
@@ -75,6 +76,9 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
                 item.BaseUrl,
                 item.Method,
                 item.Authtype,
+                item.ContentType,
+                item.Username,
+                item.Password,
                 item.TokenPath,
                 item.Headers,
                 item.Params,

@@ -23,6 +23,10 @@ public class GeofenceMasterAuthDto
     public string Method { get; set; } = string.Empty;
     public string Authtype { get; set; } = string.Empty;
     
+    public string ContentType { get; set; } = "application/json";
+    
+    public string? Username { get; set; } = string.Empty;
+    public string? Password { get; set; } = string.Empty;
     public string TokenPath { get; set; } = string.Empty;
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
