@@ -13,11 +13,22 @@ public class GpsVendor: Aggregate<Guid>
 
     public bool RequiredAuth { get; set; }
 
-    public GpsVendorEndpoint Endpoint { get; set; } = null!; 
+    public string ProcessingStrategy { get; set; } = "Individual"; 
+    
+    public string? ProcessingStrategyColumn { get; set; }
+    
+    private readonly List<GpsVendorEndpoint>  _endpoints = new();
+    public IReadOnlyList<GpsVendorEndpoint> Endpoints => _endpoints.AsReadOnly();
+    
+    ////private readonly List<GpsVendorAuth>  _gpsVendorAuths = new();
+    ////public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
+
+    ////public GpsVendorEndpoint Endpoint { get; set; } = null!; 
     public GpsVendorAuth? Auth { get; set; } 
     
        
-    public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth)
+    public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 
+        string processingStrategy, string? processingStrategyColumn )
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
         ArgumentException.ThrowIfNullOrEmpty(lpcdId);
@@ -28,7 +39,9 @@ public class GpsVendor: Aggregate<Guid>
             VendorName = vendorName,
             LpcdId = lpcdId,
             Timezone = timezone,
-            RequiredAuth = requiredAuth
+            RequiredAuth = requiredAuth,
+            ProcessingStrategy = processingStrategy,
+            ProcessingStrategyColumn = processingStrategyColumn
            
         };
 
@@ -37,6 +50,7 @@ public class GpsVendor: Aggregate<Guid>
         return gpsVendor;
     }
     
+    /*
     public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
         string contentType,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
@@ -61,6 +75,34 @@ public class GpsVendor: Aggregate<Guid>
             Endpoint = new GpsVendorEndpoint(id, gpsVendorId, baseUrl,  method, contentType, headers, @params, bodies);
         }
         
+    }
+    */
+    
+    public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
+        string contentType,
+        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
+        ArgumentException.ThrowIfNullOrEmpty(baseUrl);
+        ArgumentException.ThrowIfNullOrEmpty(method);
+
+        var existingItem = Endpoints.FirstOrDefault(x => x.Id == id);
+
+        if (existingItem != null)
+        {
+            existingItem.GpsVendorId = gpsVendorId;
+            existingItem.BaseUrl = baseUrl;
+            existingItem.Method = method;
+            existingItem.Headers = headers;
+            existingItem.Params = @params;
+            existingItem.Bodies = bodies;
+            
+        }
+        else
+        {
+            var newItem = new GpsVendorEndpoint(id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies);
+            _endpoints.Add(newItem);
+        }
     }
     
     public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,

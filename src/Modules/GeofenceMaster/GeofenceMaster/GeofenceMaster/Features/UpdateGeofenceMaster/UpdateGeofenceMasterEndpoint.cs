@@ -19,6 +19,8 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                         request.GeofenceMaster.LpcdId,
                         request.GeofenceMaster.Timezone,
                         request.GeofenceMaster.RequiredAuth,
+                        request.GeofenceMaster.ProcessingStrategy,
+                        request.GeofenceMaster.ProcessingStrategyColumn,
                         request.GeofenceMaster.GeofenceMasterEndpoints.Select(item =>
                             new GeofenceMasterEndpointDto(
                                 item.Id,
