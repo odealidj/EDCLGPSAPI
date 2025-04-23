@@ -45,7 +45,10 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
             geofenceMasterDto.VendorName,
             geofenceMasterDto.LpcdId,
             geofenceMasterDto.Timezone,
-            geofenceMasterDto.RequiredAuth);
+            geofenceMasterDto.RequiredAuth,
+            geofenceMasterDto.ProcessingStrategy,
+            geofenceMasterDto.ProcessingStrategyColumn
+            );
             
 
         //Guid gpsVendorId, string baseUrl, string method, string authtype, 

@@ -20,6 +20,12 @@ public class GeofenceMasterDto
     public string LpcdId { get; set; } = string.Empty;
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
+    
+    public string ProcessingStrategy { get; set; } = "Individual"; // Default value
+    
+    public string? ProcessingStrategyColumn { get; set; }
+    
+    
     public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; }
     public List<GeofenceMasterAuthDto> GeofenceMasterAuths { get; set; }
 
@@ -37,6 +43,8 @@ public class GeofenceMasterDto
         string lpcdId,
         string? timezone,
         bool requiredAuth,
+        string processingStrategy,
+        string? processingStrategyColumn,
         List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
         List<GeofenceMasterAuthDto> geofenceMasterAuths)
     {
@@ -45,6 +53,8 @@ public class GeofenceMasterDto
         LpcdId = lpcdId;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
+        ProcessingStrategy = processingStrategy;
+        ProcessingStrategyColumn = processingStrategyColumn;
         GeofenceMasterEndpoints = geofenceMasterEndpoints ?? new List<GeofenceMasterEndpointDto>(); // Pastikan list tidak null
         GeofenceMasterAuths = geofenceMasterAuths ?? new List<GeofenceMasterAuthDto>(); // Pastikan list tidak null
     }

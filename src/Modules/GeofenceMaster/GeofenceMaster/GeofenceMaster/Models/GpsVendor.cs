@@ -10,13 +10,18 @@ public class GpsVendor: Aggregate<Guid>
 
     public bool? RequiredAuth { get; set; } = false;
     
+    public string ProcessingStrategy { get; set; } = "Individual";
+    
+    public string? ProcessingStrategyColumn { get; set; }
+    
     private readonly List<GpsVendorEndpoint>  _gpsVendorEndpoints = new();
     public IReadOnlyList<GpsVendorEndpoint> GpsVendorEndpoints => _gpsVendorEndpoints.AsReadOnly();
     
     private readonly List<GpsVendorAuth>  _gpsVendorAuths = new();
     public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
     
-    public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth)
+    public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 
+        string processingStrategy, string? processingStrategyColumn)
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
         ArgumentException.ThrowIfNullOrEmpty(lpcdId);
@@ -27,8 +32,9 @@ public class GpsVendor: Aggregate<Guid>
             VendorName = vendorName,
             LpcdId = lpcdId,
             Timezone = timezone,
-            RequiredAuth = requiredAuth
-           
+            RequiredAuth = requiredAuth,
+            ProcessingStrategy = processingStrategy,
+            ProcessingStrategyColumn = processingStrategyColumn
         };
 
         ////gpsVendor.AddDomainEvent(new GpsVendorCreatedEvent(gpsVendor));

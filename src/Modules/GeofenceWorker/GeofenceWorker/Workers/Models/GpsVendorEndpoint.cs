@@ -10,12 +10,12 @@ public class GpsVendorEndpoint : Entity<Guid>
     public string BaseUrl { get; set; } = string.Empty;
     public string Method { get; set; } = string.Empty;
     
-    public string ContentType { get; set; } = "application/json";
+    public string? ContentType { get; set; } = "application/json";
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
 
-    public GpsVendor? GpsVendor { get; set; } 
+    public GpsVendor GpsVendor { get; set; } 
 
     internal GpsVendorEndpoint(Guid gpsVendorId, string baseUrl, string method,
         string contentType,
