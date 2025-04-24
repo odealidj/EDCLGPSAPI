@@ -74,13 +74,14 @@ public class Worker : BackgroundService
             }
 
             // Wait for 1 minute (60,000 milliseconds) before next cycle
-            await Task.Delay(60000, stoppingToken); // 1 minute delay
+            await Task.Delay(180000, stoppingToken); // 1 minute delay
         }
     }
 
     private async Task ProcessCombinedEndpoints(GpsVendor vendor, List<GpsVendorEndpoint> endpoints, IServiceScope scope,
         GeofenceWorkerDbContext context, CancellationToken stoppingToken)
     {
+        var responses = new List<string>();
         foreach (var endpoint in endpoints)
         {
             var request = new HttpRequestMessage
@@ -127,18 +128,154 @@ public class Worker : BackgroundService
                     _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
                 }
             }
-        
-            var response = await _httpClient.SendAsync(request, stoppingToken);
-            if (response.IsSuccessStatusCode)
+
+            try
             {
-                var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
-                var dataMapping = GetDataItems(responseData, "vin");
+                var response = await _httpClient.SendAsync(request, stoppingToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
+                    responses.Add(responseData);
+                    //var dataMapping = GetDataItems(responseData, "vin");
+                }
+                else
+                {
+                    _logger.LogError("Failed to call endpoint for Vendor {VendorName} - {BaseUrl}: {StatusCode} {ReasonPhrase}",
+                        vendor.VendorName, endpoint.BaseUrl, response.StatusCode, response.ReasonPhrase);
+                    return; // Hentikan pemrosesan jika salah satu endpoint gagal (opsional, bisa disesuaikan)
+
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Error calling endpoint for Vendor {VendorName} - {BaseUrl}: {ErrorMessage}",
+                    vendor.VendorName, endpoint.BaseUrl, ex.Message);
+                return;
+            }
+            
+        }
+        
+        if (responses.Count == 2)
+        {
+            var mergedData = MergeResponses(vendor, responses);
+            if (mergedData != null)
+            {
+                // Proses data yang digabungkan
+                await ProcessMergedData(vendor, mergedData, scope, context, stoppingToken);
+            }
+        }
+    }
+    
+    private JsonObject? MergeResponses(GpsVendor vendor, List<string> responses)
+    {
+        if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && !string.IsNullOrEmpty(vendor.ProcessingStrategyPathColumn))
+        {
+            _logger.LogInformation("Merging responses for Vendor {VendorName} using column: {ProcessingStrategyColumn}", vendor.VendorName, vendor.ProcessingStrategyPathColumn);
+
+            if (responses.Count == 2)
+            {
+                try
+                {
+                    var jsonObjects = new List<JsonObject?>();
+                    foreach (var response in responses)
+                    {
+                        var node = JsonNode.Parse(response);
+                        if (node is JsonObject jsonObject)
+                        {
+                            jsonObjects.Add(jsonObject);
+                        }
+                        else
+                        {
+                            _logger.LogError("Response for Vendor {VendorName} is not a valid JSON object: {Response}", vendor.VendorName, response);
+                            return null;
+                        }
+                    }
+
+                    if (jsonObjects.All(jo => jo != null))
+                    {
+                        var firstData = jsonObjects[0]?["data"]?.AsArray();
+                        var secondData = jsonObjects[1]?["data"]?.AsArray();
+                        var keyColumn = vendor.ProcessingStrategyPathColumn;
+                        var mergedData = new JsonArray();
+                        var seenKeys = new Dictionary<string, JsonObject>();
+
+                        // Process data from the first response
+                        if (firstData != null)
+                        {
+                            foreach (var itemNode in firstData)
+                            {
+                                if (itemNode is JsonObject item)
+                                {
+                                    var keyValue = item?[keyColumn]?.ToString();
+                                    if (!string.IsNullOrEmpty(keyValue) && !seenKeys.ContainsKey(keyValue))
+                                    {
+                                        seenKeys.Add(keyValue, item);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Process data from the second response and merge
+                        if (secondData != null)
+                        {
+                            foreach (var itemNode in secondData)
+                            {
+                                if (itemNode is JsonObject item)
+                                {
+                                    var keyValue = item?[keyColumn]?.ToString();
+                                    if (!string.IsNullOrEmpty(keyValue))
+                                    {
+                                        if (seenKeys.ContainsKey(keyValue))
+                                        {
+                                            // Merge properties from the current item into the existing merged object
+                                            foreach (var property in item.AsObject())
+                                            {
+                                                if (!seenKeys[keyValue].ContainsKey(property.Key))
+                                                {
+                                                    seenKeys[keyValue].Add(property.Key, property.Value);
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            seenKeys.Add(keyValue, item);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Convert the merged objects back to a JsonArray
+                        foreach (var mergedObject in seenKeys.Values)
+                        {
+                            mergedData.Add(mergedObject);
+                        }
+
+                        return new JsonObject { ["data"] = mergedData };
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError("Error parsing JSON response for Vendor {VendorName}: {ErrorMessage}", vendor.VendorName, ex.Message);
+                }
             }
             else
             {
-                _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", endpoint.GpsVendor.VendorName, response.StatusCode, response.ReasonPhrase);
+                _logger.LogError("Expected 2 responses for combined processing of Vendor {VendorName}, but got {responses.Count}.", vendor.VendorName);
             }
         }
+        else if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && string.IsNullOrEmpty(vendor.ProcessingStrategyPathColumn))
+        {
+            _logger.LogError("ProcessingStrategyColumn is not set for Vendor {VendorName} with ProcessingStrategy 'Combined'.", vendor.VendorName);
+        }
+        return null;
+    }
+    
+    private async Task ProcessMergedData(GpsVendor vendor, JsonObject mergedData, IServiceScope scope, GeofenceWorkerDbContext context, CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("Processing merged data for Vendor {VendorName}: {Data}", vendor.VendorName, mergedData.ToJsonString());
+        // Implement your logic to process the merged data here.
+        // You might want to save this data to the database or perform other actions.
     }
 
     private async Task ProcessIndividualEndPoint(GpsVendorEndpoint endpoint, IServiceScope scope, GeofenceWorkerDbContext context, CancellationToken stoppingToken)
