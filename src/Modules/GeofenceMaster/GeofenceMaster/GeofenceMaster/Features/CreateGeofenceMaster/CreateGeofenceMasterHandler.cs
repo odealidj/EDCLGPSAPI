@@ -48,7 +48,7 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
             geofenceMasterDto.RequiredAuth,
             geofenceMasterDto.ProcessingStrategy,
             geofenceMasterDto.ProcessingStrategyPathData,
-            geofenceMasterDto.ProcessingStrategyPathColumn
+            geofenceMasterDto.ProcessingStrategyPathKey
             );
             
 

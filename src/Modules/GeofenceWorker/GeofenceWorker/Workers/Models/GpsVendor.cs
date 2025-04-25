@@ -13,11 +13,11 @@ public class GpsVendor: Aggregate<Guid>
 
     public bool RequiredAuth { get; set; }
 
-    public string ProcessingStrategy { get; set; } = "Individual";
+    public string? ProcessingStrategy { get; set; } = "Individual";
     
-    public string? ProcessingStrategyPathData{ get; set; }
+    public string? ProcessingStrategyPathData{ get; set; } = "data";
     
-    public string? ProcessingStrategyPathColumn { get; set; }
+    public string? ProcessingStrategyPathKey { get; set; } = string.Empty;
     
     private readonly List<GpsVendorEndpoint>  _endpoints = new();
     public IReadOnlyList<GpsVendorEndpoint> Endpoints => _endpoints.AsReadOnly();
@@ -30,7 +30,7 @@ public class GpsVendor: Aggregate<Guid>
     
        
     public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 
-        string processingStrategy, string? processingStrategyPathData, string? processingStrategyPathColumn )
+        string? processingStrategy, string? processingStrategyPathData, string? processingStrategyPathKey )
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
         ArgumentException.ThrowIfNullOrEmpty(lpcdId);
@@ -42,9 +42,9 @@ public class GpsVendor: Aggregate<Guid>
             LpcdId = lpcdId,
             Timezone = timezone,
             RequiredAuth = requiredAuth,
-            ProcessingStrategy = processingStrategy,
-            ProcessingStrategyPathData = processingStrategyPathData,
-            ProcessingStrategyPathColumn = processingStrategyPathColumn
+            ProcessingStrategy = processingStrategy??"Individual" ,
+            ProcessingStrategyPathData = processingStrategyPathData?? "data",
+            ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty
         };
 
         ////gpsVendor.AddDomainEvent(new GpsVendorCreatedEvent(gpsVendor));

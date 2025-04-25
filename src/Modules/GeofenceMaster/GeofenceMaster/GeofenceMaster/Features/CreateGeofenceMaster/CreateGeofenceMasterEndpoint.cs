@@ -22,7 +22,7 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                         request.GeofenceMaster.RequiredAuth,
                         request.GeofenceMaster.ProcessingStrategy,
                         request.GeofenceMaster.ProcessingStrategyPathData,
-                        request.GeofenceMaster.ProcessingStrategyPathColumn,
+                        request.GeofenceMaster.ProcessingStrategyPathKey,
                         request.GeofenceMaster.GeofenceMasterEndpoints.Select(item =>
                             new GeofenceMasterEndpointDto(
                                 Guid.Empty,

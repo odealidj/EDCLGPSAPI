@@ -21,11 +21,11 @@ public class GeofenceMasterDto
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
     
-    public string ProcessingStrategy { get; set; } = "Individual"; // Default value
+    public string? ProcessingStrategy { get; set; } = "Individual"; // Default value
     
-    public string? ProcessingStrategyPathData{ get; set; }
+    public string? ProcessingStrategyPathData{ get; set; } = "data"; // Default value
     
-    public string ProcessingStrategyPathColumn { get; set; }
+    public string? ProcessingStrategyPathKey { get; set; } = string.Empty;
 
     public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; }
     public List<GeofenceMasterAuthDto> GeofenceMasterAuths { get; set; }
@@ -44,9 +44,9 @@ public class GeofenceMasterDto
         string lpcdId,
         string? timezone,
         bool requiredAuth,
-        string processingStrategy,
+        string? processingStrategy,
         string? processingStrategyPathData,
-        string processingStrategyPathColumn,
+        string? processingStrategyPathKey,
         List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
         List<GeofenceMasterAuthDto> geofenceMasterAuths)
     {
@@ -55,11 +55,11 @@ public class GeofenceMasterDto
         LpcdId = lpcdId;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
-        ProcessingStrategy = processingStrategy;
-        ProcessingStrategyPathData = processingStrategyPathData;
-        ProcessingStrategyPathColumn = processingStrategyPathColumn;
-        GeofenceMasterEndpoints = geofenceMasterEndpoints ?? new List<GeofenceMasterEndpointDto>(); // Pastikan list tidak null
-        GeofenceMasterAuths = geofenceMasterAuths ?? new List<GeofenceMasterAuthDto>(); // Pastikan list tidak null
+        ProcessingStrategy = processingStrategy ?? "Individual"; // Default value
+        ProcessingStrategyPathData = processingStrategyPathData ?? "data"; // Default value
+        ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty; // Default value
+        GeofenceMasterEndpoints = geofenceMasterEndpoints ?? []; // Pastikan list tidak null
+        GeofenceMasterAuths = geofenceMasterAuths ?? []; // Pastikan list tidak null
     }
     
     // Override ToString untuk debugging (opsional)
