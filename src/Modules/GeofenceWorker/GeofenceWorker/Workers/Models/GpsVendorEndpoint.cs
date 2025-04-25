@@ -15,16 +15,16 @@ public class GpsVendorEndpoint : Entity<Guid>
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
 
-    public GpsVendor GpsVendor { get; set; } 
+    public GpsVendor? GpsVendor { get; set; } 
 
     internal GpsVendorEndpoint(Guid gpsVendorId, string baseUrl, string method,
-        string contentType,
+        string? contentType,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         GpsVendorId = gpsVendorId;
         BaseUrl = baseUrl;
         Method = method;
-        ContentType = contentType;
+        ContentType = contentType?? "application/json";
         Headers = headers;
         Params = @params;
         Bodies = bodies;

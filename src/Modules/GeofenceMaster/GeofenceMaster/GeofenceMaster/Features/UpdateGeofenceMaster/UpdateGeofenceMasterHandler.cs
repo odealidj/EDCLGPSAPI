@@ -41,7 +41,7 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         geofenceMasters.First().RequiredAuth = command.GeofenceMaster.RequiredAuth;
         geofenceMasters.First().ProcessingStrategy = command.GeofenceMaster.ProcessingStrategy;
         geofenceMasters.First().ProcessingStrategyPathData = command.GeofenceMaster.ProcessingStrategyPathData;
-        geofenceMasters.First().ProcessingStrategyPathColumn = command.GeofenceMaster.ProcessingStrategyPathColumn;
+        geofenceMasters.First().ProcessingStrategyPathKey = command.GeofenceMaster.ProcessingStrategyPathKey;
         
         
         // Step 3: Update atau tambahkan GpsVendorEndpoint berdasarkan Items di GeofenceMasterDto
