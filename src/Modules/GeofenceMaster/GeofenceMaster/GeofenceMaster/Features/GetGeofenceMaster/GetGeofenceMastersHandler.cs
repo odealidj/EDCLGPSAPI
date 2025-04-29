@@ -42,17 +42,15 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
         //var vendors = await vendorsTask;  // Data untuk vendors
         //var totalCount = await totalCountTask;  // Jumlah total data
         
-        
         var getVendors = vendorsTask.Select(gpsVendor => new GeofenceMasterDto
         {
             Id = gpsVendor.Id,
             VendorName = gpsVendor.VendorName,
-            ////Lpcds = gpsVendor.GpsVendorLpcds
-            ////    .Select(item => item.Lpcd)
-            ////    .ToList(),
-            ////LpcdId = gpsVendor.LpcdId,
             Timezone = gpsVendor.Timezone,
             RequiredAuth = gpsVendor.RequiredAuth != null && gpsVendor.RequiredAuth.Value,
+            ProcessingStrategy = gpsVendor.ProcessingStrategy,
+            ProcessingStrategyPathData = gpsVendor.ProcessingStrategyPathData,
+            ProcessingStrategyPathKey = gpsVendor.ProcessingStrategyPathKey,
             GeofenceMasterEndpoints = gpsVendor.GpsVendorEndpoints.Select(item => new GeofenceMasterEndpointDto
             {
                 Id = item.Id,
@@ -71,6 +69,10 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 BaseUrl = item.BaseUrl,
                 Method = item.Method,
                 Authtype = item.Authtype,
+                ContentType = item.ContentType,
+                Username = item.Username,
+                Password = item.Password,
+                TokenPath = item.TokenPath,
                 Headers = item.Headers,
                 Params = item.Params,
                 Bodies = item.Bodies

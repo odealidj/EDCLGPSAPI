@@ -47,7 +47,7 @@ public class GpsVendor: Aggregate<Guid>
             Timezone = timezone,
             RequiredAuth = requiredAuth,
             ProcessingStrategy = processingStrategy??"Individual" ,
-            ProcessingStrategyPathData = processingStrategyPathData?? "data",
+            ProcessingStrategyPathData = processingStrategyPathData?? string.Empty,
             ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty
         };
 

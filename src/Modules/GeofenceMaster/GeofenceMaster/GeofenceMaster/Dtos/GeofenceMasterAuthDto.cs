@@ -28,7 +28,7 @@ public class GeofenceMasterAuthDto
     
     public string? Username { get; set; } = string.Empty;
     public string? Password { get; set; } = string.Empty;
-    public string TokenPath { get; set; } = string.Empty;
+    public string? TokenPath { get; set; } = string.Empty;
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
@@ -45,7 +45,10 @@ public class GeofenceMasterAuthDto
         string baseUrl,
         string method,
         string authtype,
-        string tokenPath,
+        string contentType,
+        string? username,
+        string? password,
+        string? tokenPath,
         JsonObject? headers,
         JsonObject? @params,
         JsonObject? bodies)
@@ -55,7 +58,10 @@ public class GeofenceMasterAuthDto
         BaseUrl = baseUrl;
         Method = method;
         Authtype = authtype;
-        TokenPath = tokenPath;
+        ContentType = contentType;
+        Username = !string.IsNullOrEmpty(username)?username:string.Empty;
+        Password = !string.IsNullOrEmpty(password)?password:string.Empty;
+        TokenPath = !string.IsNullOrEmpty(tokenPath)?tokenPath: string.Empty;
         Headers = headers;
         Params = @params;
         Bodies = bodies;
