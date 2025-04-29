@@ -42,11 +42,10 @@ public class GpsVendorAuth: Entity<Guid>
         Method = method;
         Authtype = authtype;
         ContentType = contentType;
-        Username = username;
-        Password = password;
         TokenPath = tokenPath;
         Username = username;
         Password = password;
+        TokenPath = tokenPath;
         Headers = headers;
         Params = @params;
         Bodies = bodies;

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using GeofenceWorker.Data;
+using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Workers.Models;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -47,7 +48,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        .Where(x => x.Id == Guid.Parse("ee8d6730-ccaf-495d-81a2-e0749915dfba"))
+                        ////.Where(x => x.Id == Guid.Parse("64da8379-62c7-4ff4-8c0c-b2a064d6657d"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -194,9 +195,18 @@ public class Worker : BackgroundService
         
         if (responses.Count != 0)
         {
-            var combinedDataList = CombineJsonToString(responses, vendor.ProcessingStrategyPathKey??"");
-            var responseMapping = await ProcessVendorResponse(vendor ,combinedDataList, context);
+            var lastPositionH = new GpsLastPositionH
+            {
+                Id = Guid.NewGuid(),
+                GpsVendorId = vendor.Id,
+            };
+            
+            var combinedDataList = CombineJsonToString(responses, vendor.ProcessingStrategyPathKey??"", vendor.ProcessingStrategyPathData??"data");
+            
+            var lastPositionDs = await ProcessMappingResponse(vendor.Id ,combinedDataList, vendor.ProcessingStrategyPathData??"data", context);
 
+            var geofenceMaster = await CreateNewGpsLastPosition(vendor, lastPositionDs);  
+            
             _logger.LogInformation($"Vendor: {vendor.VendorName }, Data yang Digabungkan: {JsonSerializer.Serialize(combinedDataList, new JsonSerializerOptions { WriteIndented = true })}");
         }
         else
@@ -387,11 +397,18 @@ public class Worker : BackgroundService
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
             
             
-            var responseMapping = await ProcessVendorResponse(
-                endpoint.GpsVendor ?? throw new InvalidOperationException(),
+            var lastPositionDs = await ProcessMappingResponse(
+                endpoint.GpsVendor.Id,
                 responseData, 
+                endpoint.GpsVendor.ProcessingStrategyPathData??"data",
                 context);
 
+            if (lastPositionDs.Count > 0)
+            {
+                var geofenceMaster = await CreateNewGpsLastPosition(endpoint.GpsVendor, lastPositionDs);
+            }
+
+            /*
             //await _bus.Publish(responseMapping, stoppingToken);
             
             var message = new TestMessage
@@ -408,6 +425,8 @@ public class Worker : BackgroundService
             
             // Mengirim pesan ke RabbitMQ
             await _bus.Publish(listGpsLastPosition, stoppingToken);
+            
+            */
             
             _logger.LogInformation("Successfully called endpoint for Vendor {VendorName}: {ResponseData}", endpoint.GpsVendor.VendorName, responseData);
             
@@ -539,18 +558,6 @@ public class Worker : BackgroundService
     }
     */
     
-    
-    public class TestMessage
-    {
-        public string Text { get; set; } = string.Empty;
-    }
-    
-    public class ListGpsLastPosition
-    {
-        public List<GpsLastPosition> GpsLastPositions { get; set; } = [];
-    }
-    
-    
     /*
     private async Task ProcessVendorResponse1(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
     {
@@ -644,6 +651,8 @@ public class Worker : BackgroundService
         await _context.SaveChangesAsync();
     }
     */
+    
+    /*
     private List<JToken> GetDataItems(string jsonResponse, string dataPath)
     {
         var token = JToken.Parse(jsonResponse);
@@ -660,13 +669,49 @@ public class Worker : BackgroundService
 
         return dataItems;
     }
-    
-    public static Dictionary<string, object> CombineJson(List<string> jsonResponses, string key)
+    */
+    private List<JToken> GetDataItems(string jsonResponse, string dataPath)
     {
-        if (jsonResponses == null || !jsonResponses.Any())
+        var token = JToken.Parse(jsonResponse);
+        List<JToken> dataItems = new List<JToken>();
+
+        if (token is JArray rootArray)
         {
-            //return new List<Dictionary<string, object>>();
-            return new Dictionary<string, object>();
+            dataItems = rootArray.Children().ToList();
+        }
+        else if (token is JObject rootObject)
+        {
+            var dataToken = rootObject.SelectToken(dataPath);
+            if (dataToken is JArray dataArray)
+            {
+                dataItems = dataArray.Children().ToList();
+            }
+            else if (dataToken is JObject dataObject)
+            {
+                // Jika properti data adalah objek, konversikan menjadi array dengan satu elemen
+                dataItems = new List<JToken> { dataObject };
+            }
+            else if (dataToken != null)
+            {
+                // Jika properti data adalah nilai primitif, konversikan menjadi array dengan satu elemen
+                dataItems = new List<JToken> { dataToken };
+            }
+            else
+            {
+                dataItems = new List<JToken>(); // Jika dataPath tidak ditemukan
+            }
+        }
+
+        return dataItems;
+    }
+    
+    /*
+    public static List<Dictionary<string, object>> CombineJson(List<string> jsonResponses, string key)
+    {
+        if ( jsonResponses.Count == 0)
+        {
+            return [];
+            //return new Dictionary<string, object>();
         }
 
         var parsedResponses = new List<List<Dictionary<string, object>>>();
@@ -701,7 +746,7 @@ public class Worker : BackgroundService
 
         if (parsedResponses.Count < 2 )
         {
-            return (parsedResponses.FirstOrDefault() ?? throw new InvalidOperationException()).First();
+            throw new InvalidOperationException("Parsed responses must contain at least 2 items.");
         }
 
         var firstResponse = parsedResponses[0];
@@ -761,7 +806,147 @@ public class Worker : BackgroundService
             }
         }
 
-        return combinedList.First();
+        return combinedList;
+    }
+    */
+    public static Dictionary<string, object> CombineJson3(List<string> jsonResponses, string key)
+    {
+        if (jsonResponses == null || !jsonResponses.Any())
+        {
+            return new Dictionary<string, object> { ["page"] = 1, ["limit"] = 100, ["total"] = 0, ["data"] = new List<Dictionary<string, object>>() };
+        }
+
+        var parsedResponses = new List<Dictionary<string, object>>();
+        int totalCombined = 0;
+        int page = 1;
+        int limit = 100;
+
+        foreach (var jsonResponse in jsonResponses)
+        {
+            try
+            {
+                var document = JsonDocument.Parse(jsonResponse);
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    parsedResponses.Add(document.RootElement.Deserialize<Dictionary<string, object>>()!);
+                    if (document.RootElement.TryGetProperty("page", out var pageElement) && pageElement.ValueKind == JsonValueKind.Number)
+                    {
+                        page = pageElement.GetInt32();
+                    }
+                    if (document.RootElement.TryGetProperty("limit", out var limitElement) && limitElement.ValueKind == JsonValueKind.Number)
+                    {
+                        limit = limitElement.GetInt32();
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                System.Console.WriteLine($"Error parsing JSON: {ex.Message}");
+            }
+        }
+
+        var combinedDataList = new List<Dictionary<string, object>>();
+        var dataLists = parsedResponses.Where(r => r.ContainsKey("data") && r["data"] is JsonElement dataElement && dataElement.ValueKind == JsonValueKind.Array)
+                                       .Select(r => (r["data"] as JsonElement?)?.Deserialize<List<Dictionary<string, object>>>() ?? new List<Dictionary<string, object>>())
+                                       .ToList();
+
+        if (!dataLists.Any())
+        {
+            return new Dictionary<string, object> { ["page"] = page, ["limit"] = limit, ["total"] = 0, ["data"] = new List<Dictionary<string, object>>() };
+        }
+
+        var allItems = dataLists.SelectMany(list => list).ToList();
+        var groupedByVin = allItems.GroupBy(item => item.ContainsKey(key) ? item[key]?.ToString() : null).Where(g => g.Key != null);
+
+        foreach (var group in groupedByVin)
+        {
+            var combinedItem = new Dictionary<string, object>();
+            foreach (var item in group)
+            {
+                foreach (var prop in item)
+                {
+                    if (!combinedItem.ContainsKey(prop.Key))
+                    {
+                        combinedItem[prop.Key] = prop.Value;
+                    }
+                }
+            }
+            combinedDataList.Add(combinedItem);
+        }
+
+        totalCombined = combinedDataList.Count;
+
+        return new Dictionary<string, object>
+        {
+            ["page"] = page,
+            ["limit"] = limit,
+            ["total"] = totalCombined,
+            ["data"] = combinedDataList
+        };
+    }
+    
+    public static List<Dictionary<string, object>> CombineJson(List<string> jsonResponses, string key, string dataPath = "data")
+    {
+        if (jsonResponses == null || !jsonResponses.Any())
+        {
+            return new List<Dictionary<string, object>>();
+        }
+
+        var allDataItems = new List<Dictionary<string, object>>();
+
+        foreach (var jsonResponse in jsonResponses)
+        {
+            try
+            {
+                var document = JsonDocument.Parse(jsonResponse);
+                if (document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty(dataPath, out var dataElement) && dataElement.ValueKind == JsonValueKind.Array)
+                {
+                    var dataItems = dataElement.Deserialize<List<Dictionary<string, object>>>();
+                    if (dataItems != null)
+                    {
+                        allDataItems.AddRange(dataItems);
+                    }
+                }
+                else if (document.RootElement.ValueKind == JsonValueKind.Array) // Handle if the root is directly the data array
+                {
+                    var dataItems = document.Deserialize<List<Dictionary<string, object>>>();
+                    if (dataItems != null)
+                    {
+                        allDataItems.AddRange(dataItems);
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                System.Console.WriteLine($"Error parsing JSON: {ex.Message}");
+            }
+        }
+
+        if (!allDataItems.Any())
+        {
+            return new List<Dictionary<string, object>>();
+        }
+
+        var combinedDataList = new List<Dictionary<string, object>>();
+        var groupedByVin = allDataItems.GroupBy(item => item.ContainsKey(key) ? item[key]?.ToString() : null).Where(g => g.Key != null);
+
+        foreach (var group in groupedByVin)
+        {
+            var combinedItem = new Dictionary<string, object>();
+            foreach (var item in group)
+            {
+                foreach (var prop in item)
+                {
+                    if (!combinedItem.ContainsKey(prop.Key))
+                    {
+                        combinedItem[prop.Key] = prop.Value;
+                    }
+                }
+            }
+            combinedDataList.Add(combinedItem);
+        }
+
+        return combinedDataList;
     }
     
     public static Dictionary<string, object> CombineJson2(List<string> jsonResponses, string key)
@@ -869,33 +1054,32 @@ public class Worker : BackgroundService
             ["data"] = combinedDataList
         };
     }
-    public static string CombineJsonToString(List<string> jsonResponses, string key, JsonSerializerOptions? jsonSerializerOptions = null)
+    public static string CombineJsonToString(List<string> jsonResponses, string key, string dataPath, JsonSerializerOptions? jsonSerializerOptions = null)
     {
-        var combinedList = CombineJson(jsonResponses, key);
+        var combinedList = CombineJson(jsonResponses, key, dataPath);
         return JsonSerializer.Serialize(combinedList, jsonSerializerOptions);
     }
     
-    private async Task<IList<GpsLastPosition>> ProcessVendorResponse(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
+    private async Task<IList<GpsLastPositionD>> ProcessMappingResponse(Guid vendorId, string jsonResponse, string dataPath, GeofenceWorkerDbContext _context)
     {
-        if (gpsVendor == null) throw new InvalidOperationException("gpsVendor null");
-
+        
         // 1. Ambil semua mapping untuk vendor
         var mappings = await _context.Mappings
-            .Where(v => v.GpsVendorId == gpsVendor.Id)
+            .Where(v => v.GpsVendorId == vendorId)
+            .AsNoTracking()
             .ToListAsync();
 
         if (mappings.Count == 0) return [];
-        var  dataItems = GetDataItems(jsonResponse, "data" ?? string.Empty);
+        var  dataItems = GetDataItems(jsonResponse, dataPath);
         //var  dataItems = GetDataItems(jsonResponse, mappings.First().DataPath ?? string.Empty);
 
-        var gpsLastPositions = new List<GpsLastPosition>();
+        var gpsLastPositions = new List<GpsLastPositionD>();
 
         foreach (var dataItem in dataItems)
         {
-            var gpsLastPosition = new GpsLastPosition
+            var gpsLastPosition = new GpsLastPositionD
             {
-                Id = Guid.NewGuid(),
-                GpsVendorId = gpsVendor.Id
+                Id = Guid.NewGuid()
             };
 
             foreach (var mapping in mappings)
@@ -907,7 +1091,7 @@ public class Worker : BackgroundService
                     if (valueToken == null) continue;
 
                     // 5. Set properti di VehicleData menggunakan refleksi
-                    PropertyInfo? property = typeof(GpsLastPosition).GetProperty(mapping.MappedField);
+                    PropertyInfo? property = typeof(GpsLastPositionD).GetProperty(mapping.MappedField);
                     if (property == null) continue;
 
                     object? value;
@@ -951,6 +1135,9 @@ public class Worker : BackgroundService
 
         return gpsLastPositions;
     }
+    
+    
+    
      
     /*
     private async Task<List<GpsLastPosition>> ProcessVendorResponseOKOld(GpsVendor gpsVendor, string jsonResponse, GeofenceWorkerDbContext _context)
@@ -1042,23 +1229,25 @@ public class Worker : BackgroundService
     }
     */
     
-    private GpsLastPosition CreateNewGpsLastPosition(GpsLastPosition gpsLastPosition)
+    private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs)
     {
-        var data = GpsLastPosition.Create(
-            Guid.NewGuid(),
-            gpsLastPosition.GpsVendorId,
-            gpsLastPosition.Lpcd,
-            gpsLastPosition.PlatNo ?? string.Empty,
-            gpsLastPosition.DeviceId ?? string.Empty,
-            gpsLastPosition.Datetime,
-            gpsLastPosition.X,
-            gpsLastPosition.Y,
-            gpsLastPosition.Speed,
-            gpsLastPosition.Course,
-            gpsLastPosition.StreetName?? String.Empty
-            );
 
-        return data;
+        var h = GpsLastPositionH.Create(
+            Guid.NewGuid(), vendor.Id
+        );
+        
+        foreach (var lpsLastPositionD in lpsLastPositionDs)
+        {
+            lpsLastPositionD.GpsLastPositionHId = h.Id;
+            h.AddGpsLastPositionD(lpsLastPositionD);
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        // Di dalam scope ini, Anda dapat mendapatkan instance layanan
+        var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
+        await repository.InsertGpsLastPositionH(h);
+
+        return h;
     }
     
     
@@ -1320,6 +1509,18 @@ public class Worker : BackgroundService
         return jsonElement.ValueKind == JsonValueKind.String ? jsonElement.GetString() : null;
     }
     */
+    
+ 
+}
+
+public class TestMessage
+{
+    public string Text { get; set; } = string.Empty;
+}
+    
+public class ListGpsLastPosition
+{
+    public List<GpsLastPositionD> GpsLastPositions { get; set; } = [];
 }
 
 /*

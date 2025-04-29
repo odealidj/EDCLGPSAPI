@@ -1,4 +1,6 @@
 using GeofenceWorker.Data;
+using GeofenceWorker.Data.Repository;
+using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Workers.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +32,8 @@ public static class GeofenceWorkerModule
             //.EnableSensitiveDataLogging()
             //.LogTo(Console.WriteLine, LogLevel.Information);
         });
+        
+        services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
 
         return services;
     }

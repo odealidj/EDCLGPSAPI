@@ -1,4 +1,5 @@
 using GeofenceMaster.GeofenceMaster.Dtos;
+using GeofenceMaster.GeofenceMaster.Models;
 
 namespace GeofenceMaster.GeofenceMaster.Features.UpdateGeofenceMaster;
 
@@ -12,11 +13,30 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
         app.MapPut("/geofencemaster", async (UpdateGeofenceMasterRequest request, ISender sender) =>
             {
                 // var command = request.Adapt<UpdateGeofenceMasterCommand>();
+                
+                /*
+                var lpcds = new List<GeofenceMasterLpcdDto>();
+                foreach (var item in request.GeofenceMaster.Lpcds)
+                {
+                    if (request.GeofenceMaster.Id != null)
+                    {
+                        var lpcd = new GeofenceMasterLpcdDto(
+                            Guid.NewGuid(),
+                            request.GeofenceMaster.Id.Value,
+                            item
+                        );
+                        lpcds.Add(lpcd);
+                    }
+                } 
+                */
+
+                
+                
                 var command = new UpdateGeofenceMasterCommand(
                     new GeofenceMasterDto(
                         request.GeofenceMaster.Id,
                         request.GeofenceMaster.VendorName,
-                        request.GeofenceMaster.LpcdId,
+                        //request.GeofenceMaster.Lpcds,
                         request.GeofenceMaster.Timezone,
                         request.GeofenceMaster.RequiredAuth,
                         request.GeofenceMaster.ProcessingStrategy,
@@ -28,11 +48,12 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                                 item.GpsVendorId,
                                 item.BaseUrl,
                                 item.Method,
+                                item.ContentType,
                                 item.Headers,
                                 item.Params,
                                 item.Bodies
                             )).ToList(),
-                        request.GeofenceMaster.GeofenceMasterAuths.Select(item =>
+                        request.GeofenceMaster.GeofenceMasterAuths?.Select(item =>
                             new GeofenceMasterAuthDto(
                                 item.Id,
                                 item.GpsVendorId,
@@ -43,6 +64,19 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                                 item.Headers,
                                 item.Params,
                                 item.Bodies
+                            )).ToList(),
+                        request.GeofenceMaster.GeofenceMasterMappings.Select(item =>
+                                new GeofenceMasterMappingDto(
+                                    item.Id,
+                                    item.GpsVendorId,
+                                    item.ResponseField,
+                                    item.MappedField
+                                )).ToList(),
+                        request.GeofenceMaster.Lpcds.Select(item =>
+                            new GeofenceMasterLpcdDto(
+                                item.Id,
+                                item.GpsVendorId,
+                                item.Lpcd
                             )).ToList()
                     )
                 );

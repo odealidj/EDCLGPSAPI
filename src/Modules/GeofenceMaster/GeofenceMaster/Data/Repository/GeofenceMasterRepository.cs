@@ -1,17 +1,40 @@
 using GeofenceMaster.Data.Repository.IRepository;
+using GeofenceMaster.GeofenceMaster.Exceptions;
 using GeofenceMaster.GeofenceMaster.Models;
+using Microsoft.Extensions.Logging;
 
 namespace GeofenceMaster.Data.Repository;
 
 // GeofenceMasterDbContext dbContext
-public class GeofenceMasterRepository(GeofenceMasterDbContext dbContext)
+public class GeofenceMasterRepository(
+    GeofenceMasterDbContext dbContext, 
+    ILogger<GeofenceMasterRepository> logger)
     : IGeofenceMasterRepository
 {
     public async Task<GpsVendor> CreateGeofenceMaster(GpsVendor gpsVendor, CancellationToken cancellationToken = default)
     {
-        dbContext.GpsVendors.Add(gpsVendor);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return gpsVendor;
+        try
+        {
+            dbContext.GpsVendors.Add(gpsVendor);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return gpsVendor;
+            
+        }
+        catch (DbUpdateException ex)
+        { 
+            logger.LogError(ex, "Terjadi kesalahan DbUpdateException saat menyimpan GpsLastPositionH.");
+            // Transformasikan ke exception domain tanpa detail database sensitif
+            if (ex.InnerException?.Message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new GeofenceMasterConflictException("Vendor name is already exists.", ex.Message);
+            }
+            throw new GeofenceMasterDatabaseAccessException("\nAn error occurred while saving data.", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Terjadi kesalahan umum saat menyimpan GpsLastPositionH.");
+            throw new GeofenceMasterInternalServerException("An error occurred while saving data.", ex.Message);
+        }
     }
 
     public async Task<IEnumerable<GpsVendor>> GetGeofenceMaster(
@@ -43,6 +66,8 @@ public class GeofenceMasterRepository(GeofenceMasterDbContext dbContext)
             .Take(pageSize) // Take only the number of records specified by pageSize
             .Include(x => x.GpsVendorEndpoints) // Include related GpsVendorEndpoints
             .Include(x => x.GpsVendorAuths) // Include related GpsVendorAuths
+            .Include(x => x.Mappings)
+            .Include(x => x.Lpcds)
             .ToListAsync(cancellationToken); // Execute the query and retrieve the results
 
         return pagedVendors;

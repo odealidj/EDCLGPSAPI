@@ -16,8 +16,11 @@ public class GeofenceMasterDto
 {
     // Properti
     public Guid? Id { get; set; } = Guid.Empty; // Menggunakan Guid.Empty sebagai nilai default
-    public string VendorName { get; set; } = string.Empty; 
-    public string LpcdId { get; set; } = string.Empty;
+    public string VendorName { get; set; } = string.Empty;
+    
+    ////public List<string> Lpcds { get; set; } = new List<string>(); // Menggunakan List<string> untuk menyimpan beberapa LpcdId
+    ////public string LpcdId { get; set; } = string.Empty;
+    
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
     
@@ -26,33 +29,40 @@ public class GeofenceMasterDto
     public string? ProcessingStrategyPathData{ get; set; } = "data"; // Default value
     
     public string? ProcessingStrategyPathKey { get; set; } = string.Empty;
+    
+    public List<GeofenceMasterLpcdDto> Lpcds { get; set; } = []; // Inisialisasi list agar tidak null
 
-    public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; }
-    public List<GeofenceMasterAuthDto> GeofenceMasterAuths { get; set; }
+    public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; } = [];
+    public List<GeofenceMasterAuthDto>? GeofenceMasterAuths { get; set; } = [];
+    public List<GeofenceMasterMappingDto> GeofenceMasterMappings { get; set; } = []; // Inisialisasi list agar tidak null
+    
+    
 
     // Constructor tanpa parameter (default)
     public GeofenceMasterDto()
     {
-        GeofenceMasterEndpoints = new List<GeofenceMasterEndpointDto>();
-        GeofenceMasterAuths = new List<GeofenceMasterAuthDto>(); // Inisialisasi list agar tidak null
     }
 
     // Constructor dengan parameter
     public GeofenceMasterDto(
         Guid? id,
         string vendorName,
-        string lpcdId,
+        ////List<string> lpcds,
         string? timezone,
         bool requiredAuth,
         string? processingStrategy,
         string? processingStrategyPathData,
         string? processingStrategyPathKey,
         List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
-        List<GeofenceMasterAuthDto> geofenceMasterAuths)
+        List<GeofenceMasterAuthDto>? geofenceMasterAuths,
+        List<GeofenceMasterMappingDto> geofenceMasterMappings,
+        List<GeofenceMasterLpcdDto> lpcds
+        )
     {
         Id = id;
         VendorName = vendorName;
-        LpcdId = lpcdId;
+        ////LpcdId = lpcdId;
+        ///Lpcds = lpcds;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
         ProcessingStrategy = processingStrategy ?? "Individual"; // Default value
@@ -60,11 +70,13 @@ public class GeofenceMasterDto
         ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty; // Default value
         GeofenceMasterEndpoints = geofenceMasterEndpoints ?? []; // Pastikan list tidak null
         GeofenceMasterAuths = geofenceMasterAuths ?? []; // Pastikan list tidak null
+        GeofenceMasterMappings = geofenceMasterMappings ?? []; // Pastikan list tidak null
+        Lpcds = lpcds ?? []; // Pastikan list tidak null
     }
     
     // Override ToString untuk debugging (opsional)
     public override string ToString()
     {
-        return $"Id: {Id}, VendorName: {VendorName}, LpcdId: {LpcdId}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, GeofenceMasterEndpoints: [{string.Join(", ", GeofenceMasterEndpoints)}], GeofenceMasterAuths: [{string.Join(", ", GeofenceMasterAuths)}]";
+        return $"Id: {Id}, VendorName: {VendorName}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, GeofenceMasterEndpoints: [{string.Join(", ", GeofenceMasterEndpoints)}], GeofenceMasterAuths: [{string.Join(", ", GeofenceMasterAuths ?? [])}]";
     }
 }
