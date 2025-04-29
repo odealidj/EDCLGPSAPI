@@ -48,7 +48,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        ////.Where(x => x.Id == Guid.Parse("64da8379-62c7-4ff4-8c0c-b2a064d6657d"))
+                         .Where(x => x.Id == Guid.Parse("9b094878-e0db-498a-9afe-d5e95589b741"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -1383,6 +1383,8 @@ public class Worker : BackgroundService
                 // Use the TokenPath to extract the token dynamically
                 var tokenPath = auth.TokenPath?.Split('.') ?? Array.Empty<string>();
                 var token = ExtractTokenPath(jsonResponse, tokenPath); // Use ExtractToken with JsonElement
+
+                ////var dtToken = GetDataItems(tokenResult, "message.data");
 
                 if (string.IsNullOrEmpty(token))
                 {

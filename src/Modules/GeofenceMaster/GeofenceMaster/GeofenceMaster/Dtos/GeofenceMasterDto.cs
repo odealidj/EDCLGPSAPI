@@ -24,9 +24,9 @@ public class GeofenceMasterDto
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
     
-    public string? ProcessingStrategy { get; set; } = "Individual"; // Default value
+    public string ProcessingStrategy { get; set; } = "Individual"; // Default value
     
-    public string? ProcessingStrategyPathData{ get; set; } = "data"; // Default value
+    public string? ProcessingStrategyPathData{ get; set; } = string.Empty; // Default value
     
     public string? ProcessingStrategyPathKey { get; set; } = string.Empty;
     
@@ -50,7 +50,7 @@ public class GeofenceMasterDto
         ////List<string> lpcds,
         string? timezone,
         bool requiredAuth,
-        string? processingStrategy,
+        string processingStrategy,
         string? processingStrategyPathData,
         string? processingStrategyPathKey,
         List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
@@ -65,9 +65,9 @@ public class GeofenceMasterDto
         ///Lpcds = lpcds;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
-        ProcessingStrategy = processingStrategy ?? "Individual"; // Default value
-        ProcessingStrategyPathData = processingStrategyPathData ?? "data"; // Default value
-        ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty; // Default value
+        ProcessingStrategy = processingStrategy; // Default value
+        ProcessingStrategyPathData = !string.IsNullOrEmpty(processingStrategyPathData)?processingStrategyPathData: string.Empty; // Default value
+        ProcessingStrategyPathKey = !string.IsNullOrEmpty(processingStrategyPathKey)?processingStrategyPathKey: string.Empty ; // Default value
         GeofenceMasterEndpoints = geofenceMasterEndpoints ?? []; // Pastikan list tidak null
         GeofenceMasterAuths = geofenceMasterAuths ?? []; // Pastikan list tidak null
         GeofenceMasterMappings = geofenceMasterMappings ?? []; // Pastikan list tidak null
