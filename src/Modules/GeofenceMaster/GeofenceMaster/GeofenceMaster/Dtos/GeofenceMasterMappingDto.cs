@@ -1,9 +1,10 @@
-using System.Text.Json.Serialization;
+namespace GeofenceMaster.GeofenceMaster.Dtos;
 
-namespace GeofenceWorker.Workers.Models;
-
-public class Mapping : Entity<int>
+public class GeofenceMasterMappingDto
 {
+    public int Id { get; set; }
+    
+    [JsonIgnore]
     public Guid GpsVendorId { get; set; }
 
     public string ResponseField { get; set; } =
@@ -12,25 +13,22 @@ public class Mapping : Entity<int>
     public string MappedField { get; set; } =
         string.Empty; // Nama field yang dipetakan dalam sistem/database (misal: PLAT_NO)
     
-    internal Mapping(int id, Guid gpsVendorId, string responseField, string mappedField)
+    public GeofenceMasterMappingDto()
+    {
+    }
+    
+    public GeofenceMasterMappingDto(Guid gpsVendorId, string responseField, string mappedField)
+    {
+        GpsVendorId = gpsVendorId;
+        ResponseField = responseField;
+        MappedField = mappedField;
+    }
+    
+    public GeofenceMasterMappingDto(int id, Guid gpsVendorId, string responseField, string mappedField)
     {
         Id = id;
         GpsVendorId = gpsVendorId;
         ResponseField = responseField;
         MappedField = mappedField;
-    }
-
-    [JsonConstructor]
-    public Mapping(Guid gpsVendorId, string responseField, string mappedField)
-    {
-        GpsVendorId = gpsVendorId;
-        GpsVendorId = gpsVendorId;
-        ResponseField = responseField;
-        MappedField = mappedField;
-    }
-
-    [JsonConstructor]
-    public Mapping()
-    {
     }
 }

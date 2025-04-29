@@ -1,4 +1,5 @@
 using GeofenceMaster.GeofenceMaster.Dtos;
+using GeofenceMaster.GeofenceMaster.Models;
 
 namespace GeofenceMaster.GeofenceMaster.Features.CreateGeofenceMaster;
 
@@ -12,12 +13,12 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
         app.MapPost("/geofencemaster", async (CreateGeofenceMasterRequest request, ISender sender) =>
             {
                 ////var command = request.Adapt<CreateGeofenceMasterCommand>();
-                
+                ///
                 var command = new CreateGeofenceMasterCommand(
                     new GeofenceMasterDto(
                         Guid.Empty,
                         request.GeofenceMaster.VendorName,
-                        request.GeofenceMaster.LpcdId,
+                        ////request.GeofenceMaster.Lpcds,
                         request.GeofenceMaster.Timezone,
                         request.GeofenceMaster.RequiredAuth,
                         request.GeofenceMaster.ProcessingStrategy,
@@ -29,11 +30,12 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                                 item.GpsVendorId,
                                 item.BaseUrl,
                                 item.Method,
+                                item.ContentType,
                                 item.Headers,
                                 item.Params,
                                 item.Bodies
                             )).ToList(),
-                        request.GeofenceMaster.GeofenceMasterAuths.Select(item =>
+                        request.GeofenceMaster.GeofenceMasterAuths?.Select(item =>
                             new GeofenceMasterAuthDto(
                                 Guid.Empty,
                                 item.GpsVendorId,
@@ -44,6 +46,17 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                                 item.Headers,
                                 item.Params,
                                 item.Bodies
+                            )).ToList(),
+                        request.GeofenceMaster.GeofenceMasterMappings.Select(item =>
+                            new GeofenceMasterMappingDto(
+                                item.GpsVendorId,
+                                item.ResponseField,
+                                item.MappedField
+                            )).ToList(),
+                        request.GeofenceMaster.Lpcds.Select(item =>
+                            new GeofenceMasterLpcdDto(
+                                item.GpsVendorId,
+                                item.Lpcd
                             )).ToList()
                     )
                 );
@@ -54,7 +67,7 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
 
                 return Results.Created($"/geofencemaster/{response.Id}", response);
             })
-            .Produces<CreateGeofenceMasterResponse>(StatusCodes.Status201Created)
+            .Produces<CreateGeofenceMasterResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create Geofence Master")
             .WithDescription("Create geofence master");

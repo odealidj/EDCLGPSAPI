@@ -34,7 +34,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
             query.GetGeoferenceMaster.PageSize);
 
         var totalCountTask = await repository.GetGeofenceMasterCount(
-            query.GetGeoferenceMaster.VendorName);
+            query.GetGeoferenceMaster.VendorName, cancellationToken);
         
 
 
@@ -47,7 +47,10 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
         {
             Id = gpsVendor.Id,
             VendorName = gpsVendor.VendorName,
-            LpcdId = gpsVendor.LpcdId,
+            ////Lpcds = gpsVendor.GpsVendorLpcds
+            ////    .Select(item => item.Lpcd)
+            ////    .ToList(),
+            ////LpcdId = gpsVendor.LpcdId,
             Timezone = gpsVendor.Timezone,
             RequiredAuth = gpsVendor.RequiredAuth != null && gpsVendor.RequiredAuth.Value,
             GeofenceMasterEndpoints = gpsVendor.GpsVendorEndpoints.Select(item => new GeofenceMasterEndpointDto
@@ -56,6 +59,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 GpsVendorId = item.GpsVendorId,
                 BaseUrl = item.BaseUrl,
                 Method = item.Method,
+                ContentType = item.ContentType,
                 Headers = item.Headers,
                 Params = item.Params,
                 Bodies = item.Bodies
@@ -70,6 +74,19 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 Headers = item.Headers,
                 Params = item.Params,
                 Bodies = item.Bodies
+            }).ToList(),
+            GeofenceMasterMappings = gpsVendor.Mappings.Select(item => new GeofenceMasterMappingDto
+            {
+                Id = item.Id,
+                GpsVendorId = item.GpsVendorId,
+                ResponseField = item.ResponseField,
+                MappedField = item.MappedField
+            }).ToList(),
+            Lpcds = gpsVendor.Lpcds.Select(item => new GeofenceMasterLpcdDto()
+            {
+                Id = item.Id,
+                GpsVendorId = item.GpsVendorId,
+                Lpcd = item.Lpcd
             }).ToList()
         }).ToList();
         

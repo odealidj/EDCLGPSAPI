@@ -13,13 +13,14 @@ public class GeofenceWorkerDbContext: DbContext
     public DbSet<GpsVendor> GpsVendors => Set<GpsVendor>();
     public DbSet<GpsVendorEndpoint> GpsVendorEndpoints => Set<GpsVendorEndpoint>();
     
+    public DbSet<GpsVendorAuth> GpsVendorAuths => Set<GpsVendorAuth>();
     public DbSet<Mapping> Mappings => Set<Mapping>();
     
-    public DbSet<ResponseFormat> ResponseFormats => Set<ResponseFormat>();
-    
-    public DbSet<GpsLastPosition> GpsLastPositions => Set<GpsLastPosition>();
-    //public DbSet<GpsLastPositionH> GpsLastPositionHs => Set<GpsLastPositionH>();
-    //public DbSet<GpsLastPositionD> GpsLastPositionDs => Set<GpsLastPositionD>();
+    ////public DbSet<GpsVendorLpcd> Lpcds => Set<GpsVendorLpcd>();
+
+    public DbSet<GpsLastPositionH> GpsLastPositionHs => Set<GpsLastPositionH>();
+    public DbSet<GpsLastPositionD> GpsLastPositionDs => Set<GpsLastPositionD>();
+
     public DbSet<GpsDelivery> GpsDeliveries => Set<GpsDelivery>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -45,6 +46,7 @@ public class GeofenceWorkerDbContext: DbContext
                 .HasColumnType("jsonb");
         });
 
+        
         builder.Entity<GpsVendorAuth>(entity =>
         {
             entity.ToTable("tb_m_gps_vendor_auth");
@@ -64,10 +66,11 @@ public class GeofenceWorkerDbContext: DbContext
         });
         
         builder.Entity<Mapping>().ToTable("tb_m_mapping");
-        builder.Entity<ResponseFormat>().ToTable("tb_m_response_format");
-        builder.Entity<GpsLastPosition>().ToTable("tb_r_gps_last_position");
-        //builder.Entity<GpsLastPositionH>().ToTable("tb_r_gps_last_position_h");
-        //builder.Entity<GpsLastPositionD>().ToTable("tb_r_gps_last_position_d");
+        
+        //builder.Entity<GpsVendorLpcd>().ToTable("tb_m_gps_vendor_lpcd");
+
+        builder.Entity<GpsLastPositionH>().ToTable("tb_r_gps_last_position_h");
+        builder.Entity<GpsLastPositionD>().ToTable("tb_r_gps_last_position_d");
         builder.Entity<GpsDelivery>().ToTable("tb_r_gps_delivery");
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        

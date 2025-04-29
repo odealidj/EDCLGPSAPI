@@ -1,6 +1,4 @@
-using System.Text.Json.Serialization;
-
-namespace GeofenceWorker.Workers.Models;
+namespace GeofenceMaster.GeofenceMaster.Models;
 
 public class Mapping : Entity<int>
 {
@@ -33,4 +31,5 @@ public class Mapping : Entity<int>
     public Mapping()
     {
     }
+
 }

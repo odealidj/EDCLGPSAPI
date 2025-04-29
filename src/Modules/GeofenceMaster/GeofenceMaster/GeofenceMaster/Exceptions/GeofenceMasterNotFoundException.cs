@@ -2,10 +2,4 @@ using Shared.Exceptions;
 
 namespace GeofenceMaster.GeofenceMaster.Exceptions;
 
-public class GeofenceMasterNotFoundException : NotFoundException
-{
-    public GeofenceMasterNotFoundException(Guid id) 
-        : base("GpsVendor", id)
-    {
-    }
-}
+public class GeofenceMasterNotFoundException(Guid id) : NotFoundException("GpsVendor", id);

@@ -1,6 +1,9 @@
+using GeofenceMaster.GeofenceMaster.Dtos;
+using Microsoft.AspNetCore.Mvc;
+
 namespace GeofenceMaster.GeofenceMaster.Features.DeleteGeofenceMaster;
 
-//public record DeleteProductRequest(Guid Id);
+public record DeleteGeofenceMasterRequest(DeleteGeoferenceMasterDto GeofenceMaster);
 public record DeleteGeofenceMasterResponse(bool IsSuccess);
 
 public class DeleteGeofenceMasterEndpoint : ICarterModule
@@ -16,7 +19,7 @@ public class DeleteGeofenceMasterEndpoint : ICarterModule
                 return Results.Ok(response);
             })
             .WithName("DeleteGeofenceMasterResponse")
-            .Produces<DeleteGeofenceMasterResponse>(StatusCodes.Status200OK)
+            .Produces<DeleteGeofenceMasterResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete GeofenceMasterResponse")

@@ -12,13 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Data\Repository\IRepository\" />
       <Folder Include="Workers\Dtos\" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Compile Remove="Workers\Models\GpsLastPositionD.cs" />
-      <Compile Remove="Workers\Models\GpsLastPositionH.cs" />
     </ItemGroup>
 
     <ItemGroup>

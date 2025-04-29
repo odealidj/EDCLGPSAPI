@@ -14,7 +14,7 @@ public class CreateGeofenceMasterCommandValidator : AbstractValidator<CreateGeof
     public CreateGeofenceMasterCommandValidator()
     {
         RuleFor(x => x.GeofenceMaster.VendorName).NotEmpty().WithMessage("Vendor Name is required");
-        RuleFor(x => x.GeofenceMaster.LpcdId).NotEmpty().WithMessage("LPCD is required");
+        ////RuleFor(x => x.GeofenceMaster.LpcdId).NotEmpty().WithMessage("LPCD is required");
     }
 }
 
@@ -43,7 +43,7 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
         var newGpsVendor = GpsVendor.Create(
             Guid.NewGuid(),
             geofenceMasterDto.VendorName,
-            geofenceMasterDto.LpcdId,
+            ////geofenceMasterDto.LpcdId,
             geofenceMasterDto.Timezone,
             geofenceMasterDto.RequiredAuth,
             geofenceMasterDto.ProcessingStrategy,
@@ -61,6 +61,9 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
                 newGpsVendor.Id,
                 item.BaseUrl,
                 item.Method,
+                item.ContentType,
+                ////item.Page,
+                ////item.PageSize,
                 item.Headers,
                 item.Params,
                 item.Bodies
@@ -68,7 +71,7 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
         });
         
         
-        geofenceMasterDto.GeofenceMasterAuths.ForEach(item =>
+        geofenceMasterDto.GeofenceMasterAuths?.ForEach(item =>
         {
             newGpsVendor.AddGpsVendorAuth(
                 Guid.NewGuid(),
@@ -85,7 +88,27 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
                 item.Bodies
                 );
         });
-        
+
+        geofenceMasterDto.GeofenceMasterMappings.ForEach(item =>
+        {
+            newGpsVendor.AddMapping(
+                null,
+                newGpsVendor.Id,
+                item.ResponseField,
+                item.MappedField
+            );
+              
+        });
+
+        foreach (var lpcd in geofenceMasterDto.Lpcds)
+        {
+            newGpsVendor.AddLpcd(
+                Guid.NewGuid(),
+                newGpsVendor.Id,
+                lpcd.Lpcd
+                );
+        }
+
         return newGpsVendor;
     }
 }

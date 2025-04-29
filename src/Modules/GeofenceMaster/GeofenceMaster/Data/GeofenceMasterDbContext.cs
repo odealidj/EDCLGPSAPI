@@ -10,9 +10,11 @@ public class GeofenceMasterDbContext : DbContext
 
     public DbSet<GpsVendor> GpsVendors => Set<GpsVendor>();
     public DbSet<GpsVendorEndpoint> GpsVendorEndpoints => Set<GpsVendorEndpoint>();
-    
     public DbSet<GpsVendorAuth> GpsVendorAuths => Set<GpsVendorAuth>();
-
+    public DbSet<Mapping> Mappings => Set<Mapping>();
+    
+    public DbSet<GpsVendorLpcd> Lpcds => Set<GpsVendorLpcd>();
+    
     protected override void OnModelCreating(ModelBuilder builder)
     {
         builder.HasDefaultSchema("edcl");
@@ -52,6 +54,9 @@ public class GeofenceMasterDbContext : DbContext
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
         });
+        
+        builder.Entity<Mapping>().ToTable("tb_m_mapping");
+        builder.Entity<GpsVendorLpcd>().ToTable("tb_m_gps_vendor_lpcd");
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);

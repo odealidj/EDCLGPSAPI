@@ -18,6 +18,7 @@ public class GeofenceMasterAuthDto
 {
     // Properti
     public Guid Id { get; set; } = Guid.Empty;
+    [JsonIgnore]
     public Guid GpsVendorId { get; set; } = Guid.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string Method { get; set; } = string.Empty;

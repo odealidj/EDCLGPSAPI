@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using GeofenceWorker.Workers.Exceptions;
 using Shared.DDD;
 
 namespace GeofenceWorker.Workers.Models;
@@ -6,8 +7,6 @@ namespace GeofenceWorker.Workers.Models;
 public class GpsVendor: Aggregate<Guid>
 {
     public string VendorName { get; set; } = string.Empty;
-
-    public string LpcdId { get; set; } = string.Empty;
 
     public string? Timezone { get; set; } 
 
@@ -19,8 +18,14 @@ public class GpsVendor: Aggregate<Guid>
     
     public string? ProcessingStrategyPathKey { get; set; } = string.Empty;
     
-    private readonly List<GpsVendorEndpoint>  _endpoints = new();
-    public IReadOnlyList<GpsVendorEndpoint> Endpoints => _endpoints.AsReadOnly();
+    private readonly List<GpsVendorEndpoint>  _gpsVendorEndpoints = new();
+    public IReadOnlyList<GpsVendorEndpoint> GpsVendorEndpoints => _gpsVendorEndpoints.AsReadOnly();
+    
+    private readonly List<Mapping>  _mappings = new();
+    public IReadOnlyList<Mapping> Mappings => _mappings.AsReadOnly();
+    
+    private readonly List<GpsVendorLpcd>  _lpcds = new();
+    public IReadOnlyList<GpsVendorLpcd> Lpcds => _lpcds.AsReadOnly();
     
     ////private readonly List<GpsVendorAuth>  _gpsVendorAuths = new();
     ////public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
@@ -39,7 +44,6 @@ public class GpsVendor: Aggregate<Guid>
         {
             Id = id,
             VendorName = vendorName,
-            LpcdId = lpcdId,
             Timezone = timezone,
             RequiredAuth = requiredAuth,
             ProcessingStrategy = processingStrategy??"Individual" ,
@@ -52,49 +56,25 @@ public class GpsVendor: Aggregate<Guid>
         return gpsVendor;
     }
     
-    /*
-    public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
-        string contentType,
-        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
-        ArgumentException.ThrowIfNullOrEmpty(baseUrl);
-        ArgumentException.ThrowIfNullOrEmpty(method);
-        
-        if (Endpoint != null && Endpoint.GpsVendorId == gpsVendorId)
-        {
-            // Update existing GpsVendorEndpoint
-            Endpoint.BaseUrl = baseUrl;
-            Endpoint.Method = method;
-            Endpoint.ContentType = contentType;
-            Endpoint.Headers = headers;
-            Endpoint.Params = @params;
-            Endpoint.Bodies = bodies;
-        }
-        else
-        {
-            // Create new GpsVendorEndpoint
-            Endpoint = new GpsVendorEndpoint(id, gpsVendorId, baseUrl,  method, contentType, headers, @params, bodies);
-        }
-        
-    }
-    */
     
     public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
-        string contentType,
+        string? contentType, ////int? page, int? pageSize,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
         ArgumentException.ThrowIfNullOrEmpty(baseUrl);
         ArgumentException.ThrowIfNullOrEmpty(method);
 
-        var existingItem = Endpoints.FirstOrDefault(x => x.Id == id);
+        var existingItem = GpsVendorEndpoints.FirstOrDefault(x => x.Id == id);
 
         if (existingItem != null)
         {
             existingItem.GpsVendorId = gpsVendorId;
             existingItem.BaseUrl = baseUrl;
             existingItem.Method = method;
+            existingItem.ContentType = contentType?? "application/json";
+            ////existingItem.Page = method.Equals("get", StringComparison.CurrentCultureIgnoreCase) ? page: null;
+            ////existingItem.PageSize = method.Equals("get", StringComparison.CurrentCultureIgnoreCase) ? pageSize : null;
             existingItem.Headers = headers;
             existingItem.Params = @params;
             existingItem.Bodies = bodies;
@@ -103,40 +83,48 @@ public class GpsVendor: Aggregate<Guid>
         else
         {
             var newItem = new GpsVendorEndpoint(id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies);
-            _endpoints.Add(newItem);
+            _gpsVendorEndpoints.Add(newItem);
         }
     }
     
-    public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
-        string contentType, string? username, string? password,
-        string tokenPath,
-        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
+    public void AddMapping(int? id, Guid gpsVendorId, string responseField, string mappedField)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
-        ArgumentException.ThrowIfNullOrEmpty(baseUrl);
-        ArgumentException.ThrowIfNullOrEmpty(method);
-        ArgumentException.ThrowIfNullOrEmpty(authtype);
-        
-        if (Auth != null && Auth.GpsVendorId == gpsVendorId)
+        ArgumentException.ThrowIfNullOrEmpty(responseField);
+        ArgumentException.ThrowIfNullOrEmpty(mappedField);
+
+        if (id != null)
         {
-            // Update existing GpsVendorEndpoint
-            Auth.BaseUrl = baseUrl;
-            Auth.Method = method;
-            Auth.Authtype = authtype;
-            Auth.ContentType = contentType;
-            Auth.Username = username;
-            Auth.Password = password;
-            Auth.TokenPath = tokenPath;
-            Auth.Headers = headers;
-            Auth.Params = @params;
-            Auth.Bodies = bodies;
+            var existingItem = Mappings.FirstOrDefault(x => x.Id == id);
+            if (existingItem == null) throw new GeofenceMasterMappingNotFoundException(id.Value);
+            
+            existingItem.GpsVendorId = gpsVendorId;
+            existingItem.ResponseField = responseField;
+            existingItem.MappedField = mappedField;
         }
         else
         {
-            // Create new GpsVendorEndpoint
-            Auth = new GpsVendorAuth(id, gpsVendorId, baseUrl, method, authtype, contentType, username, password, tokenPath, headers, @params, bodies);
+            var newItem = new Mapping(gpsVendorId,responseField, mappedField);
+            _mappings.Add(newItem);
         }
-
+    }
+    
+    public void AddLpcd(Guid id, Guid gpsVendorId, string lpcd)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
+        ArgumentException.ThrowIfNullOrEmpty(lpcd);
+        
+        var existingItem = Lpcds.FirstOrDefault(x => x.Id == id);
+        if (existingItem != null) 
+        {   
+            existingItem.GpsVendorId = gpsVendorId;
+            existingItem.Lpcd = lpcd;
+        }
+        else
+        {
+            var newItem = new GpsVendorLpcd(id, gpsVendorId, lpcd);
+            _lpcds.Add(newItem);
+        }
     }
 
 }
