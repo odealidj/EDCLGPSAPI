@@ -67,7 +67,8 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
                 item.ContentType,
                 item.Headers,
                 item.Params,
-                item.Bodies
+                item.Bodies,
+                item.VarParams
             );
         });
         

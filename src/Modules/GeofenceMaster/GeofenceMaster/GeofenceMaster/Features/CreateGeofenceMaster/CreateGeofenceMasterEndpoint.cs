@@ -36,7 +36,8 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                                 item.ContentType,
                                 item.Headers,
                                 item.Params,
-                                item.Bodies
+                                item.Bodies,
+                                item.VarParams
                             )).ToList(),
                         request.GeofenceMaster.GeofenceMasterAuths?.Select(item =>
                             new GeofenceMasterAuthDto(

@@ -9,10 +9,12 @@ public class GpsVendorEndpoint : Entity<Guid>
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
+    
+    public JsonObject? VarParams { get; set; }
 
     internal GpsVendorEndpoint(Guid gpsVendorId, string baseUrl, string method,
         string? contentType, 
-        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
+        JsonObject? headers, JsonObject? @params, JsonObject? bodies, JsonObject? varParams)
     {
         GpsVendorId = gpsVendorId;
         BaseUrl = baseUrl;
@@ -23,13 +25,13 @@ public class GpsVendorEndpoint : Entity<Guid>
         Headers = headers;
         Params = @params;
         Bodies = bodies;
-
+        VarParams = varParams;
     }
 
     [JsonConstructor]
     public GpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method,
         string? contentType, 
-        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
+        JsonObject? headers, JsonObject? @params, JsonObject? bodies, JsonObject? varParams)
     {
         Id = id;
         GpsVendorId = gpsVendorId;
@@ -41,6 +43,7 @@ public class GpsVendorEndpoint : Entity<Guid>
         Headers = headers;
         Params = @params;
         Bodies = bodies;
+        VarParams = varParams;
 
     }
 
