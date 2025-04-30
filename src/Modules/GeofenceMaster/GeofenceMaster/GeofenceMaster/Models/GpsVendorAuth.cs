@@ -50,7 +50,7 @@ public class GpsVendorAuth: Entity<Guid>
     [JsonConstructor]
     public GpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
         string contentType, string? username, string? password,
-        string tokenPath,
+        string? tokenPath,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         Id = id;

@@ -48,7 +48,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         .Where(x => x.Id == Guid.Parse("9b094878-e0db-498a-9afe-d5e95589b741"))
+                         ////.Where(x => x.Id == Guid.Parse("aa136b46-aebc-428d-9f2d-7e4dfdb70387"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -125,6 +125,7 @@ public class Worker : BackgroundService
             }
         
             // Set Authorization Header if required
+            /*
             if (endpoint.GpsVendor is { RequiredAuth: true, Auth: not null })
             {
                 if (endpoint.GpsVendor.Auth.Authtype == "Basic")
@@ -136,6 +137,23 @@ public class Worker : BackgroundService
                 {
                     var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
                     _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+                }
+            }
+            */
+
+            if (endpoint.GpsVendor is { RequiredAuth: true })
+            {
+                if (endpoint.GpsVendor.AuthType == "Basic")
+                {
+                    if (string.IsNullOrEmpty(endpoint.GpsVendor.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(endpoint.GpsVendor.Username));
+                
+                    var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Username}:{endpoint.GpsVendor.Password}"));
+                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
+                }
+                else if (endpoint.GpsVendor.AuthType == "Bearer")
+                {
+                    var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
+                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
                 }
             }
 
@@ -377,17 +395,19 @@ public class Worker : BackgroundService
         }
         
         // Set Authorization Header if required
-        if (endpoint.GpsVendor is { RequiredAuth: true, Auth: not null })
+        if (endpoint.GpsVendor is { RequiredAuth: true })
         {
-            if (endpoint.GpsVendor.Auth.Authtype == "Basic")
+            if (endpoint.GpsVendor.AuthType == "Basic")
             {
-                var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Auth.Username}:{endpoint.GpsVendor.Auth.Password}"));
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authValue);
+                if (string.IsNullOrEmpty(endpoint.GpsVendor.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(endpoint.GpsVendor.Username));
+                
+                var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Username}:{endpoint.GpsVendor.Password}"));
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
             }
-            else
+            else if (endpoint.GpsVendor.AuthType == "Bearer")
             {
                 var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
             }
         }
         
@@ -1361,12 +1381,13 @@ public class Worker : BackgroundService
                 }
             }
             */
-            
-            
-            if (!string.IsNullOrEmpty(auth.Username) && !string.IsNullOrEmpty(auth.Password))
+
+            if (auth.Authtype == "Basic")
             {
+                if (string.IsNullOrEmpty(auth.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(auth.Username));
+                    
                 var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{auth.Username}:{auth.Password}"));
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authValue);
+                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(auth.Authtype, authValue);
             }
             
 

@@ -6,14 +6,12 @@ public class GpsVendorEndpoint : Entity<Guid>
     public string BaseUrl { get; set; } = string.Empty;
     public string Method { get; set; } = string.Empty;
     public string? ContentType { get; set; } = "application/json";
-    ////public int? Page { get; set; } = 1;
-    ////public int? PageSize { get; set; } = 250;
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
 
     internal GpsVendorEndpoint(Guid gpsVendorId, string baseUrl, string method,
-        string? contentType, ////int? page, int? pageSize,
+        string? contentType, 
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         GpsVendorId = gpsVendorId;
@@ -30,7 +28,7 @@ public class GpsVendorEndpoint : Entity<Guid>
 
     [JsonConstructor]
     public GpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method,
-        string? contentType, ////int? page, int? pageSize,
+        string? contentType, 
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         Id = id;

@@ -11,7 +11,13 @@ public class GpsVendor: Aggregate<Guid>
     public string? Timezone { get; set; } 
 
     public bool RequiredAuth { get; set; }
-
+    
+    public string? AuthType { get; set; } = "NoAuth";
+    
+    public string? Username { get; set; } 
+    
+    public string? Password { get; set; } = string.Empty;
+    
     public string? ProcessingStrategy { get; set; } = "Individual";
     
     public string? ProcessingStrategyPathData{ get; set; } = "data";
@@ -35,6 +41,7 @@ public class GpsVendor: Aggregate<Guid>
     
        
     public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 
+        string? authType, string? username, string? password,
         string? processingStrategy, string? processingStrategyPathData, string? processingStrategyPathKey )
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
@@ -46,6 +53,9 @@ public class GpsVendor: Aggregate<Guid>
             VendorName = vendorName,
             Timezone = timezone,
             RequiredAuth = requiredAuth,
+            AuthType = authType,
+            Username = username,
+            Password = !string.IsNullOrEmpty(password)? password: string.Empty,
             ProcessingStrategy = processingStrategy??"Individual" ,
             ProcessingStrategyPathData = processingStrategyPathData?? string.Empty,
             ProcessingStrategyPathKey = processingStrategyPathKey ?? string.Empty
