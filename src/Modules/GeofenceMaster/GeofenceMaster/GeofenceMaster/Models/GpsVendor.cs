@@ -12,7 +12,13 @@ public class GpsVendor: Aggregate<Guid>
 
     public bool? RequiredAuth { get; set; } = false;
     
-    public string? ProcessingStrategy { get; set; } = "Individual";
+    public string? AuthType { get; set; } = "NoAuth";
+    
+    public string? Username { get; set; } 
+    
+    public string? Password { get; set; } = string.Empty;
+    
+    public string ProcessingStrategy { get; set; } = "Individual";
     
     public string? ProcessingStrategyPathData{ get; set; } = string.Empty;
 
@@ -32,7 +38,8 @@ public class GpsVendor: Aggregate<Guid>
 
     public static GpsVendor Create(Guid id, string vendorName, ////string lpcdId , 
         string? timezone, bool requiredAuth, 
-        string? processingStrategy, string? processingStrategyPathData, string? processingStrategyPathKey)
+        string? authType, string? username, string? password,
+        string processingStrategy, string? processingStrategyPathData, string? processingStrategyPathKey)
     {
         ArgumentException.ThrowIfNullOrEmpty(vendorName);
         ////ArgumentException.ThrowIfNullOrEmpty(lpcdId);
@@ -44,6 +51,9 @@ public class GpsVendor: Aggregate<Guid>
             ////LpcdId = lpcdId,
             Timezone = timezone,
             RequiredAuth = requiredAuth,
+            AuthType = authType,
+            Username = username,
+            Password = !string.IsNullOrEmpty(password)? password: string.Empty,
             ProcessingStrategy = processingStrategy ?? "Individual" ,
             ProcessingStrategyPathData = processingStrategyPathData ?? string.Empty,
             ProcessingStrategyPathKey =  !string.IsNullOrEmpty(processingStrategyPathKey)? processingStrategyPathKey
@@ -80,14 +90,15 @@ public class GpsVendor: Aggregate<Guid>
         }
         else
         {
-            var newItem = new GpsVendorEndpoint(id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies);
+            var newItem = new GpsVendorEndpoint(
+                id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies);
             _gpsVendorEndpoints.Add(newItem);
         }
     }
     
     public void AddGpsVendorAuth(Guid id, Guid gpsVendorId, string baseUrl, string method, string authtype,
         string contentType, string? username, string? password,
-        string tokenPath,
+        string? tokenPath,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());

@@ -21,8 +21,15 @@ public class GeofenceMasterDto
     ////public List<string> Lpcds { get; set; } = new List<string>(); // Menggunakan List<string> untuk menyimpan beberapa LpcdId
     ////public string LpcdId { get; set; } = string.Empty;
     
+    [JsonIgnore]
     public string? Timezone { get; set; }
     public bool RequiredAuth { get; set; }
+    
+    public string? AuthType { get; set; } = "NoAuth";
+    
+    public string? Username { get; set; } 
+    
+    public string? Password { get; set; } = string.Empty;
     
     public string ProcessingStrategy { get; set; } = "Individual"; // Default value
     
@@ -50,6 +57,9 @@ public class GeofenceMasterDto
         ////List<string> lpcds,
         string? timezone,
         bool requiredAuth,
+        string? authType,
+        string? username,
+        string? password,
         string processingStrategy,
         string? processingStrategyPathData,
         string? processingStrategyPathKey,
@@ -65,6 +75,9 @@ public class GeofenceMasterDto
         ///Lpcds = lpcds;
         Timezone = timezone;
         RequiredAuth = requiredAuth;
+        AuthType = authType;
+        Username = username;
+        Password = !string.IsNullOrEmpty(password) ? password : string.Empty; // Default value
         ProcessingStrategy = processingStrategy; // Default value
         ProcessingStrategyPathData = !string.IsNullOrEmpty(processingStrategyPathData)?processingStrategyPathData: string.Empty; // Default value
         ProcessingStrategyPathKey = !string.IsNullOrEmpty(processingStrategyPathKey)?processingStrategyPathKey: string.Empty ; // Default value
