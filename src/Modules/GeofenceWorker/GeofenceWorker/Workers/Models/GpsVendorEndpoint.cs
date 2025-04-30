@@ -13,7 +13,8 @@ public class GpsVendorEndpoint : Entity<Guid>
     public JsonObject? Headers { get; set; }
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
-
+    
+    public JsonObject? VarParams { get; set; }
     public GpsVendor GpsVendor { get; set; } 
 
     internal GpsVendorEndpoint(

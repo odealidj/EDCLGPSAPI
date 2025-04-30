@@ -13,6 +13,8 @@ public class GeofenceMasterEndpointDto
     public JsonObject? Params { get; set; }
     public JsonObject? Bodies { get; set; }
     
+    public JsonObject? VarParams { get; set; }
+    
     // Constructor tanpa parameter (default)
     public GeofenceMasterEndpointDto()
     {
@@ -27,7 +29,9 @@ public class GeofenceMasterEndpointDto
         string? contentType,
         JsonObject? headers,
         JsonObject? @params,
-        JsonObject? bodies )
+        JsonObject? bodies,
+        JsonObject? varParams
+        )
     {
         Id = id;
         GpsVendorId = gpsVendorId;
@@ -37,6 +41,7 @@ public class GeofenceMasterEndpointDto
         Headers = headers;
         Params = @params;
         Bodies = bodies;
+        VarParams = varParams;
     }
 
     // Override ToString() untuk debugging (opsional)

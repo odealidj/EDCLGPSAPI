@@ -44,6 +44,10 @@ public class GeofenceWorkerDbContext: DbContext
             entity.Property(e => e.Bodies)
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
+            
+            entity.Property(e => e.VarParams)
+                .HasConversion(new JsonObjectValueConverter())
+                .HasColumnType("jsonb");
         });
 
         

@@ -60,7 +60,9 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 itemDto.ContentType,
                 itemDto.Headers,
                 itemDto.Params,
-                itemDto.Bodies);
+                itemDto.Bodies,
+                itemDto.VarParams
+                );
         }
         
         

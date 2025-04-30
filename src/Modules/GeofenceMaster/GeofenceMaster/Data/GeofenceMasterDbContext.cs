@@ -36,6 +36,10 @@ public class GeofenceMasterDbContext : DbContext
             entity.Property(e => e.Bodies)
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
+            
+            entity.Property(e => e.VarParams)
+                .HasConversion(new JsonObjectValueConverter())
+                .HasColumnType("jsonb");
         });
 
         builder.Entity<GpsVendorAuth>(entity =>

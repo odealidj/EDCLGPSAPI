@@ -67,7 +67,7 @@ public class GpsVendor: Aggregate<Guid>
     
     public void AddGpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method, 
         string? contentType, ////int? page, int? pageSize,
-        JsonObject? headers, JsonObject? @params, JsonObject? bodies)
+        JsonObject? headers, JsonObject? @params, JsonObject? bodies, JsonObject? varParams)
     {
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
         ArgumentException.ThrowIfNullOrEmpty(baseUrl);
@@ -86,12 +86,13 @@ public class GpsVendor: Aggregate<Guid>
             existingItem.Headers = headers;
             existingItem.Params = @params;
             existingItem.Bodies = bodies;
+            existingItem.VarParams = varParams;
             
         }
         else
         {
             var newItem = new GpsVendorEndpoint(
-                id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies);
+                id, gpsVendorId, baseUrl, method, contentType, headers, @params, bodies,varParams);
             _gpsVendorEndpoints.Add(newItem);
         }
     }
