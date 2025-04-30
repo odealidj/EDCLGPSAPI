@@ -48,7 +48,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         ////.Where(x => x.Id == Guid.Parse("aa136b46-aebc-428d-9f2d-7e4dfdb70387"))
+                         .Where(x => x.Id == Guid.Parse("cd742c69-2a56-46e4-afef-08fb0e0ce309"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -115,13 +115,17 @@ public class Worker : BackgroundService
             if (endpoint.Params != null)
             {
                 var parameters = endpoint.Params;
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+
                 foreach (var param in parameters.AsObject())
                 {
-                    request.RequestUri = new UriBuilder(request.RequestUri)
-                    {
-                        Query = $"{param.Key}={param.Value?.ToString()}"
-                    }.Uri;
+                    query[param.Key] = param.Value?.ToString();
                 }
+
+                request.RequestUri = new UriBuilder(request.RequestUri)
+                {
+                    Query = query.ToString()
+                }.Uri;
             }
         
             // Set Authorization Header if required
@@ -382,6 +386,7 @@ public class Worker : BackgroundService
         }
         
         // Attach parameters to the URL if any
+        /*
         if (endpoint.Params != null)
         {
             var parameters = endpoint.Params;
@@ -393,6 +398,24 @@ public class Worker : BackgroundService
                 }.Uri;
             }
         }
+        */
+        
+        if (endpoint.Params != null)
+        {
+            var parameters = endpoint.Params;
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+
+            foreach (var param in parameters.AsObject())
+            {
+                query[param.Key] = param.Value?.ToString();
+            }
+
+            request.RequestUri = new UriBuilder(request.RequestUri)
+            {
+                Query = query.ToString()
+            }.Uri;
+        }
+        
         
         // Set Authorization Header if required
         if (endpoint.GpsVendor is { RequiredAuth: true })
@@ -1369,17 +1392,21 @@ public class Worker : BackgroundService
                     
             // Attach parameters to the URL if any
             /*
-            if (auth.Params != null)
-            {
-                var parameters = auth.Params;
-                foreach (var param in parameters.AsObject())
-                {
-                    request.RequestUri = new UriBuilder(request.RequestUri)
-                    {
-                        Query = $"{param.Key}={param.Value?.ToString()}"
-                    }.Uri;
-                }
-            }
+                if (endpoint.Params != null)
+               {
+                   var parameters = endpoint.Params;
+                   var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+
+                   foreach (var param in parameters.AsObject())
+                   {
+                       query[param.Key] = param.Value?.ToString();
+                   }
+
+                   request.RequestUri = new UriBuilder(request.RequestUri)
+                   {
+                       Query = query.ToString()
+                   }.Uri;
+               }
             */
 
             if (auth.Authtype == "Basic")
