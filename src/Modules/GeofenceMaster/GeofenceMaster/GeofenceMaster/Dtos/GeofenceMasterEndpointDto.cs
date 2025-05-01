@@ -15,6 +15,8 @@ public class GeofenceMasterEndpointDto
     
     public JsonObject? VarParams { get; set; }
     
+    public string? MaxPath { get; set; }
+    
     // Constructor tanpa parameter (default)
     public GeofenceMasterEndpointDto()
     {
@@ -30,7 +32,8 @@ public class GeofenceMasterEndpointDto
         JsonObject? headers,
         JsonObject? @params,
         JsonObject? bodies,
-        JsonObject? varParams
+        JsonObject? varParams,
+        string? maxPath
         )
     {
         Id = id;
@@ -42,6 +45,7 @@ public class GeofenceMasterEndpointDto
         Params = @params;
         Bodies = bodies;
         VarParams = varParams;
+        MaxPath = maxPath;
     }
 
     // Override ToString() untuk debugging (opsional)

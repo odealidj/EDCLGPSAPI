@@ -61,7 +61,8 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 itemDto.Headers,
                 itemDto.Params,
                 itemDto.Bodies,
-                itemDto.VarParams
+                itemDto.VarParams,
+                itemDto.MaxPath
                 );
         }
         
