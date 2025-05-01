@@ -10,7 +10,7 @@ public class GeofenceWorkerDbContext: DbContext
     public GeofenceWorkerDbContext(DbContextOptions<GeofenceWorkerDbContext> options)
         : base(options) { }
 
-    public DbSet<GpsVendor> GpsVendors => Set<GpsVendor>();
+    public DbSet<GpsVendor?> GpsVendors => Set<GpsVendor>();
     public DbSet<GpsVendorEndpoint> GpsVendorEndpoints => Set<GpsVendorEndpoint>();
     
     public DbSet<GpsVendorAuth> GpsVendorAuths => Set<GpsVendorAuth>();
@@ -48,6 +48,22 @@ public class GeofenceWorkerDbContext: DbContext
             entity.Property(e => e.VarParams)
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
+  
+            entity.Property(e => e.CreatedAt)
+                .HasColumnType("timestamp with time zone")
+                .HasConversion(
+                    v => v, // Simpan DateTimeOffset secara langsung
+                    v => v
+                );
+
+            entity.Property(e => e.LastModified)
+                .HasColumnType("timestamp with time zone")
+                .IsRequired(false)
+                .HasConversion(
+                    v => v, // Simpan DateTimeOffset secara langsung
+                    v => v
+                );
+            
         });
 
         

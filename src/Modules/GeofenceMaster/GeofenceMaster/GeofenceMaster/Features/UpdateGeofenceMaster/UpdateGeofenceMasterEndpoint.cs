@@ -55,7 +55,8 @@ public class UpdateGeofenceMasterEndpoint : ICarterModule
                                 item.Headers,
                                 item.Params,
                                 item.Bodies,
-                                item.VarParams
+                                item.VarParams,
+                                item.MaxPath
                             )).ToList(),
                         request.GeofenceMaster.GeofenceMasterAuths?.Select(item =>
                             new GeofenceMasterAuthDto(

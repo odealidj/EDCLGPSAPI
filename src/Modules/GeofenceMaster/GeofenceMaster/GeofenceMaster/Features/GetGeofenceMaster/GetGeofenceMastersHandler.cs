@@ -64,7 +64,8 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 Headers = item.Headers,
                 Params = item.Params,
                 Bodies = item.Bodies,
-                VarParams = item.VarParams
+                VarParams = item.VarParams,
+                MaxPath = item.MaxPath
             }).ToList(),
             GeofenceMasterAuths = gpsVendor.GpsVendorAuths.Select(item => new GeofenceMasterAuthDto
             {

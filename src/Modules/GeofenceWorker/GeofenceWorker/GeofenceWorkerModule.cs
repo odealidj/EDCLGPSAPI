@@ -1,6 +1,7 @@
 using GeofenceWorker.Data;
 using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
+using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shared.Data.Interceptors;
 
 namespace GeofenceWorker;
@@ -27,10 +29,11 @@ public static class GeofenceWorkerModule
         
         services.AddDbContext<GeofenceWorkerDbContext>( (sp,options) =>
         {
-            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseNpgsql(connectionString);
-            //.EnableSensitiveDataLogging()
-            //.LogTo(Console.WriteLine, LogLevel.Information);
+            options.AddInterceptors(new DateTimeKindInterceptor());
+            //options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
+            options.UseNpgsql(connectionString)
+            .EnableSensitiveDataLogging()
+            .LogTo(Console.WriteLine, LogLevel.Debug);
         });
         
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();

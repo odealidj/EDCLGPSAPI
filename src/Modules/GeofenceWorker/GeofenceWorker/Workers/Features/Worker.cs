@@ -2,8 +2,10 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using GeofenceWorker.Data;
 using GeofenceWorker.Data.Repository.IRepository;
+using GeofenceWorker.Helper;
 using GeofenceWorker.Workers.Models;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +25,7 @@ public class Worker : BackgroundService
     ////private readonly IPublishEndpoint _publishEndpoint;
     public Worker( IServiceScopeFactory scopeFactory, 
         IBus bus,
-        ////IPublishEndpoint publishEndpoint,
+        /////IPublishEndpoint publishEndpoint,
         HttpClient httpClient, 
         ILogger<Worker> logger)
     {
@@ -48,7 +50,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         .Where(x => x.Id == Guid.Parse("5576978f-6a19-437c-9efd-821660e0341c"))
+                         .Where(x => x.Id == Guid.Parse("4bb3ac8e-288b-44b7-83a7-da182967d7ec"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -98,7 +100,7 @@ public class Worker : BackgroundService
             {
                 Method = new HttpMethod(endpoint.Method),
                 RequestUri = new Uri(endpoint.BaseUrl),
-                Content = new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json")
+                Content =  endpoint.Bodies != null?  new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json"): null
             };
             
             // Add Headers from JsonObject if any
@@ -112,14 +114,24 @@ public class Worker : BackgroundService
             }
         
             // Attach parameters to the URL if any
-            if (endpoint.Params != null)
+            if (endpoint.Params != null || endpoint.VarParams != null)
             {
-                var parameters = endpoint.Params;
                 var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
 
-                foreach (var param in parameters.AsObject())
+                if (endpoint.Params != null)
                 {
-                    query[param.Key] = param.Value?.ToString();
+                    foreach (var param in endpoint.Params.AsObject())
+                    {
+                        query[param.Key] = param.Value?.ToString();
+                    }
+                }
+
+                if (endpoint.VarParams != null)
+                {
+                    foreach (var param in endpoint.VarParams.AsObject())
+                    {
+                        query[param.Key] = param.Value?.ToString();
+                    }
                 }
 
                 request.RequestUri = new UriBuilder(request.RequestUri)
@@ -372,7 +384,7 @@ public class Worker : BackgroundService
         {
             Method = new HttpMethod(endpoint.Method),
             RequestUri = new Uri(endpoint.BaseUrl),
-            Content = new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json")
+            Content =  endpoint.Bodies != null?  new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json"): null
         };
         
         // Add Headers from JsonObject if any
@@ -386,28 +398,24 @@ public class Worker : BackgroundService
         }
         
         // Attach parameters to the URL if any
-        /*
-        if (endpoint.Params != null)
+        if (endpoint.Params != null || endpoint.VarParams != null)
         {
-            var parameters = endpoint.Params;
-            foreach (var param in parameters.AsObject())
-            {
-                request.RequestUri = new UriBuilder(request.RequestUri)
-                {
-                    Query = $"{param.Key}={param.Value?.ToString()}"
-                }.Uri;
-            }
-        }
-        */
-        
-        if (endpoint.Params != null)
-        {
-            var parameters = endpoint.Params;
             var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
 
-            foreach (var param in parameters.AsObject())
+            if (endpoint.Params != null)
             {
-                query[param.Key] = param.Value?.ToString();
+                foreach (var param in endpoint.Params.AsObject())
+                {
+                    query[param.Key] = param.Value?.ToString();
+                }
+            }
+
+            if (endpoint.VarParams != null)
+            {
+                foreach (var param in endpoint.VarParams.AsObject())
+                {
+                    query[param.Key] = param.Value?.ToString();
+                }
             }
 
             request.RequestUri = new UriBuilder(request.RequestUri)
@@ -415,8 +423,7 @@ public class Worker : BackgroundService
                 Query = query.ToString()
             }.Uri;
         }
-        
-        
+
         // Set Authorization Header if required
         if (endpoint.GpsVendor is { RequiredAuth: true })
         {
@@ -445,31 +452,68 @@ public class Worker : BackgroundService
                 responseData, 
                 endpoint.GpsVendor.ProcessingStrategyPathData??"data",
                 context);
+             
+            var dataItens = await GetDataItems(responseData, endpoint.GpsVendor.ProcessingStrategyPathData??"data");
+
+            var maxData = 0;
+            
+            if (!string.IsNullOrEmpty(endpoint.MaxPath) && dataItens.Count > 0)
+            {
+                maxData = await FindMaxProperty.FindMaxPropertyValueWithExceptionAsync<int>(dataItens, endpoint.MaxPath);
+            }
 
             if (lastPositionDs.Count > 0)
             {
                 var geofenceMaster = await CreateNewGpsLastPosition(endpoint.GpsVendor, lastPositionDs);
+                
+                await UpdateLastPositionId(endpoint, endpoint.MaxPath, maxData);
             }
 
-            /*
+            
             //await _bus.Publish(responseMapping, stoppingToken);
             
             var message = new TestMessage
             {
                 Text = "Hello, MassTransit with RabbitMQ!"
             };
-
+            
+            
             var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();  // Mendapatkan IPublishEndpoint dari scope
 
             var listGpsLastPosition = new ListGpsLastPosition
             {
-                GpsLastPositions = responseMapping.ToList()
+                GpsLastPositions = lastPositionDs.ToList()
             };
             
             // Mengirim pesan ke RabbitMQ
-            await _bus.Publish(listGpsLastPosition, stoppingToken);
+            ////await _bus.Publish(listGpsLastPosition, stoppingToken);
             
+            
+            ////var payload.GpsVendorId = vendorId;
+            ////payload.Lpcd = lpcd;
+
+            // Tentukan routing key berdasarkan vendor dan LPCD (contoh)
+            string routingKey = $"gps.position.{endpoint.GpsVendor.Id.ToString().ToLower()}";
+
+            // Publish pesan ke exchange default (atau yang dikonfigurasi untuk pesan ini)
+            // dengan menyertakan routing key
+        
+            /*
+            await  _publishEndpoint.Publish(listGpsLastPosition, x =>
+            {
+                // Secara eksplisit menentukan exchange type (opsional, bisa dikonfigurasi secara global)
+                // x.SetExchangeKind(ExchangeType.Topic);
+
+                // Menentukan routing key
+                x.RoutingKey = routingKey;
+            });
             */
+            
+            await _bus.Publish(message, x =>
+            {
+                // Set the routing key
+                x.SetRoutingKey(routingKey);
+            });
             
             _logger.LogInformation("Successfully called endpoint for Vendor {VendorName}: {ResponseData}", endpoint.GpsVendor.VendorName, responseData);
             
@@ -482,8 +526,77 @@ public class Worker : BackgroundService
         }
         else
         {
+            var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
             _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase);
         }
+    }
+    
+    public async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
+    {
+        var updatedVarParams = false;
+        
+        if (endpoint.VarParams != null)
+        {
+            if (endpoint.VarParams is JsonNode varParamsNode and JsonArray varParamsArray)
+            {
+                foreach (var element in varParamsArray)
+                {
+                    if (element is JsonObject paramSet && paramSet.ContainsKey(properti))
+                    {
+                        paramSet[properti] = newLastPositionId;
+                        break; // Asumsi: hanya update properti pertama yang ditemukan
+                    }
+                }
+            }
+            else if (endpoint.VarParams is JsonObject varParamsObject && varParamsObject.ContainsKey(properti))
+            {
+                varParamsObject[properti] = newLastPositionId;
+
+            }
+
+            updatedVarParams = true;
+        }
+
+        if (updatedVarParams)
+        {
+            
+            // Pastikan semua DateTime properties pada endpoint dan related entities adalah UTC
+            
+            ////endpoint.CreatedAt = DateTime.Now.ToUniversalTime();
+            ////endpoint.LastModified = DateTime.Now.ToUniversalTime();
+            
+            /*
+            if (endpoint.CreatedAt.HasValue && endpoint.CreatedAt.Value.Kind == DateTimeKind.Unspecified)
+            {
+                endpoint.CreatedAt = DateTime.SpecifyKind(endpoint.CreatedAt.Value, DateTimeKind.Utc);
+            }
+            if (endpoint.LastModified.HasValue && endpoint.LastModified.Value.Kind == DateTimeKind.Unspecified)
+            {
+                endpoint.LastModified = DateTime.SpecifyKind(endpoint.LastModified.Value, DateTimeKind.Utc);
+            }
+            */
+            
+            //var dateTimeValue = valueToken.ToObject<DateTime>();
+            //value = dateTimeValue.Kind == DateTimeKind.Unspecified 
+            //    ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc)
+             //   : dateTimeValue.ToUniversalTime();
+            
+             //DateTime.UtcNow;
+             //endpoint.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+             //endpoint.LastModified = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+             
+            using var scope = _scopeFactory.CreateScope();
+            // Di dalam scope ini, Anda dapat mendapatkan instance layanan
+            var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
+            
+            await repository.UpdateVarParamsPropertyRawSqlAsync(endpoint.Id, "lastPositionId", newLastPositionId);
+            
+            //await repository.UpdateVarParamsAsync(endpoint);
+
+        }
+        
+        ////return false; 
+        // varParams is null
     }
 
 
@@ -713,7 +826,47 @@ public class Worker : BackgroundService
         return dataItems;
     }
     */
-    private List<JToken> GetDataItems(string jsonResponse, string dataPath)
+    
+    private async Task<List<JToken>> GetDataItems(string jsonResponse, string dataPath)
+    {
+        return await Task.Run(() =>
+        {
+            var token = JToken.Parse(jsonResponse);
+            List<JToken> dataItems = new List<JToken>();
+
+            if (token is JArray rootArray)
+            {
+                dataItems = rootArray.Children().ToList();
+            }
+            else if (token is JObject rootObject)
+            {
+                var dataToken = rootObject.SelectToken(dataPath);
+                if (dataToken is JArray dataArray)
+                {
+                    dataItems = dataArray.Children().ToList();
+                }
+                else if (dataToken is JObject dataObject)
+                {
+                    // Jika properti data adalah objek, konversikan menjadi array dengan satu elemen
+                    dataItems = new List<JToken> { dataObject };
+                }
+                else if (dataToken != null)
+                {
+                    // Jika properti data adalah nilai primitif, konversikan menjadi array dengan satu elemen
+                    dataItems = new List<JToken> { dataToken };
+                }
+                else
+                {
+                    dataItems = new List<JToken>(); // Jika dataPath tidak ditemukan
+                }
+            }
+
+            return dataItems;
+        });
+    }
+    
+    /*
+    private Task<List<JToken>> GetDataItems(string jsonResponse, string dataPath)
     {
         var token = JToken.Parse(jsonResponse);
         List<JToken> dataItems = new List<JToken>();
@@ -747,6 +900,7 @@ public class Worker : BackgroundService
 
         return dataItems;
     }
+    */
     
     /*
     public static List<Dictionary<string, object>> CombineJson(List<string> jsonResponses, string key)
@@ -961,7 +1115,7 @@ public class Worker : BackgroundService
             }
             catch (JsonException ex)
             {
-                System.Console.WriteLine($"Error parsing JSON: {ex.Message}");
+                Console.WriteLine($"Error parsing JSON: {ex.Message}");
             }
         }
 
@@ -1113,7 +1267,7 @@ public class Worker : BackgroundService
             .ToListAsync();
 
         if (mappings.Count == 0) return [];
-        var  dataItems = GetDataItems(jsonResponse, dataPath);
+        var  dataItems = await GetDataItems(jsonResponse, dataPath);
         //var  dataItems = GetDataItems(jsonResponse, mappings.First().DataPath ?? string.Empty);
 
         var gpsLastPositions = new List<GpsLastPositionD>();
