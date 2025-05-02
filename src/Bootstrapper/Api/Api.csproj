@@ -29,5 +29,5 @@
     <ProjectReference Include="..\..\Modules\GeofenceMaster\GeofenceMaster\GeofenceMaster.csproj" />
     <ProjectReference Include="..\..\Modules\Ordering\Ordering\Ordering.csproj" />
   </ItemGroup>
-
+  
 </Project>

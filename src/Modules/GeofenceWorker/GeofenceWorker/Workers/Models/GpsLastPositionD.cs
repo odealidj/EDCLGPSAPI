@@ -38,8 +38,7 @@ public class GpsLastPositionD: Entity<Guid>
         Course = course;
         StreetName = streetName;
     }
-
-    [JsonConstructor]
+    
     public GpsLastPositionD(
         Guid id,
         Guid gpsLastPositionHId,
@@ -67,7 +66,6 @@ public class GpsLastPositionD: Entity<Guid>
         StreetName = streetName;
     }
     
-    [JsonConstructor]
     public GpsLastPositionD()
     {
     }

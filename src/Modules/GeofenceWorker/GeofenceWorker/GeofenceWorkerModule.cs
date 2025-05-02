@@ -1,16 +1,13 @@
 using GeofenceWorker.Data;
 using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
+using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Shared.Data.Interceptors;
 
 namespace GeofenceWorker;
 
@@ -19,9 +16,19 @@ public static class GeofenceWorkerModule
     public static IServiceCollection AddGeofenceWorkerModule(this IServiceCollection services,
         IConfiguration configuration)
     {
+
+        //_settings = configuration.GetSection("RabbitMQ").Get<RabbitMQSettings>() ?? new RabbitMQSettings();
+
+        //configuration["DatabaseSettings:DefaultConnection"]??string.Empty;
+
         services.AddHttpClient();
         services.AddHostedService<Worker>();
         
+        // Bind RabbitMqSettings from configuration
+        var rmq = configuration.GetSection("RmqSetup");
+        var hostName = configuration["RmqSetup:HostName"] ?? string.Empty;
+        services.Configure<RabbitMqSettings>(configuration.GetSection("RmqSetup"));
+    
         var connectionString = configuration.GetConnectionString("Database");
         
         ////services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
@@ -37,6 +44,9 @@ public static class GeofenceWorkerModule
         });
         
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
+        
+        services.AddSingleton<IRabbitMqService, RabbitMqService>();
+        
 
         return services;
     }
