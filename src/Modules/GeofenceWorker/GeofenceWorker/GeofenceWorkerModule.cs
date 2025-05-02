@@ -25,9 +25,9 @@ public static class GeofenceWorkerModule
         services.AddHostedService<Worker>();
         
         // Bind RabbitMqSettings from configuration
-        var rmq = configuration.GetSection("RmqSetup");
-        var hostName = configuration["RmqSetup:HostName"] ?? string.Empty;
-        services.Configure<RabbitMqSettings>(configuration.GetSection("RmqSetup"));
+        var rmq = configuration.GetSection("RabbitMq");
+        var hostName = configuration["RabbitMq:HostName"] ?? string.Empty;
+        services.Configure<RabbitMqSettings>(configuration.GetSection("RabbitMq"));
     
         var connectionString = configuration.GetConnectionString("Database");
         

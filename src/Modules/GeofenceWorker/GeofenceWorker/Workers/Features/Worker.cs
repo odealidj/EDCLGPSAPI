@@ -91,13 +91,11 @@ public class Worker : BackgroundService
                     }
                 }
                 
-                
-                
                 // Wait for 1 minute (60,000 milliseconds) before next cycle
                 
-                ////await Task.Delay(60000, stoppingToken); // 1 minute delay
+                await Task.Delay(60000, stoppingToken); // 1 minute delay
                 
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); 
+                ////await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); 
             }
         }
         catch (Exception e)
@@ -382,7 +380,15 @@ public class Worker : BackgroundService
                 var message =CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
 
                 // Publikasikan pesan dengan routing key 'gps.position'
-                await _rabbitMqService.PublishAsync(message, "gps.position");
+                
+                
+                var testMessage = new TestMessage
+                {
+                    Text = "Hello, MassTransit with RabbitMQ!",
+                    Timestamp = DateTime.UtcNow
+                };
+                
+                await _rabbitMqService.PublishAsync(testMessage, "gps.position");
             }
 
 
@@ -787,17 +793,6 @@ public class Worker : BackgroundService
         };
     }
 
-    // Validasi data wajib
-    /*
-    private bool IsValidVehicleData(VehicleData vehicle)
-    {
-        return !string.IsNullOrEmpty(vehicle.VehicleNumber) &&
-               vehicle.Longitude != 0 &&
-               vehicle.Latitude != 0;
-    }
-    */
-    
-    
     
     // Method to get the auth token from GpsVendorAuth BaseUrl
     private async Task<string> GetAuthTokenAsync(GpsVendorAuth auth)
@@ -841,55 +836,6 @@ public class Worker : BackgroundService
             }
             
             
-            // Prepare the request to get the token from the GpsVendorAuth BaseUrl
-            ////var authHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{auth.Username}:{auth.Password}"));
-            
-            /*
-            var requestData = new Dictionary<string, string>
-            {
-                { "grant_type", "client_credentials" },
-            };
-            */
-           
-            
-            ////request.Content = new FormUrlEncodedContent(requestData);
-            ////request.Headers.Add("accept", "application/json");
-            ////request.Headers.Add("username", auth.Username);
-            ////request.Headers.Add("password", auth.Password);
-            ////request.Headers.Add("X-IBM-Client-Id", "1575255f-bc93-5x17-98fd-y01gf748581y");
-            ////request.Headers.Add("Authorization", $"Basic {authHeader}");
-            
-            // Add Headers from JsonObject if any
-            /*
-            if (auth.Headers != null)
-            {
-                foreach (var header in auth.Headers.AsObject())
-                {
-                    // Add each header from the JsonObject to the request headers
-                    request.Headers.Add(header.Key, header.Value?.ToString());
-                }
-            }
-            */        
-                    
-            // Attach parameters to the URL if any
-            /*
-                if (endpoint.Params != null)
-               {
-                   var parameters = endpoint.Params;
-                   var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
-
-                   foreach (var param in parameters.AsObject())
-                   {
-                       query[param.Key] = param.Value?.ToString();
-                   }
-
-                   request.RequestUri = new UriBuilder(request.RequestUri)
-                   {
-                       Query = query.ToString()
-                   }.Uri;
-               }
-            */
-
             if (auth.Authtype == "Basic")
             {
                 if (string.IsNullOrEmpty(auth.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(auth.Username));
@@ -962,91 +908,12 @@ public class Worker : BackgroundService
         return currentElement.GetString() ?? string.Empty; // Return the token or empty if not found
     }
     
-
-    /*
-    private async Task<string> MapResponseToDatabase(string responseData, Guid gpsVendorId, GeofenceWorkerDbContext context)
-    {
-        // Query the database to get mappings for the specific vendor
-        var vendorMappings = await context.Mappings
-            .Where(vm => vm.GpsVendorId == gpsVendorId)
-            .ToListAsync();
-
-        // Query the database to get the response format for the specific vendor
-        var vendorResponseFormats = await context.ResponseFormats
-            .Where(vrf => vrf.GpsVendorId == gpsVendorId)
-            .ToListAsync();
-
-        // Deserialize response data to JSON
-        var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseData);
-
-        var mappedData = new Dictionary<string, object>();
-
-        foreach (var mapping in vendorMappings)
-        {
-            // Get the response path for the current mapping
-            var responseFormat = vendorResponseFormats.FirstOrDefault(x => x.MappedField == mapping.MappedField);
-
-            if (responseFormat != null)
-            {
-                // Extract the value from JSON based on the response path
-                var fieldValue = GetPropertyFromJsonPath(jsonResponse, responseFormat.ResponsePath);
-
-                if (fieldValue != null)
-                {
-                    mappedData[mapping.MappedField] = fieldValue;
-                }
-            }
-        }
-
-        return JsonSerializer.Serialize(mappedData);
-    }
-    */
-    
-    // Helper method to extract the value from JSON based on the ResponsePath
-    
-    /*
-    private object GetPropertyFromJsonPath(JsonElement jsonElement, string path)
-    {
-        var paths = path.Split('.');  // Split the path into parts
-
-        // Check if the JSON element is an array (data is an array in the response)
-        if (jsonElement.ValueKind == JsonValueKind.Array && jsonElement.GetArrayLength() > 0)
-        {
-            jsonElement = jsonElement[0];  // Take the first element from the array (data[0])
-        }
-
-        // Iterate through the path segments
-        foreach (var segment in paths)
-        {
-            // If the current element is an object, try to get the property
-            if (jsonElement.ValueKind == JsonValueKind.Object)
-            {
-                if (jsonElement.TryGetProperty(segment, out var property))
-                {
-                    jsonElement = property;  // Move deeper into the object
-                }
-                else
-                {
-                    continue;  // Property not found, return null
-                }
-            }
-            else
-            {
-                return null;  // If it's not an object, return null
-            }
-        }
-
-        // Return the final value as string or null if not found
-        return jsonElement.ValueKind == JsonValueKind.String ? jsonElement.GetString() : null;
-    }
-    */
-    
- 
 }
 
 public class TestMessage
 {
     public string Text { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
 }
     
 public class ListGpsLastPosition
