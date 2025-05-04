@@ -27,8 +27,7 @@ public class GpsVendor: Aggregate<Guid>
     private readonly List<GpsVendorEndpoint>  _gpsVendorEndpoints = new();
     public IReadOnlyList<GpsVendorEndpoint> GpsVendorEndpoints => _gpsVendorEndpoints.AsReadOnly();
     
-    private readonly List<GpsVendorAuth>  _gpsVendorAuths = new();
-    public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
+    public GpsVendorAuth? GpsVendorAuth { get; set; }
     
     private readonly List<Mapping>  _mappings = new();
     public IReadOnlyList<Mapping> Mappings => _mappings.AsReadOnly();
@@ -109,21 +108,19 @@ public class GpsVendor: Aggregate<Guid>
         ArgumentException.ThrowIfNullOrEmpty(method);
         ArgumentException.ThrowIfNullOrEmpty(authtype);
 
-        var existingItem = GpsVendorAuths.FirstOrDefault(x => x.Id == id);
-
-        if (existingItem != null)
+        if (GpsVendorAuth != null && GpsVendorAuth.Id == id)
         {
-            existingItem.GpsVendorId = gpsVendorId;
-            existingItem.BaseUrl = baseUrl;
-            existingItem.Method = method;
-            existingItem.Authtype = authtype;
-            existingItem.ContentType = contentType;
-            existingItem.Username = username;
-            existingItem.Password = password;
-            existingItem.TokenPath = tokenPath;
-            existingItem.Headers = headers;
-            existingItem.Params = @params;
-            existingItem.Bodies = bodies;
+            GpsVendorAuth.GpsVendorId = gpsVendorId;
+            GpsVendorAuth.BaseUrl = baseUrl;
+            GpsVendorAuth.Method = method;
+            GpsVendorAuth.Authtype = authtype;
+            GpsVendorAuth.ContentType = contentType;
+            GpsVendorAuth.Username = username;
+            GpsVendorAuth.Password = password;
+            GpsVendorAuth.TokenPath = tokenPath;
+            GpsVendorAuth.Headers = headers;
+            GpsVendorAuth.Params = @params;
+            GpsVendorAuth.Bodies = bodies;
             
         }
         else
@@ -138,7 +135,7 @@ public class GpsVendor: Aggregate<Guid>
                 username,
                 password,
                 tokenPath, headers, @params, bodies);
-            _gpsVendorAuths.Add(newItem);
+            GpsVendorAuth = newItem;
         }
     }
     
