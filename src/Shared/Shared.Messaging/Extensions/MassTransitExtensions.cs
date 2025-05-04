@@ -25,6 +25,8 @@ public static class MassTransitExtentions
                 configurator.ConfigureEndpoints(context);
             });
             */
+
+            var hot = configuration["MessageBroker:Host"]!;
             config.UsingRabbitMq((context, configurator) =>
             {
                 configurator.Host(new Uri(configuration["MessageBroker:Host"]!), host =>
