@@ -67,7 +67,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         .Where(x => x.Id == Guid.Parse("9b9ba6bc-1fd9-40de-9ae5-ba5aaa711896"))
+                         .Where(x => x.Id == Guid.Parse("4bb3ac8e-288b-44b7-83a7-da182967d7ec"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -115,7 +115,6 @@ public class Worker : BackgroundService
         var client = _httpClientFactory.CreateClient();
         
         var responses = new List<string>();
-        //List<Dictionary<string, object>>? responses = null;
         foreach (var endpoint in endpoints)
         {
             var request = new HttpRequestMessage
@@ -163,22 +162,6 @@ public class Worker : BackgroundService
             }
         
             // Set Authorization Header if required
-            /*
-            if (endpoint.GpsVendor is { RequiredAuth: true, Auth: not null })
-            {
-                if (endpoint.GpsVendor.Auth.Authtype == "Basic")
-                {
-                    var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Auth.Username}:{endpoint.GpsVendor.Auth.Password}"));
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authValue);
-                }
-                else
-                {
-                    var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
-                }
-            }
-            */
-
             if (endpoint.GpsVendor is { RequiredAuth: true })
             {
                 if (endpoint.GpsVendor.AuthType == "Basic")
@@ -374,26 +357,10 @@ public class Worker : BackgroundService
                     maxData = await FindMaxProperty.FindMaxPropertyValueWithExceptionAsync<int>(dataItens, endpoint.MaxPath);
                     await UpdateLastPositionId(endpoint, endpoint.MaxPath, maxData);
                 }
-                
-                
-                // Contoh data yang ingin dipublish
-                
-                ////var dataToPublish = new { Message = $"Hello from Worker at {DateTime.UtcNow}" };
-                string routingKey = "worker.message";
-                string exchangeName = "my_topic_exchange";
 
-                var message =CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
 
-                // Publikasikan pesan dengan routing key 'gps.position'
-                
-                
-                var testMessage = new TestMessage
-                {
-                    Text = "Hello, MassTransit with RabbitMQ!",
-                    Timestamp = DateTime.UtcNow
-                };
-                
-                await _rabbitMqService.PublishAsync(testMessage, "gps.position");
+                await PublishGpsMessageAsync(endpoint, lastPositionDs);
+               
             }
 
 
@@ -473,6 +440,25 @@ public class Worker : BackgroundService
             _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase);
         }
     }
+    
+    private async Task PublishGpsMessageAsync(GpsVendorEndpoint endpoint, IList<GpsLastPositionD> lastPositionDs)
+    {
+        
+        string routingKey = $"gps.vendor.{endpoint.GpsVendor.Id}";
+        ////string exchangeName = "my_topic_exchange";
+
+        var message = CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
+
+        /*
+        var testMessage = new TestMessage
+        {
+            Text = "Hello, MassTransit with RabbitMQ!",
+            Timestamp = DateTime.UtcNow
+        };
+        */
+            
+        await _rabbitMqService.PublishAsync(message, routingKey);
+    }
 
     private async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
     {
@@ -527,7 +513,6 @@ public class Worker : BackgroundService
         // varParams is null
     }
     
-    
     private async Task<List<JToken>> GetDataItems(string jsonResponse, string dataPath)
     {
         return await Task.Run(() =>
@@ -566,8 +551,7 @@ public class Worker : BackgroundService
         });
     }
     
-
-    public static List<Dictionary<string, object>> CombineJson(List<string> jsonResponses, string key, string dataPath = "data")
+    private static List<Dictionary<string, object>> CombineJson(List<string> jsonResponses, string key, string dataPath = "data")
     {
         if (jsonResponses == null || !jsonResponses.Any())
         {
@@ -631,8 +615,7 @@ public class Worker : BackgroundService
         return combinedDataList;
     }
     
-
-    public static string CombineJsonToString(List<string> jsonResponses, string key, string dataPath, JsonSerializerOptions? jsonSerializerOptions = null)
+    private static string CombineJsonToString(List<string> jsonResponses, string key, string dataPath, JsonSerializerOptions? jsonSerializerOptions = null)
     {
         var combinedList = CombineJson(jsonResponses, key, dataPath);
         return JsonSerializer.Serialize(combinedList, jsonSerializerOptions);
@@ -742,7 +725,7 @@ public class Worker : BackgroundService
         return h;
     }
     
-    public static GpsLastPostionDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
+    private static GpsLastPostionDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
     {
         if (vendor == null)
         {
@@ -780,20 +763,6 @@ public class Worker : BackgroundService
 
         return gpsMessage;
     }
-    
-    
-    // Metode untuk menentukan path data array (jika root bukan array)
-    private string GetDataArrayPath(string vendorName)
-    {
-        // Contoh konfigurasi path:
-        return vendorName switch
-        {
-            "GP" => "data",
-            "PUNINAR" => "data",
-            _ => "data" // Default
-        };
-    }
-
     
     // Method to get the auth token from GpsVendorAuth BaseUrl
     private async Task<string> GetAuthTokenAsync(GpsVendorAuth? auth)
@@ -936,17 +905,3 @@ public class GpsLastPositionListMessage
 {
     public IList<GpsLastPositionD> Positions { get; set; } = new List<GpsLastPositionD>();
 }
-
-
-
-
-/*
-public class VendorMapper
-{
-    public static string GetMappedValue(string jsonResponse, string jsonPath)
-    {
-        var jsonObject = JObject.Parse(jsonResponse);
-        return jsonObject.SelectToken(jsonPath)?.ToString();
-    }
-}
-*/
