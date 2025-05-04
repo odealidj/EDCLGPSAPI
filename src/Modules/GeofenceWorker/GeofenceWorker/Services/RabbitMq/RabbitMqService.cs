@@ -60,37 +60,15 @@ public class RabbitMqService: IRabbitMqService
         Console.WriteLine("Closed RabbitMQ connection.");
     }
 
-    /*
-    public async Task PublishAsync<T>(T message, string routingKey)
-    {
-        await _retryPolicy.ExecuteAsync(async () =>
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(message);
-                var body = Encoding.UTF8.GetBytes(json);
-
-                var properties = _channel.CreateBasicProperties();
-                properties.Persistent = true;
-
-                _channel.BasicPublish(exchange: "topic_exchange", routingKey: routingKey, basicProperties: properties, body: body);
-                Console.WriteLine($"Published message with routing key '{routingKey}': {json}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error occurred while publishing message: {ex.Message}");
-                throw; // Throw exception agar Polly dapat menangkapnya
-            }
-        });
-    }
-    */
     public async Task PublishAsync<T>(T message, string routingKey)
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
         if (!_channel.IsOpen) throw new InvalidOperationException("RabbitMQ channel is not open.");
 
-        await _retryPolicy.ExecuteAsync(async () =>
+        await _retryPolicy.ExecuteAsync(() =>
         {
+            if (!_channel.IsOpen) throw new InvalidOperationException("RabbitMQ channel was closed unexpectedly.");
+
             try
             {
                 var json = JsonSerializer.Serialize(message);
@@ -112,7 +90,44 @@ public class RabbitMqService: IRabbitMqService
                 _logger.LogError(ex, "Error occurred while publishing message.");
                 throw;
             }
-        });
+
+            return Task.CompletedTask;
+        }).ConfigureAwait(false);
     }
+    
+    /*
+    public async Task PublishAsync<T>(T message, string routingKey)
+    {
+        if (message == null) throw new ArgumentNullException(nameof(message));
+        if (!_channel.IsOpen) throw new InvalidOperationException("RabbitMQ channel is not open.");
+
+        await _retryPolicy.ExecuteAsync(async () =>
+        {
+            if (!_channel.IsOpen) throw new InvalidOperationException("RabbitMQ channel was closed unexpectedly.");
+
+            try
+            {
+                var json = JsonSerializer.Serialize(message);
+                var body = Encoding.UTF8.GetBytes(json);
+
+                var properties = _channel.CreateBasicProperties();
+                properties.Persistent = true;
+
+                _channel.BasicPublish(exchange: "topic_exchange", routingKey: routingKey, basicProperties: properties, body: body);
+                _logger.LogInformation("Published message with routing key '{RoutingKey}': {Message}", routingKey, json);
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError(jsonEx, "Serialization error while publishing message.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while publishing message.");
+                throw;
+            }
+        }).ConfigureAwait(false);
+    }
+    */
 
 }

@@ -38,7 +38,7 @@ public class GpsVendorEndpoint : Entity<Guid>
 
     [JsonConstructor]
     public GpsVendorEndpoint(Guid id, Guid gpsVendorId, string baseUrl, string method,
-        string contentType,
+        string? contentType,
         JsonObject? headers, JsonObject? @params, JsonObject? bodies,
         string? maxPath)
     {

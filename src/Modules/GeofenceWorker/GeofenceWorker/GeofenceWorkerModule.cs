@@ -5,9 +5,11 @@ using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shared.Data.Interceptors;
 
 namespace GeofenceWorker;
 
@@ -17,16 +19,10 @@ public static class GeofenceWorkerModule
         IConfiguration configuration)
     {
 
-        //_settings = configuration.GetSection("RabbitMQ").Get<RabbitMQSettings>() ?? new RabbitMQSettings();
-
-        //configuration["DatabaseSettings:DefaultConnection"]??string.Empty;
-
         services.AddHttpClient();
         services.AddHostedService<Worker>();
         
         // Bind RabbitMqSettings from configuration
-        var rmq = configuration.GetSection("RabbitMq");
-        var hostName = configuration["RabbitMq:HostName"] ?? string.Empty;
         services.Configure<RabbitMqSettings>(configuration.GetSection("RabbitMq"));
     
         var connectionString = configuration.GetConnectionString("Database");
@@ -37,7 +33,7 @@ public static class GeofenceWorkerModule
         services.AddDbContext<GeofenceWorkerDbContext>( (sp,options) =>
         {
             options.AddInterceptors(new DateTimeKindInterceptor());
-            //options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
+            ////options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseNpgsql(connectionString)
             .EnableSensitiveDataLogging()
             .LogTo(Console.WriteLine, LogLevel.Debug);

@@ -16,7 +16,12 @@ public class GpsLastPositionHRepository(
         return await dbContext.GpsVendorEndpoints.FirstOrDefaultAsync(v => v.Id == id, cancellationToken: cancellationToken);
     }
     
-    public async Task<int> UpdateVarParamsPropertyRawSqlAsync(Guid endpointId, string propertyName, object newValue)
+    public async Task<int> UpdateVarParamsPropertyRawSqlAsync(
+        Guid endpointId, 
+        string propertyName, 
+        object newValue,
+        DateTime lastModified,
+        string lastModifiedBy)
     {
         try
         {
@@ -24,12 +29,17 @@ public class GpsLastPositionHRepository(
 
             var sql = $"UPDATE edcl.tb_m_gps_vendor_endpoint " +
                       $"SET \"VarParams\" = jsonb_set(\"VarParams\", @propertyPath, @newValue::jsonb) " +
+                      $", \"LastModified\" = @lastModified " +
+                      $", \"LastModifiedBy\" = @lastModifiedBy " +
                       $"WHERE \"Id\" = @endpointId";
 
             return await dbContext.Database.ExecuteSqlRawAsync(sql,
                 new Npgsql.NpgsqlParameter("endpointId", endpointId),
-                new Npgsql.NpgsqlParameter("propertyPath", new string[] { "lastPositionId" }),
-                new Npgsql.NpgsqlParameter("newValue", Newtonsoft.Json.JsonConvert.SerializeObject(newValue)));            
+                new Npgsql.NpgsqlParameter("propertyPath", new[] { propertyName }),
+                new Npgsql.NpgsqlParameter("newValue", Newtonsoft.Json.JsonConvert.SerializeObject(newValue)),
+                new Npgsql.NpgsqlParameter("lastModified", lastModified),
+                new Npgsql.NpgsqlParameter("lastModifiedBy", lastModifiedBy)
+                );            
         }
         catch (DbUpdateException ex)
         {
