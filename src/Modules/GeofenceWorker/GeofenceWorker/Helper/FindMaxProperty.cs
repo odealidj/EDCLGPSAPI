@@ -4,30 +4,6 @@ namespace GeofenceWorker.Helper;
 
 public static class FindMaxProperty
 {
-    public static async Task<T?> FindMaxPropertyValue<T>(List<JToken> data, string propertyName) where T : struct, IComparable<T>?
-    {
-        return data
-            .OfType<JObject>()
-            .Where(obj => obj.ContainsKey(propertyName))
-            .Select(obj => obj[propertyName])
-            .Where(token => token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
-            .Select(token => token.ToObject<T>())
-            .Max();
-    }   
-    
-    // Versi synchronous jika Anda tidak perlu mengambil propertyName dari database setiap kali
-    public static T? FindMaxPropertyValueSync<T>(List<JToken> data, string propertyName) where T : struct, IComparable<T>?
-    {
-        return data
-            .OfType<JObject>()
-            .Where(obj => obj.ContainsKey(propertyName))
-            .Select(obj => obj[propertyName])
-            .Where(token => token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
-            .Select(token => token.ToObject<T>())
-            .Max();
-    }
-    
-    
     public static async Task<T> FindMaxPropertyValueWithExceptionAsync<T>(List<JToken> data, string propertyName) where T : struct, IComparable<T>
     {
         T maxVal = default(T);

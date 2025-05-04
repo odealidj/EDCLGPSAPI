@@ -10,7 +10,7 @@ public class GeofenceWorkerDbContext: DbContext
     public GeofenceWorkerDbContext(DbContextOptions<GeofenceWorkerDbContext> options)
         : base(options) { }
 
-    public DbSet<GpsVendor?> GpsVendors => Set<GpsVendor>();
+    public DbSet<GpsVendor> GpsVendors => Set<GpsVendor>();
     public DbSet<GpsVendorEndpoint> GpsVendorEndpoints => Set<GpsVendorEndpoint>();
     
     public DbSet<GpsVendorAuth> GpsVendorAuths => Set<GpsVendorAuth>();

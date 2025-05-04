@@ -22,19 +22,22 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly HttpClient _httpClient;
+    ////private readonly HttpClient _httpClient;
+    private readonly IHttpClientFactory _httpClientFactory; 
     ///private readonly IBus _bus;
     private readonly IRabbitMqService _rabbitMqService;
     ////private readonly IPublishEndpoint _publishEndpoint;
     public Worker( IServiceScopeFactory scopeFactory, 
         ////IBus bus,
         /////IPublishEndpoint publishEndpoint,
-        HttpClient httpClient, 
+        IHttpClientFactory httpClientFactory,
+        ////HttpClient httpClient, 
         IRabbitMqService rabbitMqService,
         ILogger<Worker> logger)
     {
         _scopeFactory = scopeFactory;
-        _httpClient = httpClient;
+        /////_httpClient = httpClient;
+        _httpClientFactory = httpClientFactory;
         ///_bus = bus; 
         _rabbitMqService = rabbitMqService;
         ////_publishEndpoint = publishEndpoint;
@@ -110,6 +113,8 @@ public class Worker : BackgroundService
     {
         ArgumentException.ThrowIfNullOrEmpty(vendor.ProcessingStrategyPathKey);
         
+        var client = _httpClientFactory.CreateClient();
+        
         var responses = new List<string>();
         //List<Dictionary<string, object>>? responses = null;
         foreach (var endpoint in endpoints)
@@ -182,12 +187,12 @@ public class Worker : BackgroundService
                     if (string.IsNullOrEmpty(endpoint.GpsVendor.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(endpoint.GpsVendor.Username));
                 
                     var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Username}:{endpoint.GpsVendor.Password}"));
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
                 }
                 else if (endpoint.GpsVendor.AuthType == "Bearer")
                 {
                     var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
                 }
             }
 
@@ -195,7 +200,7 @@ public class Worker : BackgroundService
             try
             {
 
-                var response = await _httpClient.SendAsync(request, stoppingToken);
+                var response = await client.SendAsync(request, stoppingToken);
                 if (response.IsSuccessStatusCode)
                 {
                     /*
@@ -282,6 +287,8 @@ public class Worker : BackgroundService
 
     private async Task ProcessIndividualEndPoint(GpsVendorEndpoint endpoint, IServiceScope scope, GeofenceWorkerDbContext context, CancellationToken stoppingToken)
     {
+        var client = _httpClientFactory.CreateClient();
+        
         var request = new HttpRequestMessage
         {
             Method = new HttpMethod(endpoint.Method),
@@ -334,16 +341,17 @@ public class Worker : BackgroundService
                 if (string.IsNullOrEmpty(endpoint.GpsVendor.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(endpoint.GpsVendor.Username));
                 
                 var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Username}:{endpoint.GpsVendor.Password}"));
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
+                
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
             }
             else if (endpoint.GpsVendor.AuthType == "Bearer")
             {
                 var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
             }
         }
         
-        var response = await _httpClient.SendAsync(request, stoppingToken);
+        var response = await client.SendAsync(request, stoppingToken);
         if (response.IsSuccessStatusCode)
         {
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
@@ -354,8 +362,6 @@ public class Worker : BackgroundService
                 responseData, 
                 endpoint.GpsVendor.ProcessingStrategyPathData??"data",
                 context);
-             
-            
 
             var maxData = 0;
             
@@ -468,9 +474,14 @@ public class Worker : BackgroundService
             _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase);
         }
     }
-    
-    public async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
+
+    private async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
     {
+        if (newLastPositionId == null)
+        {
+            throw new ArgumentNullException(nameof(newLastPositionId), "newLastPositionId cannot be null.");
+        }
+        
         var updatedVarParams = false;
         
         if (endpoint.VarParams != null)
@@ -486,7 +497,8 @@ public class Worker : BackgroundService
                     }
                 }
             }
-            else if (endpoint.VarParams is JsonObject varParamsObject && varParamsObject.ContainsKey(properti))
+            //else if (endpoint.VarParams is JsonObject varParamsObject && varParamsObject.ContainsKey(properti))
+            else if (endpoint.VarParams is { } varParamsObject && varParamsObject.ContainsKey(properti))
             {
                 varParamsObject[properti] = newLastPositionId;
 
@@ -497,37 +509,16 @@ public class Worker : BackgroundService
 
         if (updatedVarParams)
         {
-            
-            // Pastikan semua DateTime properties pada endpoint dan related entities adalah UTC
-            
-            ////endpoint.CreatedAt = DateTime.Now.ToUniversalTime();
-            ////endpoint.LastModified = DateTime.Now.ToUniversalTime();
-            
-            /*
-            if (endpoint.CreatedAt.HasValue && endpoint.CreatedAt.Value.Kind == DateTimeKind.Unspecified)
-            {
-                endpoint.CreatedAt = DateTime.SpecifyKind(endpoint.CreatedAt.Value, DateTimeKind.Utc);
-            }
-            if (endpoint.LastModified.HasValue && endpoint.LastModified.Value.Kind == DateTimeKind.Unspecified)
-            {
-                endpoint.LastModified = DateTime.SpecifyKind(endpoint.LastModified.Value, DateTimeKind.Utc);
-            }
-            */
-            
-            //var dateTimeValue = valueToken.ToObject<DateTime>();
-            //value = dateTimeValue.Kind == DateTimeKind.Unspecified 
-            //    ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc)
-             //   : dateTimeValue.ToUniversalTime();
-            
-             //DateTime.UtcNow;
-             //endpoint.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-             //endpoint.LastModified = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-             
             using var scope = _scopeFactory.CreateScope();
             // Di dalam scope ini, Anda dapat mendapatkan instance layanan
             var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
             
-            await repository.UpdateVarParamsPropertyRawSqlAsync(endpoint.Id, "lastPositionId", newLastPositionId);
+            await repository.UpdateVarParamsPropertyRawSqlAsync(
+                endpoint.Id, 
+                "lastPositionId", 
+                newLastPositionId,
+                DateTime.UtcNow,
+                "System");
             
             //await repository.UpdateVarParamsAsync(endpoint);
 
@@ -726,14 +717,21 @@ public class Worker : BackgroundService
     
     private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs)
     {
+        
+        var dateTimeNow = DateTime.UtcNow;
+        var createdBy = "System"; // Atau ambil dari konteks pengguna yang sedang aktif
 
         var h = GpsLastPositionH.Create(
             Guid.NewGuid(), vendor.Id
         );
+        h.CreatedAt = dateTimeNow;
+        h.CreatedBy = createdBy;
         
         foreach (var lpsLastPositionD in lpsLastPositionDs)
         {
             lpsLastPositionD.GpsLastPositionHId = h.Id;
+            lpsLastPositionD.CreatedAt = dateTimeNow;
+            lpsLastPositionD.CreatedBy = createdBy;
             h.AddGpsLastPositionD(lpsLastPositionD);
         }
 
@@ -745,12 +743,16 @@ public class Worker : BackgroundService
         return h;
     }
     
-    public static GpsLastPostionDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD> details)
+    public static GpsLastPostionDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
     {
-        if (vendor == null || details == null || details.Count == 0)
+        if (vendor == null)
         {
-            ArgumentNullException.ThrowIfNull(nameof(vendor), "Vendor or details cannot be null or empty.");
-            
+            throw new ArgumentNullException(nameof(vendor), "Vendor cannot be null.");
+        }
+        
+        if (details == null)
+        {
+            throw new ArgumentNullException(nameof(details), "GpsLastPositionD cannot be null.");
         }
 
         var gpsMessage = new GpsLastPostionDto
@@ -795,8 +797,14 @@ public class Worker : BackgroundService
 
     
     // Method to get the auth token from GpsVendorAuth BaseUrl
-    private async Task<string> GetAuthTokenAsync(GpsVendorAuth auth)
+    private async Task<string> GetAuthTokenAsync(GpsVendorAuth? auth)
     {
+        if (auth == null)
+        {
+            throw new ArgumentNullException(nameof(auth), "GpsVendorAuth cannot be null.");
+        }
+        
+        var client = _httpClientFactory.CreateClient();
         try
         {
             // Prepare the request to get the token from the GpsVendorAuth BaseUrl
@@ -841,12 +849,12 @@ public class Worker : BackgroundService
                 if (string.IsNullOrEmpty(auth.Username)) ArgumentException.ThrowIfNullOrEmpty(nameof(auth.Username));
                     
                 var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{auth.Username}:{auth.Password}"));
-                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(auth.Authtype, authValue);
+                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(auth.Authtype, authValue);
             }
             
 
             // Send request to get token
-            var tokenResponse = await _httpClient.SendAsync(request);
+            var tokenResponse = await client.SendAsync(request);
             if (tokenResponse.IsSuccessStatusCode)
             {
                 var tokenResult = await tokenResponse.Content.ReadAsStringAsync();
