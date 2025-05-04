@@ -40,7 +40,7 @@ public class GeofenceMasterDto
     public List<GeofenceMasterLpcdDto> Lpcds { get; set; } = []; // Inisialisasi list agar tidak null
 
     public List<GeofenceMasterEndpointDto> GeofenceMasterEndpoints { get; set; } = [];
-    public List<GeofenceMasterAuthDto>? GeofenceMasterAuths { get; set; } = [];
+    public GeofenceMasterAuthDto? GeofenceMasterAuth { get; set; } 
     public List<GeofenceMasterMappingDto> GeofenceMasterMappings { get; set; } = []; // Inisialisasi list agar tidak null
     
     
@@ -64,7 +64,7 @@ public class GeofenceMasterDto
         string? processingStrategyPathData,
         string? processingStrategyPathKey,
         List<GeofenceMasterEndpointDto> geofenceMasterEndpoints,
-        List<GeofenceMasterAuthDto>? geofenceMasterAuths,
+        GeofenceMasterAuthDto? geofenceMasterAuth,
         List<GeofenceMasterMappingDto> geofenceMasterMappings,
         List<GeofenceMasterLpcdDto> lpcds
         )
@@ -82,7 +82,7 @@ public class GeofenceMasterDto
         ProcessingStrategyPathData = !string.IsNullOrEmpty(processingStrategyPathData)?processingStrategyPathData: string.Empty; // Default value
         ProcessingStrategyPathKey = !string.IsNullOrEmpty(processingStrategyPathKey)?processingStrategyPathKey: string.Empty ; // Default value
         GeofenceMasterEndpoints = geofenceMasterEndpoints ?? []; // Pastikan list tidak null
-        GeofenceMasterAuths = geofenceMasterAuths ?? []; // Pastikan list tidak null
+        GeofenceMasterAuth = geofenceMasterAuth; // Pastikan list tidak null
         GeofenceMasterMappings = geofenceMasterMappings ?? []; // Pastikan list tidak null
         Lpcds = lpcds ?? []; // Pastikan list tidak null
     }
@@ -90,6 +90,7 @@ public class GeofenceMasterDto
     // Override ToString untuk debugging (opsional)
     public override string ToString()
     {
-        return $"Id: {Id}, VendorName: {VendorName}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, GeofenceMasterEndpoints: [{string.Join(", ", GeofenceMasterEndpoints)}], GeofenceMasterAuths: [{string.Join(", ", GeofenceMasterAuths ?? [])}]";
+        return $"Id: {Id}, VendorName: {VendorName}, Timezone: {Timezone}, RequiredAuth: {RequiredAuth}, AuthType: {AuthType}, Username: {Username}, Password: {Password}, ProcessingStrategy: {ProcessingStrategy}, ProcessingStrategyPathData: {ProcessingStrategyPathData}, ProcessingStrategyPathKey: {ProcessingStrategyPathKey}";
     }
+
 }

@@ -73,24 +73,19 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
             );
         });
         
-        
-        geofenceMasterDto.GeofenceMasterAuths?.ForEach(item =>
-        {
-            newGpsVendor.AddGpsVendorAuth(
-                Guid.NewGuid(),
-                newGpsVendor.Id,
-                item.BaseUrl,
-                item.Method,
-                item.Authtype,
-                item.ContentType,
-                item.Username,
-                item.Password,
-                item.TokenPath,
-                item.Headers,
-                item.Params,
-                item.Bodies
-                );
-        });
+        newGpsVendor.AddGpsVendorAuth( 
+            Guid.NewGuid(),
+            newGpsVendor.Id,
+            geofenceMasterDto.GeofenceMasterAuth.BaseUrl,
+            geofenceMasterDto.GeofenceMasterAuth.Method,
+            geofenceMasterDto.GeofenceMasterAuth.Authtype,
+            geofenceMasterDto.GeofenceMasterAuth.ContentType,
+            geofenceMasterDto.GeofenceMasterAuth.Username,
+            geofenceMasterDto.GeofenceMasterAuth.Password,
+            geofenceMasterDto.GeofenceMasterAuth.TokenPath,
+            geofenceMasterDto.GeofenceMasterAuth.Headers,
+            geofenceMasterDto.GeofenceMasterAuth.Params,
+            geofenceMasterDto.GeofenceMasterAuth.Bodies);
 
         geofenceMasterDto.GeofenceMasterMappings.ForEach(item =>
         {

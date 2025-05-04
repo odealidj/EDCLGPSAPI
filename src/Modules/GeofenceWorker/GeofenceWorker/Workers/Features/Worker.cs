@@ -9,7 +9,6 @@ using GeofenceWorker.Helper;
 using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Models;
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -68,7 +67,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         .Where(x => x.Id == Guid.Parse("4bb3ac8e-288b-44b7-83a7-da182967d7ec"))
+                         .Where(x => x.Id == Guid.Parse("9b9ba6bc-1fd9-40de-9ae5-ba5aaa711896"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 

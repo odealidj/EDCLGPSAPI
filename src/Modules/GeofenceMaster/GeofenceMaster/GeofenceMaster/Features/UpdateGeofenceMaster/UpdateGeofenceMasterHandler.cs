@@ -26,7 +26,7 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
         var geofenceMasters = await dbContext.GpsVendors
             .Where(x => x.Id == command.GeofenceMaster.Id)
             .Include(x=> x.GpsVendorEndpoints)
-            .Include( x => x.GpsVendorAuths)
+            .Include( x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include( x => x.Lpcds)
             .ToListAsync(cancellationToken);
@@ -66,26 +66,26 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 );
         }
         
-        
-
-        if (command.GeofenceMaster.GeofenceMasterAuths != null)
-            foreach (var itemDto in command.GeofenceMaster.GeofenceMasterAuths)
+        if (command.GeofenceMaster.GeofenceMasterAuth != null)
+        {
+            var gpsVendorAuth = geofenceMasters.First().GpsVendorAuth;
+            if (gpsVendorAuth != null)
             {
                 geofenceMasters.First().AddGpsVendorAuth(
-                    itemDto.Id,
+                    command.GeofenceMaster.GeofenceMasterAuth.Id,
                     geofenceMasters.First().Id,
-                    itemDto.BaseUrl,
-                    itemDto.Method,
-                    itemDto.Authtype,
-                    itemDto.ContentType,
-                    itemDto.Username,
-                    itemDto.Password,
-                    itemDto.TokenPath,
-                    itemDto.Headers,
-                    itemDto.Params,
-                    itemDto.Bodies);
+                    command.GeofenceMaster.GeofenceMasterAuth.BaseUrl,
+                    command.GeofenceMaster.GeofenceMasterAuth.Method,
+                    command.GeofenceMaster.GeofenceMasterAuth.Authtype,
+                    command.GeofenceMaster.GeofenceMasterAuth.ContentType,
+                    command.GeofenceMaster.GeofenceMasterAuth.Username,
+                    command.GeofenceMaster.GeofenceMasterAuth.Password,
+                    command.GeofenceMaster.GeofenceMasterAuth.TokenPath,
+                    command.GeofenceMaster.GeofenceMasterAuth.Headers,
+                    command.GeofenceMaster.GeofenceMasterAuth.Params,
+                    command.GeofenceMaster.GeofenceMasterAuth.Bodies);
             }
-        
+        }
         
         foreach (var itemDto in command.GeofenceMaster.GeofenceMasterMappings)
         {

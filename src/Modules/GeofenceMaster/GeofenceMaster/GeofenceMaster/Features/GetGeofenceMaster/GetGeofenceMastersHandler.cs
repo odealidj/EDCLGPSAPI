@@ -67,6 +67,22 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 VarParams = item.VarParams,
                 MaxPath = item.MaxPath
             }).ToList(),
+            GeofenceMasterAuth = gpsVendor.GpsVendorAuth != null?
+                new GeofenceMasterAuthDto(
+                    gpsVendor.GpsVendorAuth.Id,
+                    gpsVendor.GpsVendorAuth.GpsVendorId,
+                    gpsVendor.GpsVendorAuth.BaseUrl,
+                    gpsVendor.GpsVendorAuth.Method,
+                    gpsVendor.GpsVendorAuth.Authtype,
+                    gpsVendor.GpsVendorAuth.ContentType,
+                    gpsVendor.GpsVendorAuth.Username,
+                    gpsVendor.GpsVendorAuth.Password,
+                    gpsVendor.GpsVendorAuth.TokenPath,
+                    gpsVendor.GpsVendorAuth.Headers,
+                    gpsVendor.GpsVendorAuth.Params,
+                    gpsVendor.GpsVendorAuth.Bodies
+                ) : null,
+            /*
             GeofenceMasterAuths = gpsVendor.GpsVendorAuths.Select(item => new GeofenceMasterAuthDto
             {
                 Id = item.Id,
@@ -82,6 +98,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
                 Params = item.Params,
                 Bodies = item.Bodies
             }).ToList(),
+            */
             GeofenceMasterMappings = gpsVendor.Mappings.Select(item => new GeofenceMasterMappingDto
             {
                 Id = item.Id,

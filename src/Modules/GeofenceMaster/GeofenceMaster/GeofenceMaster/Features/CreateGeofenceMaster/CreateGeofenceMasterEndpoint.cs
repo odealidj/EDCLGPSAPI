@@ -14,6 +14,7 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
             {
                 ////var command = request.Adapt<CreateGeofenceMasterCommand>();
                 ///
+
                 var command = new CreateGeofenceMasterCommand(
                     new GeofenceMasterDto(
                         Guid.Empty,
@@ -40,21 +41,20 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
                                 item.VarParams,
                                 item.MaxPath
                             )).ToList(),
-                        request.GeofenceMaster.GeofenceMasterAuths?.Select(item =>
-                            new GeofenceMasterAuthDto(
-                                Guid.Empty,
-                                item.GpsVendorId,
-                                item.BaseUrl,
-                                item.Method,
-                                item.Authtype,
-                                item.ContentType,
-                                item.Username,
-                                item.Password,
-                                item.TokenPath,
-                                item.Headers,
-                                item.Params,
-                                item.Bodies
-                            )).ToList(),
+                        request.GeofenceMaster.GeofenceMasterAuth != null ? new GeofenceMasterAuthDto(
+                            Guid.Empty,
+                            request.GeofenceMaster.GeofenceMasterAuth.GpsVendorId,
+                            request.GeofenceMaster.GeofenceMasterAuth.BaseUrl,
+                            request.GeofenceMaster.GeofenceMasterAuth.Method,
+                            request.GeofenceMaster.GeofenceMasterAuth.Authtype,
+                            request.GeofenceMaster.GeofenceMasterAuth.ContentType,
+                            request.GeofenceMaster.GeofenceMasterAuth.Username,
+                            request.GeofenceMaster.GeofenceMasterAuth.Password,
+                            request.GeofenceMaster.GeofenceMasterAuth.TokenPath,
+                            request.GeofenceMaster.GeofenceMasterAuth.Headers,
+                            request.GeofenceMaster.GeofenceMasterAuth.Params,
+                            request.GeofenceMaster.GeofenceMasterAuth.Bodies
+                            ) : null,
                         request.GeofenceMaster.GeofenceMasterMappings.Select(item =>
                             new GeofenceMasterMappingDto(
                                 item.GpsVendorId,

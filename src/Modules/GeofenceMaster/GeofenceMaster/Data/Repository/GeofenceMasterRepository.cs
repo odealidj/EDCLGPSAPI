@@ -65,7 +65,7 @@ public class GeofenceMasterRepository(
             .Skip(pageIndex * pageSize) // Pagination - Skip records for the current page
             .Take(pageSize) // Take only the number of records specified by pageSize
             .Include(x => x.GpsVendorEndpoints) // Include related GpsVendorEndpoints
-            .Include(x => x.GpsVendorAuths) // Include related GpsVendorAuths
+            .Include(x => x.GpsVendorAuth) // Include related GpsVendorAuths
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
             .ToListAsync(cancellationToken); // Execute the query and retrieve the results
