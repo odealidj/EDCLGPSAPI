@@ -1,17 +1,6 @@
 namespace GeofenceWorker.Workers.Dtos;
 
-public class GpsLastPostionDto
-{
-    public Guid Id { get; set; } = default!;
-    public Guid GpsVendorId { get; set; }
-    public string VendorName { get; set; } = string.Empty;
-    public DateTime? CreatedAt { get; set; } 
-    public DateTime? LastModified { get; set; } 
-
-    public List<GpsLastPostionDetailDto>  Data { get; set; }= new(); 
-}
-
-public class GpsLastPostionDetailDto
+public class GpsLastPositionDDto
 {
     public Guid Id { get; set; } = default!;
     public Guid GpsLastPositionHId { get; set; }

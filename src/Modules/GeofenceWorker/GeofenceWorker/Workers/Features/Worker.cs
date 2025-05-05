@@ -458,7 +458,7 @@ public class Worker : BackgroundService
         */
             
         await _rabbitMqService.PublishAsync(message, routingKey);
-    }
+    }//
 
     private async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
     {
@@ -725,7 +725,7 @@ public class Worker : BackgroundService
         return h;
     }
     
-    private static GpsLastPostionDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
+    private static GpsLastPositionHDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
     {
         if (vendor == null)
         {
@@ -737,7 +737,7 @@ public class Worker : BackgroundService
             throw new ArgumentNullException(nameof(details), "GpsLastPositionD cannot be null.");
         }
 
-        var gpsMessage = new GpsLastPostionDto
+        var gpsMessage = new GpsLastPositionHDto
         {
             Id = details.First().GpsLastPositionHId,
             GpsVendorId = vendor.Id,
@@ -745,7 +745,7 @@ public class Worker : BackgroundService
             CreatedAt = vendor.CreatedAt,
             LastModified = vendor.LastModified,
             
-            Data = details.Select(detail => new GpsLastPostionDetailDto
+            Data = details.Select(detail => new GpsLastPositionDDto
             {
                 Id = detail.Id ,
                 GpsLastPositionHId = detail.GpsLastPositionHId,
