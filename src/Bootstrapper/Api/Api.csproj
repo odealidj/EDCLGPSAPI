@@ -11,6 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.13.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.13.0" />
@@ -20,14 +22,12 @@
     </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.2" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
-    <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Modules\Basket\Basket\Basket.csproj" />
-    <ProjectReference Include="..\..\Modules\Catalog\Catalog\Catalog.csproj" />
     <ProjectReference Include="..\..\Modules\GeofenceMaster\GeofenceMaster\GeofenceMaster.csproj" />
-    <ProjectReference Include="..\..\Modules\Ordering\Ordering\Ordering.csproj" />
+    <ProjectReference Include="..\..\Modules\GeofenceWorker\GeofenceWorker\GeofenceWorker.csproj" />
+    <ProjectReference Include="..\..\Modules\TrackDelivery\TrackDelivery\TrackDelivery\TrackDelivery.csproj" />
   </ItemGroup>
   
 </Project>

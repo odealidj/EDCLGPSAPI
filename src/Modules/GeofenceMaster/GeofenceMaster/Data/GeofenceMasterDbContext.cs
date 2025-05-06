@@ -14,6 +14,7 @@ public class GeofenceMasterDbContext : DbContext
     public DbSet<Mapping> Mappings => Set<Mapping>();
     
     public DbSet<GpsVendorLpcd> Lpcds => Set<GpsVendorLpcd>();
+    public DbSet<Msystem> Msystems => Set<Msystem>();
     
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -62,6 +63,17 @@ public class GeofenceMasterDbContext : DbContext
         builder.Entity<Mapping>().ToTable("tb_m_mapping");
         builder.Entity<GpsVendorLpcd>().ToTable("tb_m_gps_vendor_lpcd");
         
+        builder.Entity<Msystem>(entity => 
+            {
+                entity.ToTable("tb_m_system");
+                entity.HasKey(e => new { e.SysCat, e.SysSubCat, e.SysCd });
+                entity.Property(e=> e.SysCat).HasColumnName("SysCat");
+                entity.Property(e => e.SysSubCat).HasColumnName("SysSubCat");
+                entity.Property(e => e.SysCd).HasColumnName("SysCd");
+                entity.Property(e => e.SysValue).HasColumnName("SysValue");
+                entity.Property(e => e.Remarks).HasColumnName("Remarks");
+            }    
+        );
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);
         

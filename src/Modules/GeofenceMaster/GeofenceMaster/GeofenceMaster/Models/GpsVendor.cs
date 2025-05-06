@@ -106,7 +106,7 @@ public class GpsVendor: Aggregate<Guid>
         ArgumentException.ThrowIfNullOrEmpty(gpsVendorId.ToString());
         ArgumentException.ThrowIfNullOrEmpty(baseUrl);
         ArgumentException.ThrowIfNullOrEmpty(method);
-        ArgumentException.ThrowIfNullOrEmpty(authtype);
+
 
         if (GpsVendorAuth != null && GpsVendorAuth.Id == id)
         {

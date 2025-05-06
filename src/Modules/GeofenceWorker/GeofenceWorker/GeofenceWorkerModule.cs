@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shared.Data.Interceptors;
 
 namespace GeofenceWorker;
@@ -22,8 +23,14 @@ public static class GeofenceWorkerModule
         services.AddHttpClient();
         services.AddHostedService<Worker>();
         
-        // Bind RabbitMqSettings from configuration
-        services.Configure<RabbitMqSettings>(configuration.GetSection("RabbitMq"));
+        // Binding konfigurasi ke kelas RabbitMqSettings
+        services.Configure<RabbitMqSettings>(
+            configuration.GetSection("RabbitMq")
+        );
+        
+        services.AddSingleton<RabbitMqSettings>(sp => 
+            sp.GetRequiredService<IOptions<RabbitMqSettings>>().Value
+        );
     
         var connectionString = configuration.GetConnectionString("Database");
         
@@ -36,7 +43,7 @@ public static class GeofenceWorkerModule
             ////options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseNpgsql(connectionString)
             .EnableSensitiveDataLogging()
-            .LogTo(Console.WriteLine, LogLevel.Debug);
+            .LogTo(Console.WriteLine, LogLevel.Warning);
         });
         
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
