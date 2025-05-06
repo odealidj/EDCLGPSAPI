@@ -1,8 +1,6 @@
 using GeofenceWorker.Events;
-using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using Shared.Messaging.Events;
 
 namespace GeofenceWorker.EventHandlers;
 

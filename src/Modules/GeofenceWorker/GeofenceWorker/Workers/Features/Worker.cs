@@ -51,59 +51,67 @@ public class Worker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Contoh data yang ingin dipublish
-                /*
-                var dataToPublish = new { Message = $"Hello from Worker at {DateTime.UtcNow}" };
-                string routingKey = "worker.message";
-                string exchangeName = "my_topic_exchange";
-                
-                // Publikasikan pesan dengan routing key 'gps.position'
-                await _rabbitMqService.PublishAsync(dataToPublish, "gps.position");
-                */
+                var durationTime = "1"; // Default ke 1 menit jika tidak ada nilai di database
                 
                 using (var scope = _scopeFactory.CreateScope()) // Create a scope for DbContext
                 {
                     var context = scope.ServiceProvider.GetRequiredService<GeofenceWorkerDbContext>();
                     
+                    durationTime = await context.Msystems
+                        .Where(x => x.SysCat == "Delay" && x.SysSubCat == "EDCL_GPS_WORKER_SERVICE" && x.SysCd == "1")
+                        .Select(x => x.SysValue)
+                        .FirstOrDefaultAsync(stoppingToken);
+                    
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         .Where(x => x.Id == Guid.Parse("4bb3ac8e-288b-44b7-83a7-da182967d7ec"))
+                         .Where(x => x.Id == Guid.Parse("fc394d1d-d370-4868-980e-2aab99394c7f"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
                     foreach (var vendor in vendors)
                     {
-                        var endpoints = await context.GpsVendorEndpoints
-                            .Where(x => x.GpsVendorId == vendor.Id)
-                            .ToListAsync(stoppingToken);
+                        try
+                        {                        
+                            var endpoints = await context.GpsVendorEndpoints
+                                .Where(x => x.GpsVendorId == vendor.Id)
+                                .ToListAsync(stoppingToken);
 
-                        if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && endpoints.Count > 0)
-                        {
-                            // Proses endpoint secara gabungan
-                            await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
-                        }
-                        else
-                        {
-                            // Proses setiap endpoint secara individual
-                            foreach (var endpoint in endpoints)
+                            if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && endpoints.Count > 0)
                             {
-                                await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
+                                // Proses endpoint secara gabungan
+                                await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
                             }
+                            else
+                            {
+                                // Proses setiap endpoint secara individual
+                                foreach (var endpoint in endpoints)
+                                {
+                                    await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing vendor {VendorName}: {Message}", vendor.VendorName, ex.Message);
                         }
                     }
                 }
                 
                 // Wait for 1 minute (60,000 milliseconds) before next cycle
                 
-                await Task.Delay(60000, stoppingToken); // 1 minute delay
+                //await Task.Delay(60000, stoppingToken); // 1 minute delay
                 
-                ////await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); 
+                if (!int.TryParse(durationTime, out var delayTime))
+                {
+                    delayTime = 1; // Default ke 1 menit jika tidak ada nilai di database
+                }
+                
+                await Task.Delay(TimeSpan.FromMinutes(delayTime), stoppingToken); 
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
-            throw;
+            _logger.LogError(e, "An error occurred in the worker: {Message}", e.Message);
         }
     }
 
@@ -115,6 +123,7 @@ public class Worker : BackgroundService
         var client = _httpClientFactory.CreateClient();
         
         var responses = new List<string>();
+        
         foreach (var endpoint in endpoints)
         {
             var request = new HttpRequestMessage
@@ -171,7 +180,7 @@ public class Worker : BackgroundService
                     var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.GpsVendor.Username}:{endpoint.GpsVendor.Password}"));
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
                 }
-                else if (endpoint.GpsVendor.AuthType == "Bearer")
+                else if (endpoint.GpsVendor is { AuthType: "Bearer", Auth: not null })
                 {
                     var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
@@ -185,24 +194,6 @@ public class Worker : BackgroundService
                 var response = await client.SendAsync(request, stoppingToken);
                 if (response.IsSuccessStatusCode)
                 {
-                    /*
-                    responseData = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(stoppingToken));
-                    if (responseData.RootElement.TryGetProperty("data", out var vehiclePositionsDataElement) &&
-                        vehiclePositionsDataElement.ValueKind == JsonValueKind.Array)
-                    {
-                        responses = vehiclePositionsDataElement.Deserialize<List<Dictionary<string, object>>>();
-                    }
-                    */
-                    /*
-                    //vehiclePositionsDocument =
-                    //    await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(stoppingToken), cancellationToken: stoppingToken);
-
-                    responseData1 = await response.Content.ReadAsStringAsync(stoppingToken);
-
-                    var data =  GetDataItems(responseData1, "data");
-                    
-                    vehiclePositions = new List<Dictionary<string, object>>() { JsonSerializer.Deserialize<Dictionary<string, 
-                    */
                     var responseData =
                         await response.Content.ReadAsStringAsync(stoppingToken);
 
@@ -224,34 +215,25 @@ public class Worker : BackgroundService
                     vendor.VendorName, endpoint.BaseUrl, ex.Message);
                 return;
             }
-            finally
-            {
-                
-            }
-            
         }
-        
         
         if (responses.Count != 0)
         {
-            var lastPositionH = new GpsLastPositionH
-            {
-                Id = Guid.NewGuid(),
-                GpsVendorId = vendor.Id,
-            };
-            
             var combinedDataList = CombineJsonToString(responses, vendor.ProcessingStrategyPathKey??"", vendor.ProcessingStrategyPathData??"data");
             
             var lastPositionDs = await ProcessMappingResponse(vendor.Id ,combinedDataList, vendor.ProcessingStrategyPathData??"data", context);
-
-            var geofenceMaster = await CreateNewGpsLastPosition(vendor, lastPositionDs);  
             
-            _logger.LogInformation($"Vendor: {vendor.VendorName }, Data yang Digabungkan: {JsonSerializer.Serialize(combinedDataList, new JsonSerializerOptions { WriteIndented = true })}");
+            await CreateNewGpsLastPosition(vendor, lastPositionDs);
+
+            await PublishGpsMessageAsync(endpoints.First(), lastPositionDs);
+            
+            _logger.LogInformation($"Vendor: {vendor.VendorName }");
         }
         else
         {
             _logger.LogWarning($"Tidak ada data untuk digabungkan untuk vendor: {vendor.VendorName}.");
         }
+        
         
         /*
         if (responses.Count == 2)
@@ -326,10 +308,11 @@ public class Worker : BackgroundService
                 
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authValue);
             }
-            else if (endpoint.GpsVendor.AuthType == "Bearer")
+            else if (endpoint.GpsVendor is { AuthType: "Bearer", Auth: not null })
             {
                 var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
+                    
             }
         }
         

@@ -17,13 +17,14 @@ public class RabbitMqService: IRabbitMqService
     private readonly AsyncRetryPolicy _retryPolicy;
     private readonly ILogger<RabbitMqService> _logger;
     
-    public RabbitMqService(IOptions<RabbitMqSettings> rabbitMqSettings, ILogger<RabbitMqService> logger)
+    public RabbitMqService(RabbitMqSettings settings, ILogger<RabbitMqService> logger)
     {
-        var settings = rabbitMqSettings.Value;
+        ////var settings = rabbitMqSettings.Value;
         
         if (string.IsNullOrEmpty(settings.HostName))
             throw new ArgumentException("HostName is required.", nameof(settings.HostName));
         
+        /*
         var factory = new ConnectionFactory
         {
             HostName = settings.HostName,
@@ -32,6 +33,30 @@ public class RabbitMqService: IRabbitMqService
             Port = settings.Port, // Use the configured port
             VirtualHost = settings.VirtualHost // Use the configured virtual host
         };
+        */
+    
+        // Konversi ke URI
+        int port = settings.Port > 0 ? settings.Port : 5672;
+        string virtualHost = string.IsNullOrEmpty(settings.VirtualHost) ? "" : settings.VirtualHost;
+
+        
+        string rabbitMqUri;
+        if (string.IsNullOrEmpty(settings.VirtualHost))
+        {
+            rabbitMqUri = $"{settings.Protocol}://{settings.UserName}:{settings.Password}@{settings.HostName}:{port}";
+        }
+        else
+        {
+            rabbitMqUri = $"{settings.Protocol}://{settings.UserName}:{settings.Password}@{settings.HostName}:{port}/{settings.VirtualHost}";
+        }
+        
+        var factory = new ConnectionFactory
+        {
+            Uri = new Uri(rabbitMqUri)
+            //,
+            //DispatchConsumersAsync = true // Opsional: Untuk konsumsi async
+        };
+        
         
         _connection = factory.CreateConnection();
         _channel = _connection.CreateModel();

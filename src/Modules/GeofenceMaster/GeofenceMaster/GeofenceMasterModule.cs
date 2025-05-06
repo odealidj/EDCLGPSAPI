@@ -1,5 +1,6 @@
 using GeofenceMaster.Data.Repository;
 using GeofenceMaster.Data.Repository.IRepository;
+using Microsoft.Extensions.Logging;
 
 namespace GeofenceMaster;
 
@@ -18,9 +19,9 @@ public static class GeofenceMasterModule
         services.AddDbContext<GeofenceMasterDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseNpgsql(connectionString);
-            //.EnableSensitiveDataLogging()
-            //.LogTo(Console.WriteLine, LogLevel.Information);
+            options.UseNpgsql(connectionString)
+            .EnableSensitiveDataLogging()
+            .LogTo(Console.WriteLine, LogLevel.Warning);
         },ServiceLifetime.Scoped);
         
         // Add services to the container.

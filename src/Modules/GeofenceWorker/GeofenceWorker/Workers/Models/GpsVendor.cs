@@ -37,7 +37,7 @@ public class GpsVendor: Aggregate<Guid>
     ////public IReadOnlyList<GpsVendorAuth> GpsVendorAuths => _gpsVendorAuths.AsReadOnly();
 
     ////public GpsVendorEndpoint Endpoint { get; set; } = null!; 
-    public GpsVendorAuth Auth { get; set; } 
+    public GpsVendorAuth? Auth { get; set; } 
     
        
     public static GpsVendor Create(Guid id, string vendorName, string lpcdId , string? timezone, bool requiredAuth, 

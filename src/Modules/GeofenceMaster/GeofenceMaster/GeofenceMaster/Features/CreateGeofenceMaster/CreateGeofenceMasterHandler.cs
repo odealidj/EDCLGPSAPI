@@ -72,21 +72,25 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
                 item.MaxPath
             );
         });
-        
-        newGpsVendor.AddGpsVendorAuth( 
-            Guid.NewGuid(),
-            newGpsVendor.Id,
-            geofenceMasterDto.GeofenceMasterAuth.BaseUrl,
-            geofenceMasterDto.GeofenceMasterAuth.Method,
-            geofenceMasterDto.GeofenceMasterAuth.Authtype,
-            geofenceMasterDto.GeofenceMasterAuth.ContentType,
-            geofenceMasterDto.GeofenceMasterAuth.Username,
-            geofenceMasterDto.GeofenceMasterAuth.Password,
-            geofenceMasterDto.GeofenceMasterAuth.TokenPath,
-            geofenceMasterDto.GeofenceMasterAuth.Headers,
-            geofenceMasterDto.GeofenceMasterAuth.Params,
-            geofenceMasterDto.GeofenceMasterAuth.Bodies);
 
+        if (geofenceMasterDto.GeofenceMasterAuth != null)
+        {
+            newGpsVendor.AddGpsVendorAuth( 
+                Guid.NewGuid(),
+                newGpsVendor.Id,
+                geofenceMasterDto.GeofenceMasterAuth.BaseUrl,
+                geofenceMasterDto.GeofenceMasterAuth.Method,
+                geofenceMasterDto.GeofenceMasterAuth.Authtype,
+                geofenceMasterDto.GeofenceMasterAuth.ContentType,
+                geofenceMasterDto.GeofenceMasterAuth.Username,
+                geofenceMasterDto.GeofenceMasterAuth.Password,
+                geofenceMasterDto.GeofenceMasterAuth.TokenPath,
+                geofenceMasterDto.GeofenceMasterAuth.Headers,
+                geofenceMasterDto.GeofenceMasterAuth.Params,
+                geofenceMasterDto.GeofenceMasterAuth.Bodies);
+    
+        }
+        
         geofenceMasterDto.GeofenceMasterMappings.ForEach(item =>
         {
             newGpsVendor.AddMapping(

@@ -22,6 +22,7 @@ public class GeofenceWorkerDbContext: DbContext
     public DbSet<GpsLastPositionD> GpsLastPositionDs => Set<GpsLastPositionD>();
 
     public DbSet<GpsDelivery> GpsDeliveries => Set<GpsDelivery>();
+    public DbSet<Msystem> Msystems => Set<Msystem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -92,6 +93,17 @@ public class GeofenceWorkerDbContext: DbContext
         builder.Entity<GpsLastPositionH>().ToTable("tb_r_gps_last_position_h");
         builder.Entity<GpsLastPositionD>().ToTable("tb_r_gps_last_position_d");
         builder.Entity<GpsDelivery>().ToTable("tb_r_gps_delivery");
+        builder.Entity<Msystem>(entity => 
+            {
+                entity.ToTable("tb_m_system");
+                entity.HasKey(e => new { e.SysCat, e.SysSubCat, e.SysCd });
+                entity.Property(e=> e.SysCat).HasColumnName("SysCat");
+                entity.Property(e => e.SysSubCat).HasColumnName("SysSubCat");
+                entity.Property(e => e.SysCd).HasColumnName("SysCd");
+                entity.Property(e => e.SysValue).HasColumnName("SysValue");
+                entity.Property(e => e.Remarks).HasColumnName("Remarks");
+            }    
+        );
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);
