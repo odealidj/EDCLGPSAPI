@@ -1,6 +1,21 @@
 services:
-  api:
-    image: ${DOCKER_REGISTRY-}api
-    build:
-      context: .
-      dockerfile: Bootstrapper/Api/Dockerfile
+  #api:
+  #  image: ${DOCKER_REGISTRY-}api
+  #  build:
+  #    context: .
+  #    dockerfile: Bootstrapper/Api/Dockerfile
+      
+  ae031db:
+    image: postgres
+
+  distributedcache:
+    image: redis
+
+  seq:
+    image: datalust/seq:latest
+
+  messagebus:
+    image: rabbitmq:management
+
+volumes:
+  postgres_ae031db:
