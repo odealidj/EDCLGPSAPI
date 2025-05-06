@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Delivery\Delivery\Delivery\Delivery.csproj" />
     <ProjectReference Include="..\..\Modules\GeofenceMaster\GeofenceMaster\GeofenceMaster.csproj" />
     <ProjectReference Include="..\..\Modules\GeofenceWorker\GeofenceWorker\GeofenceWorker.csproj" />
     <ProjectReference Include="..\..\Modules\TrackDelivery\TrackDelivery\TrackDelivery\TrackDelivery.csproj" />

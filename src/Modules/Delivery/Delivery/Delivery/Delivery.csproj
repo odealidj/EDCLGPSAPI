@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Folder Include="Data\Repositories\IRepositories\" />
+      <Folder Include="Delivery\Dtos\" />
+      <Folder Include="Delivery\Exceptions\" />
+      <Folder Include="Delivery\Features\CreateGpsDelivery\" />
+      <Folder Include="Delivery\Models\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\..\Shared\Shared\Shared.csproj" />
+    </ItemGroup>
+
+</Project>
