@@ -26,8 +26,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GeofenceMaster", "GeofenceM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeofenceMaster", "Modules\GeofenceMaster\GeofenceMaster\GeofenceMaster.csproj", "{10DA1811-45CA-4C98-A58E-90F1E1B3D06E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "WorkerServices", "WorkerServices", "{F48F7E18-DC36-48C0-A5E1-281D22BBFF35}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GeofenceWorker", "GeofenceWorker", "{8EC4DFFD-E45A-4392-BBA0-5E0118A6AA2B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeofenceWorker", "Modules\GeofenceWorker\GeofenceWorker\GeofenceWorker.csproj", "{B465ABF1-3071-4E9E-8110-2DFB0A1BCD39}"
@@ -37,6 +35,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TrackDelivery", "TrackDelivery", "{D1423A23-123C-43AD-9344-273BD2A88AF6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrackDelivery", "Modules\TrackDelivery\TrackDelivery\TrackDelivery\TrackDelivery.csproj", "{D41A3C29-3898-4F4E-89D4-B21DA82C12C8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Delivery", "Delivery", "{8A370F79-C544-48D6-B4DD-458E18CAD256}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Delivery", "Modules\Delivery\Delivery\Delivery\Delivery.csproj", "{C923FD73-0919-450B-91AE-EA185D13FA02}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -76,6 +78,10 @@ Global
 		{D41A3C29-3898-4F4E-89D4-B21DA82C12C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D41A3C29-3898-4F4E-89D4-B21DA82C12C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D41A3C29-3898-4F4E-89D4-B21DA82C12C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C923FD73-0919-450B-91AE-EA185D13FA02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C923FD73-0919-450B-91AE-EA185D13FA02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C923FD73-0919-450B-91AE-EA185D13FA02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C923FD73-0919-450B-91AE-EA185D13FA02}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -94,6 +100,8 @@ Global
 		{B465ABF1-3071-4E9E-8110-2DFB0A1BCD39} = {8EC4DFFD-E45A-4392-BBA0-5E0118A6AA2B}
 		{D1423A23-123C-43AD-9344-273BD2A88AF6} = {3916D730-3038-4D5D-9E93-B641DCCFD237}
 		{D41A3C29-3898-4F4E-89D4-B21DA82C12C8} = {D1423A23-123C-43AD-9344-273BD2A88AF6}
+		{8A370F79-C544-48D6-B4DD-458E18CAD256} = {3916D730-3038-4D5D-9E93-B641DCCFD237}
+		{C923FD73-0919-450B-91AE-EA185D13FA02} = {8A370F79-C544-48D6-B4DD-458E18CAD256}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C0434113-9DE9-4ACD-8670-440CFE2D323F}

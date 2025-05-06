@@ -1,4 +1,5 @@
 
+using Delivery;
 using GeofenceWorker;
 using TrackDelivery;
 
@@ -39,6 +40,7 @@ builder.Services
 //module services: catalog, basket, ordering
    builder.Services
        .AddGeofenceMasterModule(builder.Configuration)
+       .AddDeliveryModule(builder.Configuration)
        .AddTrackDeliveryModule(builder.Configuration)
        .AddGeofenceWorkerModule(builder.Configuration);
 
@@ -69,6 +71,7 @@ app.UseExceptionHandler(options => { });
 
 app
     .UseGeofenceMasterModule()
+    .UseDeliveryModule()
     .UseTrackDeliveryModule();
 
 
