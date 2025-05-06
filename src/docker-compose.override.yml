@@ -1,22 +1,62 @@
 services:
-  api:
-    container_name:  api
+  
+# api:
+# container_name:  api
+# environment:
+#   - ASPNETCORE_ENVIRONMENT=Production
+#   - ASPNETCORE_URLS=http://+:80
+#   - AwsMQSettings__Url=amqps://admin-mq:06JMn0pXJTOOuVV@b-dae6f57a-61c3-40a4-8854-8e5e382cca6d.mq.ap-southeast-2.amazonaws.com:5671
+#   - AwsMQSettings__QueueNameLastPosition=gps_data_last_position_edcl
+#   - RabbitMq__Protocol=amqps
+#   - RabbitMq__HostName=b-dae6f57a-61c3-40a4-8854-8e5e382cca6d.mq.ap-southeast-2.amazonaws.com
+#   - RabbitMq__Port=5671
+#   - RabbitMq__UserName=admin-mq
+#   - RabbitMq__Password=06JMn0pXJTOOuVV
+#   - RabbitMq__VirtualHost=
+#   - DatabaseSettings__DefaultConnection=Server=ae031-gps-dev-db.cc9gvvibhzqm.ap-southeast-2.rds.amazonaws.com;Port=5434;Database=postgres;User Id=postgres;Password=5rR0fZjfpY2oksvPf5OA;Timeout=45;CommandTimeout=60;Pooling=true;MinPoolSize=1;MaxPoolSize=200;Include Error Detail=true
+#   - ConnectionStrings__Database=Server=ae031-gps-dev-db.cc9gvvibhzqm.ap-southeast-2.rds.amazonaws.com;Port=5434;Database=postgres;User Id=postgres;Password=5rR0fZjfpY2oksvPf5OA;Timeout=45;CommandTimeout=60;Pooling=true;MinPoolSize=1;MaxPoolSize=200;Include Error Detail=true
+#   - EdclWebApiSettings__BaseUrl=https://edcl-api.toyota.co.id
+#   - EdclWebApiSettings__ApiSecret=EDCL-API-KEY
+#   - EdclWebApiSettings__ApiSecretKey=I65KElTC4ecUopL+pKslc14Sw1dOffcVpKKV8gGRa5o=
+# ports:
+#     - "6090:80"
+#     - "6091:443"
+    
+  ae031db:
+    container_name: ae031db
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:80
-      - AwsMQSettings__Url=amqps://admin-mq:06JMn0pXJTOOuVV@b-dae6f57a-61c3-40a4-8854-8e5e382cca6d.mq.ap-southeast-2.amazonaws.com:5671
-      - AwsMQSettings__QueueNameLastPosition=gps_data_last_position_edcl
-      - RabbitMq__Protocol=amqps
-      - RabbitMq__HostName=b-dae6f57a-61c3-40a4-8854-8e5e382cca6d.mq.ap-southeast-2.amazonaws.com
-      - RabbitMq__Port=5671
-      - RabbitMq__UserName=admin-mq
-      - RabbitMq__Password=06JMn0pXJTOOuVV
-      - RabbitMq__VirtualHost=
-      - DatabaseSettings__DefaultConnection=Server=ae031-gps-dev-db.cc9gvvibhzqm.ap-southeast-2.rds.amazonaws.com;Port=5434;Database=postgres;User Id=postgres;Password=5rR0fZjfpY2oksvPf5OA;Timeout=45;CommandTimeout=60;Pooling=true;MinPoolSize=1;MaxPoolSize=200;Include Error Detail=true
-      - ConnectionStrings__Database=Server=ae031-gps-dev-db.cc9gvvibhzqm.ap-southeast-2.rds.amazonaws.com;Port=5434;Database=postgres;User Id=postgres;Password=5rR0fZjfpY2oksvPf5OA;Timeout=45;CommandTimeout=60;Pooling=true;MinPoolSize=1;MaxPoolSize=200;Include Error Detail=true
-      - EdclWebApiSettings__BaseUrl=https://edcl-api.toyota.co.id
-      - EdclWebApiSettings__ApiSecret=EDCL-API-KEY
-      - EdclWebApiSettings__ApiSecretKey=I65KElTC4ecUopL+pKslc14Sw1dOffcVpKKV8gGRa5o=
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=AE031_EDCL_GPS_DB
+    restart: always
     ports:
-        - "6090:80"
-        - "6091:443"
+      - "5436:5432"
+    volumes:
+      - postgres_ae031db:/var/lib/postgresql/data/
+
+  distributedcache:
+    container_name: distributedcache
+    restart: always
+    ports:
+      - "6379:6379"
+
+  seq:
+    container_name: seq
+    environment:
+      - ACCEPT_EULA=Y
+    restart: always
+    ports:
+      - "5341:5341"
+      - "9091:80"
+
+  messagebus:
+    container_name: messagebus
+    hostname: ecommerce-mq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    
