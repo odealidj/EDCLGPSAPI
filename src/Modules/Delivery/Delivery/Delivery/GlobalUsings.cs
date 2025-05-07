@@ -1,6 +1,17 @@
-namespace Delivery;
-
-public class GlobalUsings
-{
-    
-}
+global using Microsoft.EntityFrameworkCore;
+global using System.Reflection;
+global using Mapster;
+global using MediatR;
+global using Carter;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.AspNetCore.Routing;
+global using FluentValidation;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Shared.DDD;
+global using Shared.Exceptions;
+global using Microsoft.Extensions.Logging;
+global using Shared.Contracts.CQRS;
+global using Microsoft.EntityFrameworkCore.Diagnostics;
+global using Shared.Data.Interceptors;

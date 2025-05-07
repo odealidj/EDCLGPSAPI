@@ -15,3 +15,4 @@ global using Shared.Data.Interceptors;
 global using System.Text.Json.Nodes;
 global using System.Text.Json.Serialization;
 global using Shared.DDD;
+global using Shared.Exceptions;

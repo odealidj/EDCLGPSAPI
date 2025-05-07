@@ -14,14 +14,15 @@ var builder = WebApplication.CreateBuilder(args);
 //common services: carter, mediatr, fluentvalidation
 ////var catalogAssembly = typeof(CatalogModule).Assembly;
 ////var basketAssembly = typeof(BasketModule).Assembly;
+var deliveryAssembly = typeof(DeliveryModule).Assembly;
 var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
 ////var geofenceWorkerModuleAssembly = typeof(GeofenceWorkerModule).Assembly;
 
 builder.Services
-    .AddCarterWithAssemblies(geofenceMasterAssembly);
+    .AddCarterWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
 
 builder.Services
-    .AddMediatRWithAssemblies(geofenceMasterAssembly);
+    .AddMediatRWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
 
 ////builder.Services
    ////.AddMassTransitWithAssemblies(builder.Configuration, geofenceWorkerModuleAssembly);
@@ -40,9 +41,9 @@ builder.Services
 //module services: catalog, basket, ordering
    builder.Services
        .AddGeofenceMasterModule(builder.Configuration)
-       .AddDeliveryModule(builder.Configuration)
-       .AddTrackDeliveryModule(builder.Configuration)
-       .AddGeofenceWorkerModule(builder.Configuration);
+       .AddDeliveryModule(builder.Configuration);
+       //.AddTrackDeliveryModule(builder.Configuration);
+       ////.AddGeofenceWorkerModule(builder.Configuration);
 
 
 
