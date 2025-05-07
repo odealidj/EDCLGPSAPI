@@ -1,5 +1,4 @@
 using GeofenceMaster.GeofenceMaster.Dtos;
-using GeofenceMaster.GeofenceMaster.Models;
 
 namespace GeofenceMaster.GeofenceMaster.Features.CreateGeofenceMaster;
 

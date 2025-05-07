@@ -1,4 +1,4 @@
-namespace GeofenceWorker;
+namespace GefenceWrkSvc;
 
 public class Worker : BackgroundService
 {
