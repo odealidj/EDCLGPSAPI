@@ -1,8 +1,11 @@
+using EFCore.BulkExtensions;
 using GeofenceWorker.Data.Repository.IRepository;
+using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Exceptions;
 using GeofenceWorker.Workers.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace GeofenceWorker.Data.Repository;
 
@@ -91,5 +94,83 @@ public class GpsLastPositionHRepository(
             throw new WorkerDataAccessException("Terjadi kesalahan saat mengakses data.");
         }
         
+    }
+
+    public async Task<int> InsertGpsDelivery(List<GpsDelivery> gpsDeliveries, CancellationToken cancellationToken = default)
+    {
+        if (gpsDeliveries == null || gpsDeliveries.Count == 0) return 0;
+        
+        // Konfigurasi bulk insert
+        var bulkConfig = new BulkConfig
+        {
+            BatchSize = 500,          // Jumlah record per batch
+            PreserveInsertOrder = true, // Menjaga urutan insert
+            UseTempDB = false         // PostgreSQL tidak mendukung temp DB
+        };
+
+        try
+        {
+            // Lakukan bulk insert
+            await dbContext.BulkInsertAsync(gpsDeliveries, bulkConfig, cancellationToken: cancellationToken);
+
+            // Return jumlah record yang berhasil disimpan
+            return gpsDeliveries.Count;
+        }
+        catch (DbUpdateException ex)
+        { 
+            logger.LogError(ex, "Terjadi kesalahan DbUpdateException saat menyimpan Gps Delivery.");
+            // Transformasikan ke exception domain tanpa detail database sensitif
+            if (ex.InnerException?.Message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new WorkerConflictException("Data yang Anda coba simpan menyebabkan konflik.");
+            }
+            throw new WorkerDataAccessException("Terjadi kesalahan saat menyimpan data.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Terjadi kesalahan umum saat menyimpan Gps Delivery.");
+            throw new WorkerDataAccessException("Terjadi kesalahan saat mengakses data.");
+        }
+    }
+
+    /*
+    public async Task<CustomDeliveryProgressDto?> GetCustomDeliveryProgressAsync(string platNo, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(platNo)) return null;
+        
+        var latestRecord = await dbContext.DeliveryProgresses
+            .Where(dp => dp.PlatNo == platNo)
+            .OrderByDescending(dp => dp.CreatedAt)
+            .Select(dp => new CustomDeliveryProgressDto
+            {
+                DeliveryNo = dp.DeliveryNo,
+                NoKtp = dp.NoKtp,
+                Lpcd =  dp.Lpcd ?? "",
+            })
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        
+        if (latestRecord != null) latestRecord.PlatNo = platNo;
+        return latestRecord;
+        
+    }
+    */
+
+    public async Task<List<DeliveryProgress>> GetCustomDeliveryProgressesAsync(IEnumerable<string>? platNos, CancellationToken cancellationToken)
+    {
+        if (platNos == null || !platNos.Any())
+        {
+            return new List<DeliveryProgress>();
+        }
+        
+        var platNosList = platNos.ToList();
+
+        return await dbContext.DeliveryProgresses
+            .FromSqlRaw(@"
+            SELECT DISTINCT ON (""PlatNo"") *
+            FROM edcl.tb_r_delivery_progress
+            WHERE ""PlatNo"" = ANY(@platNos)
+            ORDER BY ""PlatNo"", ""CreatedAt"" DESC",
+                new NpgsqlParameter("platNos", platNosList))
+            .ToListAsync(cancellationToken);
     }
 }
