@@ -41,9 +41,9 @@ builder.Services
 //module services: catalog, basket, ordering
    builder.Services
        .AddGeofenceMasterModule(builder.Configuration)
-       .AddDeliveryModule(builder.Configuration);
+       .AddDeliveryModule(builder.Configuration)
        //.AddTrackDeliveryModule(builder.Configuration);
-       ////.AddGeofenceWorkerModule(builder.Configuration);
+       .AddGeofenceWorkerModule(builder.Configuration);
 
 
 

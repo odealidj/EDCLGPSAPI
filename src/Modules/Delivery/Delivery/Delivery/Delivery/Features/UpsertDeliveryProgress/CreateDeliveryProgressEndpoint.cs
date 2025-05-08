@@ -9,7 +9,7 @@ public class CreateDeliveryProgressEndpoint: ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/delivery-progress", async (CreateDeliveryProgressRequest request, ISender sender) =>
+        app.MapPost("/api/v1/RDeliveryOnProgress", async (CreateDeliveryProgressRequest request, ISender sender) =>
             {
                 // Map the request to the command
                 var command = new CreateDeliveryProgressCommand(

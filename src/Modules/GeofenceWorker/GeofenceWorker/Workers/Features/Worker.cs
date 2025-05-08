@@ -223,7 +223,7 @@ public class Worker : BackgroundService
             
             var lastPositionDs = await ProcessMappingResponse(vendor.Id ,combinedDataList, vendor.ProcessingStrategyPathData??"data", context);
             
-            await CreateNewGpsLastPosition(vendor, lastPositionDs);
+            await CreateNewGpsLastPosition(vendor, lastPositionDs, stoppingToken);
 
             await PublishGpsMessageAsync(endpoints.First(), lastPositionDs);
             
@@ -332,7 +332,7 @@ public class Worker : BackgroundService
             
             if (lastPositionDs.Count > 0)
             {
-                var geofenceMaster = await CreateNewGpsLastPosition(endpoint.GpsVendor, lastPositionDs);
+                var geofenceMaster = await CreateNewGpsLastPosition(endpoint.GpsVendor, lastPositionDs, stoppingToken);
                 
                 if (!string.IsNullOrEmpty(endpoint.MaxPath))
                 {
@@ -680,33 +680,143 @@ public class Worker : BackgroundService
         return gpsLastPositions;
     }
     
-    private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs)
+    private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs, CancellationToken cancellationToken)
     {
         
         var dateTimeNow = DateTime.UtcNow;
         var createdBy = "System"; // Atau ambil dari konteks pengguna yang sedang aktif
-
+        
         var h = GpsLastPositionH.Create(
             Guid.NewGuid(), vendor.Id
         );
         h.CreatedAt = dateTimeNow;
         h.CreatedBy = createdBy;
+
+
+        var gpsDelivery = new List<GpsDelivery>();
+        
+        // Kumpulkan semua PlatNo dari lpsLastPositionDs
+        var platNos = lpsLastPositionDs
+            .Where(l => !string.IsNullOrEmpty(l.PlatNo))
+            .Select(l => l.PlatNo)
+            .Distinct()
+            .ToList();
+        
+        // Ambil semua data delivery progress sekaligus menggunakan PlatNo
+        using var scopeDeliveryProgress = _scopeFactory.CreateScope();
+        var repositoryDeliveryProgress = scopeDeliveryProgress.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
+        var deliveryProgresses = await repositoryDeliveryProgress.GetCustomDeliveryProgressesAsync(platNos, cancellationToken);
+
+        // Buat dictionary untuk mempermudah pencarian data berdasarkan PlatNo
+        var deliveryProgressDict = deliveryProgresses.ToDictionary(dp => dp.PlatNo);
+        
+        
         
         foreach (var lpsLastPositionD in lpsLastPositionDs)
         {
             lpsLastPositionD.GpsLastPositionHId = h.Id;
             lpsLastPositionD.CreatedAt = dateTimeNow;
             lpsLastPositionD.CreatedBy = createdBy;
+            
+            // Cek apakah PlatNo ada dalam hasil query
+            if (deliveryProgressDict.TryGetValue(lpsLastPositionD.PlatNo ?? string.Empty, out var deliveryProgress))
+            {
+                var item = new GpsDelivery
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendor.Id,
+                    GpsVendorName = vendor.VendorName,
+                    GpsDeliveryHId = h.Id,
+                    //LpcdId = deliveryProgress.Lpcd,
+                    Lpcd = deliveryProgress.Lpcd,
+                    DeliveryNo = deliveryProgress.DeliveryNo,
+                    NoKtp = deliveryProgress.NoKtp,
+                    PlatNo = deliveryProgress.PlatNo,
+                    DeviceId = lpsLastPositionD.DeviceId,
+                    Datetime = lpsLastPositionD.Datetime,
+                    X = lpsLastPositionD.X,
+                    Y = lpsLastPositionD.Y,
+                    Speed = lpsLastPositionD.Speed,
+                    Course = lpsLastPositionD.Course,
+                    StreetName = lpsLastPositionD.StreetName,
+                    
+                    CreatedAt = dateTimeNow,
+                    CreatedBy = createdBy
+                };
+                gpsDelivery.Add(item);
+            }
+            /*
+            using var scopeDeliveryProgress = _scopeFactory.CreateScope();
+            var repositoryDeliveryProgress = scopeDeliveryProgress.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
+            var deliveryProgress =  await repositoryDeliveryProgress.GetCustomDeliveryProgressAsync(lpsLastPositionD.PlatNo ?? string.Empty, cancellationToken);
+            if (deliveryProgress != null) 
+            {
+                var item = new GpsDelivery
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendor.Id,
+                    GpsVendorName = vendor.VendorName,
+                    GpsDeliveryHId = h.Id,
+                    //LpcdId = deliveryProgress.Lpcd,
+                    Lpcd = deliveryProgress.Lpcd,
+                    DeliveryNo = deliveryProgress.DeliveryNo,
+                    NoKtp = deliveryProgress.NoKtp,
+                    PlatNo = deliveryProgress.PlatNo,
+                    DeviceId = lpsLastPositionD.DeviceId,
+                    Datetime = lpsLastPositionD.Datetime,
+                    X = lpsLastPositionD.X,
+                    Y = lpsLastPositionD.Y,
+                    Speed = lpsLastPositionD.Speed,
+                    Course = lpsLastPositionD.Course,
+                    StreetName = lpsLastPositionD.StreetName,
+                    
+                    CreatedAt = dateTimeNow,
+                    CreatedBy = createdBy
+                };
+                gpsDelivery.Add(item);
+                
+            }*/
+            
             h.AddGpsLastPositionD(lpsLastPositionD);
         }
-
-        using var scope = _scopeFactory.CreateScope();
         // Di dalam scope ini, Anda dapat mendapatkan instance layanan
+        using var scope = _scopeFactory.CreateScope();
+        
         var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
-        await repository.InsertGpsLastPositionH(h);
+        
+        await repository.InsertGpsLastPositionH(h, cancellationToken);
+        await repository.InsertGpsDelivery(gpsDelivery, cancellationToken);
 
         return h;
     }
+    
+    private async Task<GpsLastPositionH> CreateNewGpsDelivery(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs)
+        {
+            
+            var dateTimeNow = DateTime.UtcNow;
+            var createdBy = "System"; // Atau ambil dari konteks pengguna yang sedang aktif
+    
+            var h = GpsLastPositionH.Create(
+                Guid.NewGuid(), vendor.Id
+            );
+            h.CreatedAt = dateTimeNow;
+            h.CreatedBy = createdBy;
+            
+            foreach (var lpsLastPositionD in lpsLastPositionDs)
+            {
+                lpsLastPositionD.GpsLastPositionHId = h.Id;
+                lpsLastPositionD.CreatedAt = dateTimeNow;
+                lpsLastPositionD.CreatedBy = createdBy;
+                h.AddGpsLastPositionD(lpsLastPositionD);
+            }
+    
+            using var scope = _scopeFactory.CreateScope();
+            // Di dalam scope ini, Anda dapat mendapatkan instance layanan
+            var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
+            await repository.InsertGpsLastPositionH(h);
+    
+            return h;
+        }
     
     private static GpsLastPositionHDto? CreateGpsMessage(GpsVendor? vendor, List<GpsLastPositionD>? details)
     {
