@@ -4,7 +4,6 @@ namespace GeofenceMaster.GeofenceMaster.Features.CreateGeofenceMaster;
 
 public record CreateGeofenceMasterRequest(GeofenceMasterDto GeofenceMaster);
 public record CreateGeofenceMasterResponse(Guid Id);
-
 public class CreateGeofenceMasterEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
