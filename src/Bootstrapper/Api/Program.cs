@@ -1,7 +1,7 @@
 
 using Delivery;
 using GeofenceWorker;
-using TrackDelivery;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,8 +72,7 @@ app.UseExceptionHandler(options => { });
 
 app
     .UseGeofenceMasterModule()
-    .UseDeliveryModule()
-    .UseTrackDeliveryModule();
+    .UseDeliveryModule();
 
 
 app.UseHttpsRedirection();
@@ -88,6 +87,7 @@ app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.Hea
         await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
         {
             Status = report.Status.ToString(),
+            
             Checks = report.Entries.Select(e => new
             {
                 Key = e.Key,

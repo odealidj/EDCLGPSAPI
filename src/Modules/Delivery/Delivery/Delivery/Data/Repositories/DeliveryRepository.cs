@@ -1,5 +1,6 @@
 
 using Delivery.Data.Repositories.IRepositories;
+using Delivery.Delivery.Dtos;
 using Delivery.Delivery.Exceptions;
 using Delivery.Delivery.Models;
 
@@ -68,5 +69,11 @@ public class DeliveryRepository(
             logger.LogError(ex, "Terjadi kesalahan umum saat menyimpan DeliveryProgress.");
             throw new DeliveryProgressInternalServerException("An error occurred while saving data.", ex.Message);
         }
+    }
+
+    public Task<IEnumerable<TrackDeliveryEdclResponseDto>> GetTrackDeliveryAsync(TrackDeliveryEdclRequestDto param, bool asNoTracking = true,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }

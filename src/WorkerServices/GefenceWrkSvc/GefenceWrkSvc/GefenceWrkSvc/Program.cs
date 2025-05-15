@@ -7,7 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 //builder.Services.AddHostedService<Worker>();
 
-builder.Services
+builder.Services    
     .AddGeofenceWorkerModule(builder.Configuration);
 
 var host = builder.Build();
