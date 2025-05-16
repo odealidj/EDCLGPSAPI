@@ -64,7 +64,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         ////.Where(x => x.Id == Guid.Parse("fc394d1d-d370-4868-980e-2aab99394c7f"))
+                         ////.Where(x => x.Id == Guid.Parse("63a238b9-1582-4e0e-8933-e3fda11f35d5"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -257,8 +257,17 @@ public class Worker : BackgroundService
         {
             Method = new HttpMethod(endpoint.Method),
             RequestUri = new Uri(endpoint.BaseUrl),
-            Content =  endpoint.Bodies != null?  new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json"): null
+            //Content =  endpoint.Bodies != null?  new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json"): null
         };
+
+        if (endpoint.Bodies != null)
+        {
+            request.Content = new StringContent(endpoint.Bodies?.ToString() ?? "", Encoding.UTF8, "application/json");
+        }
+        else
+        {
+            request.Content = null;
+        }
         
         // Add Headers from JsonObject if any
         if (endpoint.Headers != null)
@@ -320,8 +329,7 @@ public class Worker : BackgroundService
         if (response.IsSuccessStatusCode)
         {
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
-            
-            
+
             var lastPositionDs = await ProcessMappingResponse(
                 endpoint.GpsVendor.Id,
                 responseData, 

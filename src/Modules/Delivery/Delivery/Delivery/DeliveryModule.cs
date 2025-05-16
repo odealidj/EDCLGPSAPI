@@ -25,6 +25,36 @@ public static class DeliveryModule
         
         services.AddScoped<IDeliveryRepository, DeliveryRepository>();
         
+        services.AddScoped<IDeliveryDapperRepository>(sp =>
+            new DeliveryDapperRepository(
+                connectionString!,
+                sp.GetRequiredService<ILogger<DeliveryDapperRepository>>()
+            ));
+        
+        /*
+        services.AddScoped<Func<IDeliveryRepository>>(serviceProvider => () =>
+        {
+            var logger = serviceProvider.GetRequiredService<ILogger<DeliveryRepository>>();
+            var dbContext = serviceProvider.GetRequiredService<DeliveryDbContext>();
+            return new DeliveryRepository(connectionString!, dbContext, logger);
+        });
+        */
+        
+        // Daftarkan repository dengan factory pattern
+        /*
+        services.AddScoped<IDeliveryRepository>(sp =>
+        {
+            // Resolve DbContext secara otomatis dari DI container
+            var dbContext = sp.GetService<DeliveryDbContext>();
+
+            // Resolve ILogger secara otomatis dari DI container
+            var logger = sp.GetRequiredService<ILogger<DeliveryRepository>>();
+
+            // Buat instance repository dengan connectionString, dbContext, dan logger
+            return new DeliveryRepository(connectionString, dbContext, logger);
+        });
+        */
+        
         return services;
     }
 

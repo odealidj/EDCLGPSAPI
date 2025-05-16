@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Delivery.Delivery.Dtos;
 
 public class DeliveryProgressDto
@@ -20,6 +22,8 @@ public class DeliveryProgressDto
     public string DeliveryNo { get; set; } = string.Empty;
     public string PlatNo { get; set; } = string.Empty;
     public string NoKtp { get; set; } = string.Empty;
+    
+    [JsonPropertyName("gpsVendor")]
     public string VendorName { get; set; } = string.Empty;
     public string? Lpcd { get; set; }
     

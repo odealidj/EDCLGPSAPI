@@ -21,7 +21,7 @@ public class DeliveryDbContext: DbContext
         builder.Entity<GpsDeliveryH>().ToTable("tb_r_gps_delivery_h");
         builder.Entity<GpsDeliveryD>().ToTable("tb_r_gps_delivery_d");
         builder.Entity<DeliveryProgress>().ToTable("tb_r_delivery_progress");
-        builder.Entity<DeliveryProgress>().ToTable("tb_r_gps_delivery");
+        builder.Entity<GpsDelivery>().ToTable("tb_r_gps_delivery");
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);

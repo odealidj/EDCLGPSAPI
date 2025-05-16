@@ -1,8 +1,11 @@
 
+using Carter;
 using Delivery;
+using GeofenceMaster;
 using GeofenceWorker;
-
-
+using Serilog;
+using Shared.Exceptions.Handler;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 //common services: carter, mediatr, fluentvalidation
 ////var catalogAssembly = typeof(CatalogModule).Assembly;
 ////var basketAssembly = typeof(BasketModule).Assembly;
+
 var deliveryAssembly = typeof(DeliveryModule).Assembly;
 var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
 ////var geofenceWorkerModuleAssembly = typeof(GeofenceWorkerModule).Assembly;
@@ -41,9 +45,9 @@ builder.Services
 //module services: catalog, basket, ordering
    builder.Services
        .AddGeofenceMasterModule(builder.Configuration)
-       .AddDeliveryModule(builder.Configuration)
+       .AddDeliveryModule(builder.Configuration);
        //.AddTrackDeliveryModule(builder.Configuration);
-       .AddGeofenceWorkerModule(builder.Configuration);
+       //////.AddGeofenceWorkerModule(builder.Configuration);
 
 
 
