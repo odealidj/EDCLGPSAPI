@@ -1,8 +1,11 @@
 
+using System.Data;
+using Dapper;
 using Delivery.Data.Repositories.IRepositories;
 using Delivery.Delivery.Dtos;
 using Delivery.Delivery.Exceptions;
 using Delivery.Delivery.Models;
+using Microsoft.Data.SqlClient;
 
 namespace Delivery.Data.Repositories;
 
@@ -70,10 +73,5 @@ public class DeliveryRepository(
             throw new DeliveryProgressInternalServerException("An error occurred while saving data.", ex.Message);
         }
     }
-
-    public Task<IEnumerable<TrackDeliveryEdclResponseDto>> GetTrackDeliveryAsync(TrackDeliveryEdclRequestDto param, bool asNoTracking = true,
-        CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
+    
 }

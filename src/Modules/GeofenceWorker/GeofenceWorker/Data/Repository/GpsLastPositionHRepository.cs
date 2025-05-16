@@ -1,6 +1,6 @@
+
 using EFCore.BulkExtensions;
 using GeofenceWorker.Data.Repository.IRepository;
-using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Exceptions;
 using GeofenceWorker.Workers.Models;
 using Microsoft.EntityFrameworkCore;

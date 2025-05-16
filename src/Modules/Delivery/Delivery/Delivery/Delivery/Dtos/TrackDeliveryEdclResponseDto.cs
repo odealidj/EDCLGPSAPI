@@ -2,7 +2,8 @@ namespace Delivery.Delivery.Dtos;
 
 public class TrackDeliveryEdclResponseDto
 {
-    public Guid? Id { get; set; } = default!;
+    
+    ////public Guid? Id { get; set; } = default!;
     public int PositionId { get; set; }
     public string DeliveryNo { get; set; }
     public string NoKTP { get; set; }
@@ -17,4 +18,6 @@ public class TrackDeliveryEdclResponseDto
     public decimal? Speed { get; set; }
     public decimal? Course { get; set; }
     public string StreetName { get; set; }
+    
+
 }
