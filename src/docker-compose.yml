@@ -1,11 +1,4 @@
 services:
-#  api:
-#    image: ${DOCKER_REGISTRY-}api
-#    build:
-#      context: .
-#      dockerfile: Bootstrapper/Api/Dockerfile
- 
-      
   ae031db:
     image: postgres
 
@@ -17,6 +10,6 @@ services:
 
   messagebus:
     image: rabbitmq:management
-  
+
 volumes:
   postgres_ae031db:

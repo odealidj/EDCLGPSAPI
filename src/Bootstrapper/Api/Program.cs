@@ -14,13 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-//common services: carter, mediatr, fluentvalidation
-////var catalogAssembly = typeof(CatalogModule).Assembly;
-////var basketAssembly = typeof(BasketModule).Assembly;
-
 var deliveryAssembly = typeof(DeliveryModule).Assembly;
 var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
-////var geofenceWorkerModuleAssembly = typeof(GeofenceWorkerModule).Assembly;
 
 builder.Services
     .AddCarterWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
@@ -28,36 +23,17 @@ builder.Services
 builder.Services
     .AddMediatRWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
 
-////builder.Services
-   ////.AddMassTransitWithAssemblies(builder.Configuration, geofenceWorkerModuleAssembly);
 
-/*
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = builder.Configuration.GetConnectionString("Redis");
-});
-*/
-
-/*
 builder.Services
-    .AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly);
-*/
-//module services: catalog, basket, ordering
-   builder.Services
        .AddGeofenceMasterModule(builder.Configuration)
-       .AddDeliveryModule(builder.Configuration);
-       //.AddTrackDeliveryModule(builder.Configuration);
-       //////.AddGeofenceWorkerModule(builder.Configuration);
-
-
+       .AddDeliveryModule(builder.Configuration)
+       .AddGeofenceWorkerModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("Database") ?? string.Empty);
-
-
 
 // Registrasi layanan Health Checks
 /*
@@ -71,7 +47,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 
 app.MapCarter();
-////app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging();
 app.UseExceptionHandler(options => { });
 
 app

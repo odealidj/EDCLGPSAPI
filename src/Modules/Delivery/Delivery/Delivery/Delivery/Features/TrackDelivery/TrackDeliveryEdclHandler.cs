@@ -10,7 +10,7 @@ public record TrackDeliveryEdclCommand(TrackDeliveryEdclRequestDto TrackDelivery
     : ICommand<TrackDeliveryEdclResult>;
 public record TrackDeliveryEdclResult(List<TrackDeliveryEdclResponseDto> TrackDeliveryResult);
 
-internal class TrackDeliveryEdclHandler(DeliveryDbContext dbContext, IDeliveryDapperRepository deliveryRepository, ILogger<TrackDeliveryEdclHandler> logger)
+internal class TrackDeliveryEdclHandler(IDeliveryDapperRepository deliveryRepository, ILogger<TrackDeliveryEdclHandler> logger)
     : ICommandHandler<TrackDeliveryEdclCommand, TrackDeliveryEdclResult>
 {
     public async Task<TrackDeliveryEdclResult> Handle(TrackDeliveryEdclCommand command, CancellationToken cancellationToken)
