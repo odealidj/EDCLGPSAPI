@@ -19,12 +19,11 @@ public class DeliveryProgressDto
     // );
     
     public Guid? Id { get; set; }
-    public string DeliveryNo { get; set; } = string.Empty;
+    public string DeliveryNo { get; set; } 
     public string PlatNo { get; set; } = string.Empty;
     public string NoKtp { get; set; } = string.Empty;
-    
-    [JsonPropertyName("gpsVendor")]
-    public string VendorName { get; set; } = string.Empty;
+
+    [JsonPropertyName("gpsVendor")] public string? VendorName { get; set; } = null;
     public string? Lpcd { get; set; }
     
 }

@@ -64,7 +64,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         ////.Where(x => x.Id == Guid.Parse("63a238b9-1582-4e0e-8933-e3fda11f35d5"))
+                         ////.Where(x => x.Id == Guid.Parse("712f57c5-dc88-4ad7-a571-2ef98c4d3a7a"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 

@@ -53,7 +53,7 @@ public class DeleteDeliveryProgressEndpoint: ICarterModule
         
         */
         
-        app.MapDelete("/api/v1/RDeliveryOnProgress", async ([FromBody]DeliveryProgressDto request, ISender sender) =>
+        app.MapDelete("/api/v1/RDeliveryOnProgress", async ([FromBody]DeleteDeliveryProgressDto request, ISender sender) =>
             {
                 try
                 {

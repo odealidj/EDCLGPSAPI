@@ -19,11 +19,40 @@ public class CreateDeliveryProgressCommandValidator : AbstractValidator<CreateDe
 
 
  
-internal class CreateDeliveryProgressHandler(IDeliveryRepository repository)
+internal class CreateDeliveryProgressHandler(IDeliveryRepository repository, IDeliveryDapperRepository dapprRepository )
     : ICommandHandler<CreateDeliveryProgressCommand, CreateDeliveryProgressResult>
 {
     public async Task<CreateDeliveryProgressResult> Handle(CreateDeliveryProgressCommand command, CancellationToken cancellationToken)
     {
+
+        if (!string.IsNullOrEmpty(command.DeliveryProgress.PlatNo)
+            && string.IsNullOrEmpty(command.DeliveryProgress.VendorName) 
+            && !string.IsNullOrEmpty(command.DeliveryProgress.Lpcd))
+        {
+            // check if lpcd is exist
+            var gpsVendor = await dapprRepository.GetGpsVendorByLpcdAsync(new InGetGpsVendorByLpcd(command.DeliveryProgress.Lpcd),cancellationToken);
+            if (gpsVendor != null) command.DeliveryProgress.VendorName = gpsVendor?.GpsVendorName;
+
+        }
+        
+        if (!string.IsNullOrEmpty(command.DeliveryProgress.PlatNo)
+            && string.IsNullOrEmpty(command.DeliveryProgress.VendorName)
+            && string.IsNullOrEmpty(command.DeliveryProgress.Lpcd))
+        {
+            // check if lpcd is exist
+            var gpsVendor = await dapprRepository.GetGpsVendorByPlatNoAsync(new InGetGpsVendorByPlatNo(command.DeliveryProgress.PlatNo),cancellationToken);
+            if (gpsVendor != null)
+            {
+                command.DeliveryProgress.VendorName = gpsVendor.VendorName;
+                
+                var gpsLpcd = await dapprRepository.GetGpsLpcdByGpsVendorNameAsync(new InGetGpsLpcdByGpsVendorName(gpsVendor.VendorName),cancellationToken);
+                if (gpsLpcd != null) command.DeliveryProgress.Lpcd = gpsLpcd.Lpcd;
+
+            }
+            
+
+        }
+       
         var deliveryProgress = CreateNewDeliveryProgress(command.DeliveryProgress);        
         
         var id =  await repository.UpsertDeliveryProgressAsync(deliveryProgress, cancellationToken);
