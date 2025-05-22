@@ -2,6 +2,7 @@ using GeofenceMaster.Data.Repository.IRepository;
 using GeofenceMaster.GeofenceMaster.Exceptions;
 using GeofenceMaster.GeofenceMaster.Models;
 using Microsoft.Extensions.Logging;
+using System;
 
 namespace GeofenceMaster.Data.Repository;
 
@@ -78,15 +79,19 @@ public class GeofenceMasterRepository(
         return pagedVendors;
     }
 
-    public async Task<int> GetGeofenceMasterCount(string? vendorName, CancellationToken cancellationToken = default)
+    public async Task<int> GetGeofenceMasterCount(string? vendorName, string? gpsId, CancellationToken cancellationToken = default)
     {
         var query = dbContext.GpsVendors
             .AsQueryable();
 
-        // Filter by vendor name (optional)
+        // Filter by vendor name, gps id (optional)
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
-            query = query.Where(x => x.VendorName.Contains(vendorName));
+            query = query.Where(x => x.VendorName.ToLower().Contains(vendorName.ToLower()));
+        }
+        if (!string.IsNullOrWhiteSpace(gpsId) && Guid.TryParse(gpsId, out var parsedGuid))
+        {
+            query = query.Where(x => x.Id == parsedGuid);
         }
 
         // Return the total count
