@@ -38,7 +38,8 @@ public class GeofenceMasterRepository(
     }
 
     public async Task<IEnumerable<GpsVendor>> GetGeofenceMaster(
-        string? vendorName, 
+        string? vendorName,
+        string? gpsId,
         int pageIndex, 
         int pageSize, 
         bool asNoTracking = true, 
@@ -47,12 +48,16 @@ public class GeofenceMasterRepository(
         var query = dbContext.GpsVendors
             .AsQueryable();
 
-        // Filter by vendor name (optional)
+        // Filter by vendor name, gps id (optional)
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
-            query = query.Where(x => x.VendorName.Contains(vendorName));
+            query = query.Where(x => x.VendorName.ToLower().Contains(vendorName.ToLower()));
         }
-        
+        if (!string.IsNullOrWhiteSpace(gpsId) && Guid.TryParse(gpsId, out var parsedGuid))
+        {
+            query = query.Where(x => x.Id == parsedGuid);
+        }
+
         if (asNoTracking)
         {
             query = query.AsNoTracking();

@@ -29,7 +29,8 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
 
         // Panggil kedua metode secara berurutan untuk menghindari masalah DbContext
         var vendorsTask =  await repository.GetGeofenceMaster(
-            query.GetGeoferenceMaster.VendorName, 
+            query.GetGeoferenceMaster.VendorName,
+            query.GetGeoferenceMaster.GpsId,
             query.GetGeoferenceMaster.PageIndex, 
             query.GetGeoferenceMaster.PageSize);
 
