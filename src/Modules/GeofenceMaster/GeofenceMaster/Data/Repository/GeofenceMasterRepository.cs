@@ -50,7 +50,7 @@ public class GeofenceMasterRepository(
         // Filter by vendor name (optional)
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
-            query = query.Where(x => x.VendorName.Contains(vendorName));
+            query = query.Where(x => EF.Functions.ILike(x.VendorName, $"%{vendorName}%"));
         }
         
         if (asNoTracking)
@@ -81,7 +81,8 @@ public class GeofenceMasterRepository(
         // Filter by vendor name (optional)
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
-            query = query.Where(x => x.VendorName.Contains(vendorName));
+            ////query = query.Where(x => x.VendorName.Contains(vendorName));
+            query = query.Where(x => EF.Functions.ILike(x.VendorName, $"%{vendorName}%"));
         }
 
         // Return the total count

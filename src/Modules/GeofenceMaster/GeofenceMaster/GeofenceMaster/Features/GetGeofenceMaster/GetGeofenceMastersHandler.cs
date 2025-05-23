@@ -31,7 +31,7 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
         var vendorsTask =  await repository.GetGeofenceMaster(
             query.GetGeoferenceMaster.VendorName, 
             query.GetGeoferenceMaster.PageIndex, 
-            query.GetGeoferenceMaster.PageSize);
+            query.GetGeoferenceMaster.PageSize, cancellationToken: cancellationToken);
 
         var totalCountTask = await repository.GetGeofenceMasterCount(
             query.GetGeoferenceMaster.VendorName, cancellationToken);

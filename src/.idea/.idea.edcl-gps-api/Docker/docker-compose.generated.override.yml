@@ -8,7 +8,7 @@ services:
     command: []
     entrypoint:
     - "dotnet"
-    - "/app/bin/Debug/net9.0/Api.dll"
+    - "/app/bin/Debug/net8.0/Api.dll"
     environment:
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
     image: "api:dev"
@@ -16,5 +16,5 @@ services:
     volumes:
     - "/home/me-ubuntu/Office/Fid/Api/new3/EDCLGPSAPI/src/Bootstrapper/Api:/app:rw"
     - "/home/me-ubuntu/Office/Fid/Api/new3/EDCLGPSAPI/src:/src:rw"
-    - "/home/me-ubuntu/.nuget/packages:/home/app/.nuget/packages"
+    - "/home/me-ubuntu/.nuget/packages:/root/.nuget/packages"
     working_dir: "/app"

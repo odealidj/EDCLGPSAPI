@@ -64,7 +64,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                         ////.Where(x => x.Id == Guid.Parse("712f57c5-dc88-4ad7-a571-2ef98c4d3a7a"))
+                        ////.Where(x => x.Id == Guid.Parse("125541f7-1e19-496b-9396-ebc13da484a6"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -348,87 +348,18 @@ public class Worker : BackgroundService
                     maxData = await FindMaxProperty.FindMaxPropertyValueWithExceptionAsync<int>(dataItens, endpoint.MaxPath);
                     await UpdateLastPositionId(endpoint, endpoint.MaxPath, maxData);
                 }
-
-
+                
                 await PublishGpsMessageAsync(endpoint, lastPositionDs);
                
             }
 
-
-            //await _bus.Publish(responseMapping, stoppingToken);
-            /*
-            var message = new TestMessage
-            {
-                Text = "Hello, MassTransit with RabbitMQ!"
-            };
-
-
-            var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();  // Mendapatkan IPublishEndpoint dari scope
-
-            var listGpsLastPosition = new ListGpsLastPosition
-            {
-                GpsLastPositions = lastPositionDs.ToList()
-            };
+            _logger.LogInformation("Successfully called endpoint for Vendor {VendorName}", endpoint.GpsVendor.VendorName);
             
-                */
-
-            // Mengirim pesan ke RabbitMQ
-            ////await _bus.Publish(listGpsLastPosition, stoppingToken);
-
-
-            ////var payload.GpsVendorId = vendorId;
-            ////payload.Lpcd = lpcd;
-
-            // Tentukan routing key berdasarkan vendor dan LPCD (contoh)
-            //string routingKey = $"gps.position.{endpoint.GpsVendor.VendorName.ToLower()}";
-
-            // Publish pesan ke exchange default (atau yang dikonfigurasi untuk pesan ini)
-            // dengan menyertakan routing key
-
-            /*
-            await  _publishEndpoint.Publish(listGpsLastPosition, x =>
-            {
-                // Secara eksplisit menentukan exchange type (opsional, bisa dikonfigurasi secara global)
-                // x.SetExchangeKind(ExchangeType.Topic);
-
-                // Menentukan routing key
-                x.RoutingKey = routingKey;
-            });
-            */
-            
-            /*
-            var message2 = new GpsLastPositionListMessage
-            {
-                
-                Positions = new List<GpsLastPositionD>
-                {
-                    new GpsLastPositionD { Latitude = -6.175392, Longitude = 106.827153, Timestamp = DateTime.UtcNow },
-                    new GpsLastPositionD { Latitude = -6.175400, Longitude = 106.827200, Timestamp = DateTime.UtcNow }
-                }
-                Positions = listGpsLastPosition.
-            };
-            */
-            
-            /*
-            await _bus.Publish(listGpsLastPosition, x =>
-            {
-                // Set the routing key
-                x.SetRoutingKey(routingKey);
-            });
-            */
-            _logger.LogInformation("Successfully called endpoint for Vendor {VendorName}: {ResponseData}", endpoint.GpsVendor.VendorName, responseData);
-            
-            
-            // Pass the context to MapResponseToDatabase method
-            ////var mappedData = await MapResponseToDatabase(responseData, vendor.Id, context);
-
-            // Process the mapped data
-            ////_logger.LogInformation("Successfully mapped data for Vendor {VendorName}: {MappedData}", vendor.VendorName, mappedData);                    
         }
         else
         {
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
-            _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase);
+            _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}, Data: {responseData}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase, responseData);
         }
     }
     
@@ -439,17 +370,9 @@ public class Worker : BackgroundService
         ////string exchangeName = "my_topic_exchange";
 
         var message = CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
-
-        /*
-        var testMessage = new TestMessage
-        {
-            Text = "Hello, MassTransit with RabbitMQ!",
-            Timestamp = DateTime.UtcNow
-        };
-        */
-            
+        
         await _rabbitMqService.PublishAsync(message, routingKey);
-    }//
+    }
 
     private async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
     {
@@ -491,17 +414,12 @@ public class Worker : BackgroundService
             
             await repository.UpdateVarParamsPropertyRawSqlAsync(
                 endpoint.Id, 
-                "lastPositionId", 
+                properti,
                 newLastPositionId,
                 DateTime.UtcNow,
                 "System");
-            
-            //await repository.UpdateVarParamsAsync(endpoint);
-
         }
-        
-        ////return false; 
-        // varParams is null
+
     }
     
     private async Task<List<JToken>> GetDataItems(string jsonResponse, string dataPath)
@@ -658,9 +576,15 @@ public class Worker : BackgroundService
                         else
                         {
                             var dateTimeValue = valueToken.ToObject<DateTime>();
-                            value = dateTimeValue.Kind == DateTimeKind.Unspecified 
-                                ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc)
-                                : dateTimeValue.ToUniversalTime();
+                            
+                            value = dateTimeValue.Kind == DateTimeKind.Utc 
+                                ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Unspecified)
+                                : dateTimeValue;
+                            
+                            //Datetime = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified) 
+                            
+                            ////value = dateTimeValue;
+
                         }
 
                         // Jika properti nullable, konversi ke tipe nullable
@@ -691,13 +615,15 @@ public class Worker : BackgroundService
     private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs, CancellationToken cancellationToken)
     {
         
-        var dateTimeNow = DateTime.UtcNow;
+
+        var dateTimeNow = DateTime.Now;
         var createdBy = "System"; // Atau ambil dari konteks pengguna yang sedang aktif
         
         var h = GpsLastPositionH.Create(
             Guid.NewGuid(), vendor.Id
         );
-        h.CreatedAt = dateTimeNow;
+
+        h.CreatedAt = dateTimeNow;  
         h.CreatedBy = createdBy;
 
 
@@ -709,7 +635,8 @@ public class Worker : BackgroundService
             .Select(l => l.PlatNo)
             .Distinct()
             .ToList();
-        
+
+
         // Ambil semua data delivery progress sekaligus menggunakan PlatNo
         using var scopeDeliveryProgress = _scopeFactory.CreateScope();
         var repositoryDeliveryProgress = scopeDeliveryProgress.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
@@ -717,7 +644,6 @@ public class Worker : BackgroundService
 
         // Buat dictionary untuk mempermudah pencarian data berdasarkan PlatNo
         var deliveryProgressDict = deliveryProgresses.ToDictionary(dp => dp.PlatNo);
-        
         
         
         foreach (var lpsLastPositionD in lpsLastPositionDs)

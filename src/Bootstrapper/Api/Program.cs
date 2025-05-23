@@ -1,9 +1,12 @@
 
+using System.Text.Json;
 using Carter;
 using Delivery;
 using GeofenceMaster;
 using GeofenceWorker;
+using Microsoft.AspNetCore.Diagnostics;
 using Serilog;
+using Shared.Exceptions;
 using Shared.Exceptions.Handler;
 using Shared.Extensions;
 
@@ -25,9 +28,9 @@ builder.Services
 
 
 builder.Services
-       .AddGeofenceMasterModule(builder.Configuration)
-       .AddDeliveryModule(builder.Configuration)
-       .AddGeofenceWorkerModule(builder.Configuration);
+    .AddGeofenceMasterModule(builder.Configuration)
+    .AddDeliveryModule(builder.Configuration);
+    //.AddGeofenceWorkerModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();
@@ -47,15 +50,63 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 
 app.MapCarter();
-app.UseSerilogRequestLogging();
-app.UseExceptionHandler(options => { });
+
+////app.UseSerilogRequestLogging();
+
+////app.UseExceptionHandler(options => { });
+
+app.UseExceptionHandler(options =>
+{
+    options.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
+        // Tentukan status code dan respons berdasarkan jenis exception
+        if (exception is BadRequestException badRequestException)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest ;
+            context.Response.ContentType = "application/json";
+            
+            var result = JsonSerializer.Serialize(new { message = badRequestException.Message, details = badRequestException.Details });
+
+            /*
+            var response = new
+            {
+                title = badRequestException.Title,
+                status = badRequestException.Status,
+                detail = badRequestException.Detail,
+                instance = badRequestException.Instance,
+                traceId = context.TraceIdentifier
+            }; */
+
+            await context.Response.WriteAsJsonAsync(result);
+        }
+        else
+        {
+            // Tangani exception lain (misalnya, internal server error)
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+
+            var response = new
+            {
+                title = "Internal Server Error",
+                status = 500,
+                detail = exception?.Message ?? "An unexpected error occurred.",
+                instance = context.Request.Path,
+                traceId = context.TraceIdentifier
+            };
+
+            await context.Response.WriteAsJsonAsync(response);
+        }
+    });
+});
 
 app
     .UseGeofenceMasterModule()
     .UseDeliveryModule();
 
 
-app.UseHttpsRedirection();
+////app.UseHttpsRedirection();
 
 // Endpoint default untuk health checks
 app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
