@@ -23,6 +23,28 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
 {
     public async Task<UpdateGeofenceMasterResult> Handle(UpdateGeofenceMasterCommand command, CancellationToken cancellationToken)
     {
+        // Validasi duplikasi lpcd
+        var duplicateLpcds = command.GeofenceMaster.Lpcds
+            .GroupBy(lpcd => lpcd.Lpcd) 
+            .Where(group => group.Count() > 1) 
+            .Select(group => group.Key) 
+            .ToList();
+
+        if (duplicateLpcds.Any())
+        {
+            throw new GeofenceMasterBadRequestException($"Duplicate LPCD(s) found: {string.Join(", ", duplicateLpcds)}","Duplicate LPCD");
+            
+            // Jika ada duplikasi, kembalikan error Bad Request
+            /*
+            throw new BadRequestException(
+                title: "Duplicate LPCD",
+                detail: $"Duplicate LPCD(s) found: {string.Join(", ", duplicateLpcds)}",
+                instance: "/geofencemaster"
+            );
+            */
+        }
+        
+        
         var geofenceMasters = await dbContext.GpsVendors
             .Where(x => x.Id == command.GeofenceMaster.Id)
             .Include(x=> x.GpsVendorEndpoints)
@@ -95,7 +117,26 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 itemDto.ResponseField,
                 itemDto.MappedField);
         }
+        /*
+        var idsToDelete = dbContext.Lpcds
+            .Where(tmgvl => !command.GeofenceMaster.Lpcds.Contains(tmgvl.Id)  )
+            .Select(tmgvl => tmgvl.Id)
+            .ToList();
+        */
+        var lpcdIds = command.GeofenceMaster.Lpcds
+            .Where(lpcd => lpcd.Id != Guid.Empty) // Filter untuk menghilangkan Guid.Empty
+            .Select(lpcd => lpcd.Id)
+            .ToList();
         
+        var idsToDelete =   dbContext.Lpcds
+            .Where(tmgvl => !lpcdIds.Contains(tmgvl.Id))
+            .Select(tmgvl => tmgvl.Id)
+            .ToList();
+        
+        await dbContext.Lpcds
+            .Where(lpcd => idsToDelete.Contains(lpcd.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+
         foreach (var lpcd in command.GeofenceMaster.Lpcds)
         {
             geofenceMasters.First().AddLpcd(
@@ -103,8 +144,8 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
                 geofenceMasters.First().Id,
                 lpcd.Lpcd
                 );
-            
         }
+
         
 
         await dbContext.SaveChangesAsync(cancellationToken);

@@ -27,13 +27,13 @@ public class AuditableEntityInterceptor : SaveChangesInterceptor
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedBy = "System";
-                entry.Entity.CreatedAt = DateTime.UtcNow;
+                entry.Entity.CreatedAt = DateTime.Now;
             }
 
             if (entry.State == EntityState.Modified || entry.HasChangedOwnedEntities())
             {
                 entry.Entity.LastModifiedBy = "System";
-                entry.Entity.LastModified = DateTime.UtcNow;
+                entry.Entity.LastModified = DateTime.Now;
             }
         }
     }

@@ -103,7 +103,7 @@ public class RabbitMqService: IRabbitMqService
                 properties.Persistent = true;
 
                 _channel.BasicPublish(exchange: "topic_exchange" , routingKey: routingKey, basicProperties: properties, body: body);
-                _logger.LogInformation("Published message with routing key '{RoutingKey}': {Message}", routingKey, json);
+                _logger.LogInformation("Published message with routing key '{RoutingKey}'", routingKey);
             }
             catch (JsonException jsonEx)
             {

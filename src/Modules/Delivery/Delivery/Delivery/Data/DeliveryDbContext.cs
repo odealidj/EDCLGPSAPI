@@ -18,10 +18,23 @@ public class DeliveryDbContext: DbContext
     {
         builder.HasDefaultSchema("edcl");
         
-        builder.Entity<GpsDeliveryH>().ToTable("tb_r_gps_delivery_h");
-        builder.Entity<GpsDeliveryD>().ToTable("tb_r_gps_delivery_d");
-        builder.Entity<DeliveryProgress>().ToTable("tb_r_delivery_progress");
-        builder.Entity<GpsDelivery>().ToTable("tb_r_gps_delivery");
+        builder.Entity<DeliveryProgress>(entity =>
+        {
+            entity.ToTable("tb_r_delivery_progress");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
+        });
+        
+        builder.Entity<GpsDelivery>(entity =>
+        {
+            entity.ToTable("tb_r_gps_delivery");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
+        });
         
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
         base.OnModelCreating(builder);

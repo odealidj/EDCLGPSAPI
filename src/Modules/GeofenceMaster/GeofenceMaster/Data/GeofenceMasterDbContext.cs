@@ -20,7 +20,14 @@ public class GeofenceMasterDbContext : DbContext
     {
         builder.HasDefaultSchema("edcl");
         
-        builder.Entity<GpsVendor>().ToTable("tb_m_gps_vendor");
+        builder.Entity<GpsVendor>(entity =>
+        {
+            entity.ToTable("tb_m_gps_vendor");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
+        });
         
         builder.Entity<GpsVendorEndpoint>(entity =>
         {
@@ -41,6 +48,11 @@ public class GeofenceMasterDbContext : DbContext
             entity.Property(e => e.VarParams)
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
+            
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
         });
 
         builder.Entity<GpsVendorAuth>(entity =>
@@ -58,10 +70,31 @@ public class GeofenceMasterDbContext : DbContext
             entity.Property(e => e.Bodies)
                 .HasConversion(new JsonObjectValueConverter())
                 .HasColumnType("jsonb");
+            
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
         });
         
-        builder.Entity<Mapping>().ToTable("tb_m_mapping");
-        builder.Entity<GpsVendorLpcd>().ToTable("tb_m_gps_vendor_lpcd");
+        builder.Entity<Mapping>(entity =>
+        {
+            entity.ToTable("tb_m_mapping");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
+        });
+        
+        builder.Entity<GpsVendorLpcd>(entity =>
+        {
+            entity.ToTable("tb_m_gps_vendor_lpcd");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp without time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp without time zone");
+        });
+
         
         builder.Entity<Msystem>(entity => 
             {
@@ -72,6 +105,11 @@ public class GeofenceMasterDbContext : DbContext
                 entity.Property(e => e.SysCd).HasColumnName("SysCd");
                 entity.Property(e => e.SysValue).HasColumnName("SysValue");
                 entity.Property(e => e.Remarks).HasColumnName("Remarks");
+                
+                entity.Property(e => e.CreatedAt)
+                    . HasColumnType("timestamp without time zone");
+                entity.Property(e => e.LastModified)
+                    . HasColumnType("timestamp without time zone");
             }    
         );
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());        
