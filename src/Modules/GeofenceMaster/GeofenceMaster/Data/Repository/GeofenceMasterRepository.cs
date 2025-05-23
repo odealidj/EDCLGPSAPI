@@ -38,6 +38,7 @@ public class GeofenceMasterRepository(
     }
 
     public async Task<IEnumerable<GpsVendor>> GetGeofenceMaster(
+        Guid? id, 
         string? vendorName, 
         int pageIndex, 
         int pageSize, 
@@ -47,7 +48,11 @@ public class GeofenceMasterRepository(
         var query = dbContext.GpsVendors
             .AsQueryable();
 
-        // Filter by vendor name (optional)
+        if (id != null && id != Guid.Empty)
+        {
+            query = query.Where(x => x.Id == id);
+        }
+
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
             query = query.Where(x => EF.Functions.ILike(x.VendorName, $"%{vendorName}%"));
@@ -73,12 +78,16 @@ public class GeofenceMasterRepository(
         return pagedVendors;
     }
 
-    public async Task<int> GetGeofenceMasterCount(string? vendorName, CancellationToken cancellationToken = default)
+    public async Task<int> GetGeofenceMasterCount(Guid? id, string? vendorName, CancellationToken cancellationToken = default)
     {
         var query = dbContext.GpsVendors
             .AsQueryable();
 
-        // Filter by vendor name (optional)
+        if (id != null && id != Guid.Empty)
+        {
+            query = query.Where(x => x.Id == id);
+        }
+        
         if (!string.IsNullOrWhiteSpace(vendorName))
         {
             ////query = query.Where(x => x.VendorName.Contains(vendorName));

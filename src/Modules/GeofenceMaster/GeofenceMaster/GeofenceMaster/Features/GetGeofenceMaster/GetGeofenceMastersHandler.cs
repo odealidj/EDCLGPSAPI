@@ -25,18 +25,17 @@ public class GetGeofenceMastersHandler(IGeofenceMasterRepository repository)
 {
     public async Task<GetGeofenceMastersResult> Handle(GetGeofenceMasterQuery query, CancellationToken cancellationToken)
     {
-        
-
         // Panggil kedua metode secara berurutan untuk menghindari masalah DbContext
         var vendorsTask =  await repository.GetGeofenceMaster(
+            query.GetGeoferenceMaster.Id,
             query.GetGeoferenceMaster.VendorName, 
             query.GetGeoferenceMaster.PageIndex, 
             query.GetGeoferenceMaster.PageSize, cancellationToken: cancellationToken);
 
         var totalCountTask = await repository.GetGeofenceMasterCount(
+            query.GetGeoferenceMaster.Id,
             query.GetGeoferenceMaster.VendorName, cancellationToken);
         
-
 
         // Tunggu kedua task selesai
         //var vendors = await vendorsTask;  // Data untuk vendors
