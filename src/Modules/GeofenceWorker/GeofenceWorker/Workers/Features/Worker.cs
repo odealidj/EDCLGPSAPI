@@ -64,7 +64,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        .Where(x => x.Id == Guid.Parse("cb9c01bb-df95-40b2-8bca-b88baab3e447"))
+                        ////.Where(x => x.Id == Guid.Parse("a67e1137-b8af-455e-bc22-060bbe9a305b"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -616,7 +616,7 @@ public class Worker : BackgroundService
     {
         
 
-        var dateTimeNow = DateTime.Now;
+        var dateTimeNow = DateTime.UtcNow;
         var createdBy = "System"; // Atau ambil dari konteks pengguna yang sedang aktif
         
         var h = GpsLastPositionH.Create(

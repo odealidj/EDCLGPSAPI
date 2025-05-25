@@ -134,7 +134,7 @@ public class UpdateGeofenceMasterHandler(GeofenceMasterDbContext dbContext)
             .ToList();
         
         await dbContext.Lpcds
-            .Where(lpcd => idsToDelete.Contains(lpcd.Id))
+            .Where(lpcd => idsToDelete.Contains(lpcd.Id) && lpcd.GpsVendorId == command.GeofenceMaster.Id)
             .ExecuteDeleteAsync(cancellationToken);
 
         foreach (var lpcd in command.GeofenceMaster.Lpcds)

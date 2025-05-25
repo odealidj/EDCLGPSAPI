@@ -30,7 +30,7 @@ builder.Services
 builder.Services
     .AddGeofenceMasterModule(builder.Configuration)
     .AddDeliveryModule(builder.Configuration);
-    //.AddGeofenceWorkerModule(builder.Configuration);
+    ////.AddGeofenceWorkerModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();

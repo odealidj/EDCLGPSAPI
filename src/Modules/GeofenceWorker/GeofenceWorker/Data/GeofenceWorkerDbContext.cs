@@ -124,18 +124,18 @@ public class GeofenceWorkerDbContext: DbContext
         builder.Entity<GpsLastPositionH>(entity =>
         {
             entity.ToTable("tb_r_gps_last_position_h");
-            entity.Property(e => e.CreatedAt)
+            ////entity.Property(e => e.CreatedAt)
                 /*.HasConversion(
                     v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null,
                     v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null
                 )*/
-                . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.LastModified)
+                ////. HasColumnType("timestamp without time zone");
+                ////entity.Property(e => e.LastModified);
                 /*.HasConversion(
                     v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null,
                     v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null
                 )*/
-                . HasColumnType("timestamp without time zone");
+                ////. HasColumnType("timestamp without time zone");
 
         });
         builder.Entity<GpsLastPositionD>(entity =>
@@ -143,18 +143,10 @@ public class GeofenceWorkerDbContext: DbContext
             entity.ToTable("tb_r_gps_last_position_d");
             entity.Property(e => e.Datetime)
                 . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.CreatedAt)
-                /*.HasConversion(
-                    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null,
-                    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null
-                )*/
-                . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.LastModified)
-                /*.HasConversion(
-                    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null,
-                    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null
-                )*/
-                . HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.CreatedAt)
+            ////    . HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.LastModified)
+             ////   . HasColumnType("timestamp without time zone");
 
         });
 
@@ -179,19 +171,19 @@ public class GeofenceWorkerDbContext: DbContext
             entity.ToTable("tb_r_gps_delivery");
             entity.Property(e => e.Datetime)
                 . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.CreatedAt)
-                . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.LastModified)
-                . HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.CreatedAt)
+                ////. HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.LastModified)
+                ////. HasColumnType("timestamp without time zone");
         });
 
         builder.Entity<DeliveryProgress>(entity =>
         {
             entity.ToTable("tb_r_delivery_progress");
-            entity.Property(e => e.CreatedAt)
-                . HasColumnType("timestamp without time zone");
-            entity.Property(e => e.LastModified)
-                . HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.CreatedAt)
+            ////    .HasColumnType("timestamp without time zone");
+            ////entity.Property(e => e.LastModified)
+                ////. HasColumnType("timestamp without time zone");
         });
         
         
