@@ -17,4 +17,5 @@ public interface IGpsLastPositionHRepository
     
     Task<List<DeliveryProgress>> GetCustomDeliveryProgressesAsync(IEnumerable<string> platNos, CancellationToken cancellationToken);
     
+    
 }

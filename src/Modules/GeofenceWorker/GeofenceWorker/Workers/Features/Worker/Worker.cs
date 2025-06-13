@@ -1,21 +1,19 @@
+using System.Globalization;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using GeofenceWorker.Data;
+using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Helper;
 using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 
-namespace GeofenceWorker.Workers.Features;
+namespace GeofenceWorker.Workers.Features.Worker;
 
 public class Worker : BackgroundService
 {
@@ -64,11 +62,12 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        ////.Where(x => x.Id == Guid.Parse("a67e1137-b8af-455e-bc22-060bbe9a305b"))
+                        .Where(x => x.Id == Guid.Parse("17fb5f39-3de5-4c09-88fe-5f15e245f186"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
-                    foreach (var vendor in vendors)
+                    foreach (var vendor
+                             in vendors)
                     {
                         try
                         {                        
@@ -79,14 +78,14 @@ public class Worker : BackgroundService
                             if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && endpoints.Count > 0)
                             {
                                 // Proses endpoint secara gabungan
-                                await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
+                                ////await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
                             }
                             else
                             {
                                 // Proses setiap endpoint secara individual
                                 foreach (var endpoint in endpoints)
                                 {
-                                    await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
+                                    ////await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
                                 }
                             }
                         }
@@ -183,6 +182,7 @@ public class Worker : BackgroundService
                 else if (endpoint.GpsVendor is { AuthType: "Bearer", Auth: not null })
                 {
                     var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
+                    if (string.IsNullOrEmpty(authToken)) continue;
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
                 }
             }
@@ -205,6 +205,30 @@ public class Worker : BackgroundService
                     _logger.LogError(
                         "Failed to call endpoint for Vendor {VendorName} - {BaseUrl}: {StatusCode} {ReasonPhrase}",
                         vendor.VendorName, endpoint.BaseUrl, response.StatusCode, response.ReasonPhrase);
+                    
+                    var responseData =
+                        await response.Content.ReadAsStringAsync(stoppingToken);
+                    
+                    using (var scopeGpsApiLog = _scopeFactory.CreateScope()) 
+                    {
+                        // GpsApiLog(Guid id, string? functionName, string? status, string? errorMessage = null, 
+                        // string? parameter = null, string? username = null)
+                
+                        var iGpsApiLogRepository = scopeGpsApiLog.ServiceProvider.GetRequiredService<IGpsApiLogRepository>();
+                        await iGpsApiLogRepository.InsertGpsApiLog(
+                            new GpsApiLog(
+                                Guid.NewGuid(), 
+                                response.RequestMessage?.RequestUri?.ToString(),
+                                "0",
+                                response.ReasonPhrase,
+                                responseData,
+                                endpoint.GpsVendor.VendorName,
+                                "",
+                                DateTime.UtcNow,
+                                "System"
+                            ), stoppingToken);
+                    }
+                    
                     return; // Hentikan pemrosesan jika salah satu endpoint gagal (opsional, bisa disesuaikan)
 
                 }
@@ -221,7 +245,7 @@ public class Worker : BackgroundService
         {
             var combinedDataList = CombineJsonToString(responses, vendor.ProcessingStrategyPathKey??"", vendor.ProcessingStrategyPathData??"data");
             
-            var lastPositionDs = await ProcessMappingResponse(vendor.Id ,combinedDataList, vendor.ProcessingStrategyPathData??"data", context);
+            var lastPositionDs = await ProcessMappingResponse(vendor.Id ,combinedDataList, vendor.ProcessingStrategyPathData??"data", context, endpoints.First().BaseUrl);
             
             await CreateNewGpsLastPosition(vendor, lastPositionDs, stoppingToken);
 
@@ -320,6 +344,7 @@ public class Worker : BackgroundService
             else if (endpoint.GpsVendor is { AuthType: "Bearer", Auth: not null })
             {
                 var authToken = await GetAuthTokenAsync(endpoint.GpsVendor.Auth);
+                if (string.IsNullOrEmpty(authToken)) return;
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(endpoint.GpsVendor.AuthType, authToken);
                     
             }
@@ -334,7 +359,7 @@ public class Worker : BackgroundService
                 endpoint.GpsVendor.Id,
                 responseData, 
                 endpoint.GpsVendor.ProcessingStrategyPathData??"data",
-                context);
+                context,endpoint.BaseUrl);
 
             var maxData = 0;
             
@@ -359,6 +384,27 @@ public class Worker : BackgroundService
         else
         {
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
+
+            using (var scopeGpsApiLog = _scopeFactory.CreateScope()) 
+            {
+                // GpsApiLog(Guid id, string? functionName, string? status, string? errorMessage = null, 
+                // string? parameter = null, string? username = null)
+                
+                var iGpsApiLogRepository = scopeGpsApiLog.ServiceProvider.GetRequiredService<IGpsApiLogRepository>();
+                await iGpsApiLogRepository.InsertGpsApiLog(
+                    new GpsApiLog(
+                        Guid.NewGuid(), 
+                        response.RequestMessage?.RequestUri?.ToString(),
+                        "0",
+                        response.ReasonPhrase,
+                        responseData,
+                        endpoint.GpsVendor.VendorName,
+                        "",
+                        DateTime.UtcNow,
+                        "System"
+                    ), stoppingToken);
+            }
+
             _logger.LogError("Failed to call endpoint for Vendor {VendorName}: {StatusCode} {ReasonPhrase}, Data: {responseData}", endpoint.GpsVendor?.VendorName, response.StatusCode, response.ReasonPhrase, responseData);
         }
     }
@@ -367,8 +413,6 @@ public class Worker : BackgroundService
     {
         
         string routingKey = $"gps.vendor.{endpoint.GpsVendor.Id}";
-        ////string exchangeName = "my_topic_exchange";
-
         var message = CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
         
         await _rabbitMqService.PublishAsync(message, routingKey);
@@ -409,9 +453,7 @@ public class Worker : BackgroundService
         if (updatedVarParams)
         {
             using var scope = _scopeFactory.CreateScope();
-            // Di dalam scope ini, Anda dapat mendapatkan instance layanan
             var repository = scope.ServiceProvider.GetRequiredService<IGpsLastPositionHRepository>();
-            
             await repository.UpdateVarParamsPropertyRawSqlAsync(
                 endpoint.Id, 
                 properti,
@@ -530,7 +572,7 @@ public class Worker : BackgroundService
         return JsonSerializer.Serialize(combinedList, jsonSerializerOptions);
     }
     
-    private async Task<IList<GpsLastPositionD>> ProcessMappingResponse(Guid vendorId, string jsonResponse, string dataPath, GeofenceWorkerDbContext _context)
+    private async Task<IList<GpsLastPositionD>> ProcessMappingResponse(Guid vendorId, string jsonResponse, string dataPath, GeofenceWorkerDbContext _context, string endpointName)
     {
         
         // 1. Ambil semua mapping untuk vendor
@@ -575,14 +617,49 @@ public class Worker : BackgroundService
                         }
                         else
                         {
+                            //var  value1 = valueToken.ToObject(property.PropertyType);
+                            
                             var dateTimeValue = valueToken.ToObject<DateTime>();
                             
-                            value = dateTimeValue.Kind == DateTimeKind.Utc 
+                            /////var local = ParseAndAdjustToUtcPlus7(dateTimeValue.ToString(CultureInfo.CurrentCulture));
+                            ////var local = ParseDateTimeWithOffset(value1.ToString());
+                            
+                            ////var local = ParseAndAdjustToUtcPlus7(dateTimeValue.ToString("o", CultureInfo.InvariantCulture));
+                            
+                            //var local = ParseToJakartaLocal(dateTimeValue.ToString("o", CultureInfo.InvariantCulture));
+                            /////var local = ParseToJakartaLocal(dateTimeValue.ToString(CultureInfo.CurrentCulture));
+                            
+                            
+                            ////var dateTimeValue = valueToken.ToObject<DateTime>();
+                            ////TimeZoneInfo jakartaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Jakarta");
+                            ////DateTime localDateTime = TimeZoneInfo.ConvertTimeFromUtc(local, jakartaTimeZone);
+                            
+                            
+                            /*
+                            dateTimeValue = DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc);
+                            //dateTimeValue = DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Unspecified);
+                            TimeZoneInfo jakartaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Jakarta");
+                            DateTime localDateTime = TimeZoneInfo.ConvertTimeFromUtc(dateTimeValue, jakartaTimeZone);
+                            */
+
+                            var local = DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Unspecified);
+                            if (endpointName.ToLower() == "https://tnt-micro.puninarlogistics.com/api/tracking-tmmin".ToLower())
+                            {
+                                local = local.AddHours(7);
+                            }
+                            value = local;
+
+                            /*
+                            value = dateTimeValue.Kind == DateTimeKind.Utc
                                 ? DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Unspecified)
                                 : dateTimeValue;
-                            
+                            */
+
+                            //value = DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Unspecified);
+
+
                             //Datetime = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified) 
-                            
+
                             ////value = dateTimeValue;
 
                         }
@@ -611,6 +688,86 @@ public class Worker : BackgroundService
 
         return gpsLastPositions;
     }
+    
+    public static DateTime ParseDateTimeWithOffset(string dateTimeString)
+    {
+        // Format datetime dengan offset
+        string[] formatsWithOffset = {
+            "yyyy-MM-dd'T'HH:mm:sszzz",    // Contoh: "2025-05-30T07:30:55+07:00"
+            "yyyy-MM-dd'T'HH:mm:ssK"       // Contoh: "2025-05-30T07:30:55Z" (UTC)
+        };
+
+        // Coba parse sebagai DateTimeOffset jika ada offset
+        if (DateTimeOffset.TryParseExact(
+                dateTimeString,
+                formatsWithOffset,
+                null, // CultureInfo.InvariantCulture
+                System.Globalization.DateTimeStyles.None,
+                out var dateTimeOffset))
+        {
+            // Convert ke UTC untuk konsistensi
+            return dateTimeOffset.UtcDateTime.AddHours(7); // Tambahkan +7 jam
+        }
+
+        // Fallback ke DateTime jika tidak ada offset
+        if (DateTime.TryParse(dateTimeString, out var dateTime))
+        {
+            return dateTime; // Simpan apa adanya
+        }
+
+        throw new ArgumentException("Invalid datetime format.");
+    }
+    
+    public static DateTime ParseAndAdjustToUtcPlus7(string dateTimeString)
+    {
+        if (DateTimeOffset.TryParse(dateTimeString, out var dateTimeOffset))
+        {
+            // Convert ke UTC
+            var utcDateTime = dateTimeOffset.UtcDateTime;
+
+            // Adjust ke UTC+7
+            return utcDateTime.AddHours(7);
+        }
+
+        if (DateTime.TryParse(dateTimeString, out var dateTime))
+        {
+            // Jika tidak ada offset, asumsikan sudah dalam UTC+7
+            return dateTime;
+        }
+
+        throw new ArgumentException("Invalid datetime format.");
+    }
+    
+    public static DateTime ParseToJakartaLocal(string input)
+    {
+        // Coba parse ke DateTimeOffset (akan otomatis handle +07:00, Z, dsb)
+        if (DateTimeOffset.TryParse(input, null, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            // Konversi ke Asia/Jakarta
+            var jakartaTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); // Windows
+            // Untuk Linux gunakan: "Asia/Jakarta"
+            if (OperatingSystem.IsLinux())
+                jakartaTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Jakarta");
+            // Jika input TANPA offset, DateTimeOffset akan Kind=Unspecified, Offset=00:00
+            // Asumsikan waktu lokal Jakarta
+            if (dto.Offset == TimeSpan.Zero && !input.EndsWith("Z") && !input.Contains("+"))
+            {
+                // Anggap waktu lokal Jakarta
+                return DateTime.SpecifyKind(dto.DateTime, DateTimeKind.Unspecified);
+            }
+            else
+            {
+                // Konversi ke waktu Jakarta
+                return TimeZoneInfo.ConvertTime(dto, jakartaTz).DateTime;
+            }
+        }
+        else
+        {
+            throw new FormatException("Format waktu tidak dikenali: " + input);
+        }
+    }
+    
+    
     
     private async Task<GpsLastPositionH> CreateNewGpsLastPosition(GpsVendor vendor, IList<GpsLastPositionD> lpsLastPositionDs, CancellationToken cancellationToken)
     {
@@ -874,10 +1031,28 @@ public class Worker : BackgroundService
             }
             else
             {
-                // Log the status code and the response body to help diagnose the error
                 var responseContent = await tokenResponse.Content.ReadAsStringAsync();
+                
+                // Log the status code and the response body to help diagnose the error
                 _logger.LogError("Failed to get token for Vendor {VendorName}: {StatusCode} {ReasonPhrase} - Response: {ResponseBody}", 
                     auth.GpsVendor?.VendorName, tokenResponse.StatusCode, tokenResponse.ReasonPhrase, responseContent);
+                
+                using (var scopeGpsApiLog = _scopeFactory.CreateScope()) 
+                {
+                    var iGpsApiLogRepository = scopeGpsApiLog.ServiceProvider.GetRequiredService<IGpsApiLogRepository>();
+                    await iGpsApiLogRepository.InsertGpsApiLog(
+                        new GpsApiLog(
+                            Guid.NewGuid(), 
+                            tokenResponse.RequestMessage?.RequestUri?.ToString(),
+                            "0",
+                            tokenResponse.ReasonPhrase,
+                            responseContent,
+                            auth.GpsVendor?.VendorName,
+                            "",
+                            DateTime.UtcNow,
+                            "Auth"
+                        ));
+                }
 
                 
                 return string.Empty;

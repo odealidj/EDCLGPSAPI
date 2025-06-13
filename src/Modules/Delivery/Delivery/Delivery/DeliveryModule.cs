@@ -40,7 +40,7 @@ public static class DeliveryModule
         });
         */
         
-        // Daftarkan repository dengan factory pattern
+        // Daftarkan repository dengan ftory pattern
         /*
         services.AddScoped<IDeliveryRepository>(sp =>
         {

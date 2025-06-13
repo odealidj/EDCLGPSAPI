@@ -26,8 +26,8 @@ public class GpsVendor: Aggregate<Guid>
     
     private readonly List<GpsVendorEndpoint>  _gpsVendorEndpoints = new();
     public IReadOnlyList<GpsVendorEndpoint> GpsVendorEndpoints => _gpsVendorEndpoints.AsReadOnly();
-    
-    public GpsVendorAuth? GpsVendorAuth { get; set; }
+
+    public GpsVendorAuth? GpsVendorAuth { get; set; } 
     
     private readonly List<Mapping>  _mappings = new();
     public IReadOnlyList<Mapping> Mappings => _mappings.AsReadOnly();
@@ -125,8 +125,12 @@ public class GpsVendor: Aggregate<Guid>
         }
         else
         {
+            /*
+            GpsVendorAuth = new GpsVendorAuth();
+            GpsVendorAuth.Id =Guid.NewGuid();
+            
             var newItem = new GpsVendorAuth(
-                id, 
+                Guid.NewGuid(), 
                 gpsVendorId, 
                 baseUrl, 
                 method, 
@@ -135,7 +139,9 @@ public class GpsVendor: Aggregate<Guid>
                 username,
                 password,
                 tokenPath, headers, @params, bodies);
-            GpsVendorAuth = newItem;
+            */
+            GpsVendorAuth = new GpsVendorAuth(Guid.NewGuid(), gpsVendorId, baseUrl, method, authtype, contentType,
+                username, password, tokenPath, headers, @params, bodies);
         }
     }
     

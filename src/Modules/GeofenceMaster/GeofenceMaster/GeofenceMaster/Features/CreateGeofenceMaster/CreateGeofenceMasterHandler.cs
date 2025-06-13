@@ -1,5 +1,6 @@
 using GeofenceMaster.Data.Repository.IRepository;
 using GeofenceMaster.GeofenceMaster.Dtos;
+using GeofenceMaster.GeofenceMaster.Exceptions;
 using GeofenceMaster.GeofenceMaster.Models;
 using Shared.Contracts.CQRS;
 
@@ -23,9 +24,27 @@ internal class CreateGeofenceMasterHandler(IGeofenceMasterRepository repository)
 {
     public async Task<CreateGeofenceMasterResult> Handle(CreateGeofenceMasterCommand command, CancellationToken cancellationToken)
     {
-        //create Basket entity from command object
-        //save to database
-        //return result
+        var duplicateLpcds = command.GeofenceMaster.Lpcds
+            .GroupBy(lpcd => lpcd.Lpcd) 
+            .Where(group => group.Count() > 1) 
+            .Select(group => group.Key) 
+            .ToList();
+
+        if (duplicateLpcds.Count > 0)
+        {
+            throw new GeofenceMasterBadRequestException($"Duplicate LPCD(s) found: {string.Join(", ", duplicateLpcds)}","Duplicate LPCD");
+        }
+        
+        var duplicateEndPointUrls = command.GeofenceMaster.GeofenceMasterEndpoints
+            .GroupBy(endpoint => endpoint.BaseUrl) 
+            .Where(group => group.Count() > 1) 
+            .Select(group => group.Key) 
+            .ToList();
+
+        if (duplicateEndPointUrls.Count > 0)
+        {
+            throw new GeofenceMasterBadRequestException($"Duplicate EndPoint Url found: {string.Join(", ", duplicateEndPointUrls)}","Duplicate EndPoint Url");
+        }
 
         var geofenceMaster = CreateNewGeofenceMaster(command.GeofenceMaster);        
 

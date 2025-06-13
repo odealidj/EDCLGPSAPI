@@ -3,7 +3,6 @@ using EFCore.BulkExtensions;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Workers.Exceptions;
 using GeofenceWorker.Workers.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
