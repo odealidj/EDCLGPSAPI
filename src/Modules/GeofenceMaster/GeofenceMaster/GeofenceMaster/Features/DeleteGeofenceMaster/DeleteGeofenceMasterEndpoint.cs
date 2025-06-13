@@ -1,5 +1,4 @@
 using GeofenceMaster.GeofenceMaster.Dtos;
-using Microsoft.AspNetCore.Mvc;
 
 namespace GeofenceMaster.GeofenceMaster.Features.DeleteGeofenceMaster;
 

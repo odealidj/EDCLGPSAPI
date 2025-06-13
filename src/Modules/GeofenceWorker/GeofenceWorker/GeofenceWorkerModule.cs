@@ -3,14 +3,9 @@ using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Workers;
-using GeofenceWorker.Workers.Features;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using GeofenceWorker.Workers.Features.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Shared.Data.Interceptors;
 
 namespace GeofenceWorker;
 
@@ -22,6 +17,7 @@ public static class GeofenceWorkerModule
 
         services.AddHttpClient();
         services.AddHostedService<Worker>();
+        services.AddHostedService<AmqpMessage>();
         
         // Binding konfigurasi ke kelas RabbitMqSettings
         services.Configure<RabbitMqSettings>(
@@ -46,12 +42,32 @@ public static class GeofenceWorkerModule
             .LogTo(Console.WriteLine, LogLevel.Warning);
         });
         
+        services.AddScoped<IGpsLastPositionRepository>(sp =>
+            new GpsLastPositionRepository(
+                connectionString!,
+                sp.GetRequiredService<ILogger<GpsLastPositionRepository>>()
+            ));
+        services.AddScoped<IGpsApiLogRepository, GpsApiLogRepository>();
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
-        
         services.AddSingleton<IRabbitMqService, RabbitMqService>();
         
 
         return services;
+    }
+    
+    
+    public static IApplicationBuilder UseGeofenceWorkerModule(this IApplicationBuilder app)
+    {
+        // Configure the HTTP request pipeline.
+
+        // 1. Use Api Endpoint services
+
+        // 2. Use Application Use Case services
+
+        // 3. Use Data - Infrastructure services  
+        ////app.UseMigration<CatalogDbContext>();
+
+        return app;
     }
 
 }

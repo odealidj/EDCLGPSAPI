@@ -24,6 +24,8 @@ public class GeofenceWorkerDbContext: DbContext
     public DbSet<GpsDelivery> GpsDeliveries => Set<GpsDelivery>();
     public DbSet<DeliveryProgress> DeliveryProgresses => Set<DeliveryProgress>();
     public DbSet<Msystem> Msystems => Set<Msystem>();
+    
+    public DbSet<GpsApiLog> GpsApiLogs => Set<GpsApiLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -184,6 +186,15 @@ public class GeofenceWorkerDbContext: DbContext
             ////    .HasColumnType("timestamp without time zone");
             ////entity.Property(e => e.LastModified)
                 ////. HasColumnType("timestamp without time zone");
+        });
+        
+        builder.Entity<GpsApiLog>(entity =>
+        {
+            entity.ToTable("tb_m_gps_api_log");
+            entity.Property(e => e.CreatedAt)
+                . HasColumnType("timestamp with time zone");
+            entity.Property(e => e.LastModified)
+                . HasColumnType("timestamp with time zone");
         });
         
         

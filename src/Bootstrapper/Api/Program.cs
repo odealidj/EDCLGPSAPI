@@ -4,7 +4,9 @@ using Carter;
 using Delivery;
 using GeofenceMaster;
 using GeofenceWorker;
+using Healthy;
 using Microsoft.AspNetCore.Diagnostics;
+using Ping;
 using Serilog;
 using Shared.Exceptions;
 using Shared.Exceptions.Handler;
@@ -19,18 +21,29 @@ var builder = WebApplication.CreateBuilder(args);
 
 var deliveryAssembly = typeof(DeliveryModule).Assembly;
 var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
+var geofenceWorkerAssembly = typeof(GeofenceWorkerModule).Assembly;
+var healthyAssembly = typeof(HealthyModule).Assembly;
 
 builder.Services
-    .AddCarterWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
+    .AddCarterWithAssemblies(
+        geofenceMasterAssembly, 
+        deliveryAssembly, 
+        geofenceWorkerAssembly, 
+        healthyAssembly);
 
 builder.Services
-    .AddMediatRWithAssemblies(geofenceMasterAssembly, deliveryAssembly);
+    .AddMediatRWithAssemblies(
+        geofenceMasterAssembly, 
+        deliveryAssembly, 
+        geofenceWorkerAssembly, 
+        healthyAssembly);
 
 
 builder.Services
     .AddGeofenceMasterModule(builder.Configuration)
-    .AddDeliveryModule(builder.Configuration);
-    ////.AddGeofenceWorkerModule(builder.Configuration);
+    .AddDeliveryModule(builder.Configuration)
+    .AddGeofenceWorkerModule(builder.Configuration)
+    .AddHealthyModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();
@@ -103,12 +116,14 @@ app.UseExceptionHandler(options =>
 
 app
     .UseGeofenceMasterModule()
-    .UseDeliveryModule();
+    .UseDeliveryModule()
+    .UseGeofenceWorkerModule()
+    .UseHealthyModule();
 
 
 ////app.UseHttpsRedirection();
 
-// Endpoint default untuk health checks
+
 app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true, // Memeriksa semua health checks
@@ -135,7 +150,7 @@ app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.Hea
 app.MapGet("/", () => Results.Json(new
 {
     ApiName = "Edcl GPS Web API",
-    Version = "1.0.1"
+    Version = "1.2.3"
 }));
 
 app.Run();
