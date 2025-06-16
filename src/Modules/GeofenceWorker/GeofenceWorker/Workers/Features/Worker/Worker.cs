@@ -78,14 +78,14 @@ public class Worker : BackgroundService
                             if (vendor.ProcessingStrategy?.ToLowerInvariant() == "combined" && endpoints.Count > 0)
                             {
                                 // Proses endpoint secara gabungan
-                                ////await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
+                                await ProcessCombinedEndpoints(vendor, endpoints, scope, context, stoppingToken);
                             }
                             else
                             {
                                 // Proses setiap endpoint secara individual
                                 foreach (var endpoint in endpoints)
                                 {
-                                    ////await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
+                                    await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
                                 }
                             }
                         }

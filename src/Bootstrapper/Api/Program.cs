@@ -121,7 +121,7 @@ app
     .UseHealthyModule();
 
 
-////app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 
 
 app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
