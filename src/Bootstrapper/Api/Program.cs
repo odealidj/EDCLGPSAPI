@@ -14,8 +14,8 @@ using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-////builder.Host.UseSerilog((context, config) =>
-    ////config.ReadFrom.Configuration(context.Configuration));
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration));
 
 // Add services to the container.
 
@@ -51,20 +51,13 @@ builder.Services
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("Database") ?? string.Empty);
 
-// Registrasi layanan Health Checks
-/*
-builder.Services.AddHealthChecks()
-    .AddCheck("Sample_HealthCheck", () => HealthCheckResult.Healthy("OK"), tags: new[] { "sample" });
-*/
-
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 
 app.MapCarter();
 
-////app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging();
 
 ////app.UseExceptionHandler(options => { });
 
