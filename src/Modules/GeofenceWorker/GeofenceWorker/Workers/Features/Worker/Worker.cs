@@ -62,12 +62,11 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        .Where(x => x.Id == Guid.Parse("17fb5f39-3de5-4c09-88fe-5f15e245f186"))
+                        .Where(x => x.Id == Guid.Parse("a92e50e8-b8df-4dfa-b434-76aee4c39e70"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
-                    foreach (var vendor
-                             in vendors)
+                    foreach (var vendor in vendors)
                     {
                         try
                         {                        
@@ -440,7 +439,6 @@ public class Worker : BackgroundService
                     }
                 }
             }
-            //else if (endpoint.VarParams is JsonObject varParamsObject && varParamsObject.ContainsKey(properti))
             else if (endpoint.VarParams is { } varParamsObject && varParamsObject.ContainsKey(properti))
             {
                 varParamsObject[properti] = newLastPositionId;
