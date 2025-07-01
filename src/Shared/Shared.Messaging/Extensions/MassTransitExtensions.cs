@@ -15,7 +15,7 @@ public static class MassTransitExtentions
 
             config.SetInMemorySagaRepositoryProvider();
 
-            ////config.AddConsumers(assemblies);
+            config.AddConsumers(assemblies);
             config.AddSagaStateMachines(assemblies);
             config.AddSagas(assemblies);
             config.AddActivities(assemblies);
