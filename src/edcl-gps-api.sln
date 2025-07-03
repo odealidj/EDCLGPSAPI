@@ -42,6 +42,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SQL", "SQL", "{DD381BA7-4E6
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SQL", "SQL\SQL\SQL\SQL.csproj", "{F12C8A43-4222-464C-8B15-CAAA1ABD25F1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared.Messaging.RabbitMqClient", "Shared\Shared.Messaging.RabbitMqClient\Shared.Messaging.RabbitMqClient.csproj", "{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -92,6 +94,10 @@ Global
 		{F12C8A43-4222-464C-8B15-CAAA1ABD25F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F12C8A43-4222-464C-8B15-CAAA1ABD25F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F12C8A43-4222-464C-8B15-CAAA1ABD25F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,6 +118,7 @@ Global
 		{B002F0A0-6FA0-4D89-BD47-1862D8B4C430} = {3916D730-3038-4D5D-9E93-B641DCCFD237}
 		{E5482937-329A-42F7-AB10-BFAE916A1672} = {B002F0A0-6FA0-4D89-BD47-1862D8B4C430}
 		{F12C8A43-4222-464C-8B15-CAAA1ABD25F1} = {DD381BA7-4E66-49A7-A0B0-8A6237B4F1F8}
+		{2A0808B8-3E21-4EDB-943B-1EBCBE7F6373} = {A4484D99-1CE4-4699-8A00-10F4F65746C9}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C0434113-9DE9-4ACD-8670-440CFE2D323F}

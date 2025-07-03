@@ -11,6 +11,7 @@ using Serilog;
 using Shared.Exceptions;
 using Shared.Exceptions.Handler;
 using Shared.Extensions;
+using Shared.Messaging.RabbitMqClient.Extension;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,8 @@ builder.Services
     .AddDeliveryModule(builder.Configuration)
     .AddGeofenceWorkerModule(builder.Configuration)
     .AddHealthyModule(builder.Configuration);
+
+builder.Services.AddRabbitMqModule(builder.Configuration);
 
 builder.Services
     .AddExceptionHandler<CustomExceptionHandler>();

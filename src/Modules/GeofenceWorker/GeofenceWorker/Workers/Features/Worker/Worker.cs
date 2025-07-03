@@ -7,6 +7,7 @@ using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Helper;
 using GeofenceWorker.Services.RabbitMq;
+using GeofenceWorker.Services.RabbitMqClient;
 using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Models;
 using Microsoft.Extensions.Hosting;
@@ -22,21 +23,24 @@ public class Worker : BackgroundService
     ////private readonly HttpClient _httpClient;
     private readonly IHttpClientFactory _httpClientFactory; 
     ///private readonly IBus _bus;
-    private readonly IRabbitMqService _rabbitMqService;
+    //////private readonly IRabbitMqService _rabbitMqService;
+    private readonly IGpsPublisherService _gpsPublisherService;
     ////private readonly IPublishEndpoint _publishEndpoint;
     public Worker( IServiceScopeFactory scopeFactory, 
         ////IBus bus,
         /////IPublishEndpoint publishEndpoint,
         IHttpClientFactory httpClientFactory,
         ////HttpClient httpClient, 
-        IRabbitMqService rabbitMqService,
+        //////IRabbitMqService rabbitMqService,
+        IGpsPublisherService gpsPublisherService,
         ILogger<Worker> logger)
     {
         _scopeFactory = scopeFactory;
         /////_httpClient = httpClient;
         _httpClientFactory = httpClientFactory;
         ///_bus = bus; 
-        _rabbitMqService = rabbitMqService;
+        //////_rabbitMqService = rabbitMqService;
+        _gpsPublisherService = gpsPublisherService;
         ////_publishEndpoint = publishEndpoint;
         _logger = logger;
         
@@ -414,7 +418,9 @@ public class Worker : BackgroundService
         string routingKey = $"gps.vendor.{endpoint.GpsVendor.Id}";
         var message = CreateGpsMessage(endpoint.GpsVendor, lastPositionDs.ToList());
         
-        await _rabbitMqService.PublishAsync(message, routingKey);
+        ////await _rabbitMqService.PublishAsync(message, routingKey);
+
+        await _gpsPublisherService.PublishAsync(message, routingKey);
     }
 
     private async Task UpdateLastPositionId(GpsVendorEndpoint endpoint, string properti, int? newLastPositionId)
