@@ -10,6 +10,9 @@ services:
 
   messagebus:
     image: rabbitmq:management
+    
+  messagebus5672:
+      image: rabbitmq:management
 
 volumes:
   postgres_ae031db:

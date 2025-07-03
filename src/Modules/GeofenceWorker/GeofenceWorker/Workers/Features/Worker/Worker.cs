@@ -8,6 +8,7 @@ using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Helper;
 using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Services.RabbitMqClient;
+using GeofenceWorker.Services.RabbitMqClient.Services;
 using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Models;
 using Microsoft.Extensions.Hosting;
