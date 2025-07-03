@@ -3,10 +3,13 @@ using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Services.RabbitMq;
 using GeofenceWorker.Services.RabbitMqClient;
+using GeofenceWorker.Services.RabbitMqClient.factory;
+using GeofenceWorker.Services.RabbitMqClient.Services;
 using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Shared.Messaging.RabbitMqClient.Provider;
 
 namespace GeofenceWorker;
 
@@ -51,8 +54,13 @@ public static class GeofenceWorkerModule
         services.AddScoped<IGpsApiLogRepository, GpsApiLogRepository>();
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
         ////services.AddSingleton<IRabbitMqService, RabbitMqService>();
+        
+        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProviderTls>();
+        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProviderNonTls>();
+        services.AddSingleton<IRabbitMqConnectionProviderFactory, RabbitMqConnectionProviderFactory>();
         services.AddSingleton<IGpsPublisherService, GpsPublisherService>();
         
+
 
         return services;
     }
