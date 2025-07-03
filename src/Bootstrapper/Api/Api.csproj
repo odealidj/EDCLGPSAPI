@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\Modules\GeofenceWorker\GeofenceWorker\GeofenceWorker.csproj" />
     <ProjectReference Include="..\..\Modules\Healthy\Healthy\Healthy\Healthy.csproj" />
     <ProjectReference Include="..\..\Modules\Ping\Ping\Ping\Ping.csproj" />
+    <ProjectReference Include="..\..\Shared\Shared.Messaging.RabbitMqClient\Shared.Messaging.RabbitMqClient.csproj" />
   </ItemGroup>
 
 

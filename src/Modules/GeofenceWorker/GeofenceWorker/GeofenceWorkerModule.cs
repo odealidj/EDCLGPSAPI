@@ -2,6 +2,7 @@ using GeofenceWorker.Data;
 using GeofenceWorker.Data.Repository;
 using GeofenceWorker.Data.Repository.IRepository;
 using GeofenceWorker.Services.RabbitMq;
+using GeofenceWorker.Services.RabbitMqClient;
 using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features.Worker;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ public static class GeofenceWorkerModule
 
         services.AddHttpClient();
         services.AddHostedService<Worker>();
-        services.AddHostedService<AmqpMessage>();
+        ////services.AddHostedService<AmqpMessage>();
         
         // Binding konfigurasi ke kelas RabbitMqSettings
         services.Configure<RabbitMqSettings>(
@@ -49,7 +50,8 @@ public static class GeofenceWorkerModule
             ));
         services.AddScoped<IGpsApiLogRepository, GpsApiLogRepository>();
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
-        services.AddSingleton<IRabbitMqService, RabbitMqService>();
+        ////services.AddSingleton<IRabbitMqService, RabbitMqService>();
+        services.AddSingleton<IGpsPublisherService, GpsPublisherService>();
         
 
         return services;
