@@ -14,7 +14,7 @@ public class GpsPublisherService : IGpsPublisherService, IDisposable
     private readonly AsyncRetryPolicy _retryPolicy;
     private readonly ILogger<GpsPublisherService> _logger;
     ////private readonly IModel _channel;
-    private const string ExchangeName = "topic_exchange";
+    ////private const string ExchangeName = "topic_exchange";
 
     private readonly IRabbitMqConnectionProvider _mqProvider1;
     private readonly IRabbitMqConnectionProvider _mqProvider2;
@@ -31,14 +31,36 @@ public class GpsPublisherService : IGpsPublisherService, IDisposable
         _mqProvider2 = mqProviderFactory.CreateProvider2();
 
         // Define retry policy with Polly
+        /*
         _retryPolicy = Policy
             .Handle<Exception>() // Tangani semua jenis exception
             .WaitAndRetryAsync(
-                retryCount: 3, // Jumlah percobaan maksimal
-                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)), // Exponential backoff
+                retryCount: 5, // Jumlah percobaan maksimal
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(4, attempt)), // Exponential backoff
                 onRetry: (exception, timeSpan, retryCount, context) =>
                 {
-                    Console.WriteLine($"Retry {retryCount} after {timeSpan.TotalSeconds} seconds due to: {exception.Message}");
+                    logger.LogWarning("Retry {RetryCount} after {DelaySeconds} seconds due to: {ExceptionMessage}", retryCount, timeSpan.TotalSeconds, exception.Message);
+                });
+        */
+        
+        var retryCycle = 0;
+        _retryPolicy = Policy
+            .Handle<Exception>()
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(4, attempt)),
+                onRetryAsync: async (exception, timeSpan, retryCount, context) =>
+                {
+                    logger.LogWarning("Retry {RetryCount} after {DelaySeconds} seconds due to: {ExceptionMessage}", retryCount, timeSpan.TotalSeconds, exception.Message);
+                    if (retryCount == 3)
+                    {
+                        retryCycle++;
+                        if (retryCycle % 3 == 0)
+                        {
+                            logger.LogWarning("Reached 3 cycles of 5 retries. Pausing for 1 hour before next cycle.");
+                            await Task.Delay(TimeSpan.FromHours(1));
+                        }
+                    }
                 });
         
         try
@@ -64,13 +86,16 @@ public class GpsPublisherService : IGpsPublisherService, IDisposable
     {
         await _retryPolicy.ExecuteAsync(() =>
         {
-            using var channel = mqProvider.CreateModel();
-            channel.ExchangeDeclare(exchange: "topic_exchange", type: ExchangeType.Topic, durable: true);
-
-            if (!channel.IsOpen) throw new InvalidOperationException("RabbitMQ channel was closed unexpectedly.");
-
+            ////using var channel = mqProvider.CreateModel();
             try
             {
+                var channel = mqProvider.GetChannel();
+                
+                ////channel.ExchangeDeclare(exchange: "topic_exchange", type: ExchangeType.Topic, durable: false);
+
+                if ( channel is not { IsOpen: true }) throw new InvalidOperationException("RabbitMQ channel was closed unexpectedly.");
+
+            
                 var json = JsonSerializer.Serialize(message);
                 var body = Encoding.UTF8.GetBytes(json);
 

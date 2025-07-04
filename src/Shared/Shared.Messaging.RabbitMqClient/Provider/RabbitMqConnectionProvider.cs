@@ -2,9 +2,11 @@ namespace Shared.Messaging.RabbitMqClient.Provider;
 public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposable {
     
     private readonly IConnection? _connection;
+    private readonly IModel? _channel;
     
     public RabbitMqConnectionProvider(string hostName, string userName, string password, int port = 5672, string virtualHost = "/", ILogger<RabbitMqConnectionProvider> logger = null)
     {
+
         var factory = new ConnectionFactory
         {
             HostName = hostName,
@@ -16,6 +18,9 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
         try
         {
             _connection = factory.CreateConnection();
+            
+            _channel = _connection.CreateModel();
+            _channel.ExchangeDeclare(exchange: "topic_exchange", type: ExchangeType.Topic, durable: true);
         }
         catch (BrokerUnreachableException ex)
         {
@@ -29,6 +34,7 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
     }
     
     public RabbitMqConnectionProvider(IConfiguration config, ILogger<RabbitMqConnectionProvider> logger) {
+
         var factory = new ConnectionFactory {
             HostName = config["RabbitMqClient:HostName"] ?? "localhost",
             UserName = config["RabbitMqClient:UserName"] ?? "guest",
@@ -39,6 +45,9 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
         try
         {
             _connection = factory.CreateConnection();
+            _channel = _connection.CreateModel();
+            _channel.ExchangeDeclare(exchange: "topic_exchange", type: ExchangeType.Topic, durable: true);
+
         }
         catch (BrokerUnreachableException ex)
         {
@@ -52,6 +61,8 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
         
     }
 
+
+    public IModel GetChannel() => _channel ?? throw new InvalidOperationException("RabbitMQ channel is not available.");
 
 
     public IConnection GetConnection() {
@@ -67,6 +78,7 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
     }
     
     public void Dispose() {
+        _channel?.Close();
         _connection?.Dispose();
     }
 }

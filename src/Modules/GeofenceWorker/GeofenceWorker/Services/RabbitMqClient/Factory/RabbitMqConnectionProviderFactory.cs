@@ -6,18 +6,18 @@ namespace GeofenceWorker.Services.RabbitMqClient.factory;
 public class RabbitMqConnectionProviderFactory : IRabbitMqConnectionProviderFactory
 {
     private readonly IConfiguration _config;
-    private readonly ILogger<RabbitMqConnectionProvider> _logger;
-    public RabbitMqConnectionProviderFactory(IConfiguration config, ILogger<RabbitMqConnectionProvider> logger)
+    private readonly ILogger<Shared.Messaging.RabbitMqClient.Provider.RabbitMqConnectionProvider> _logger;
+    public RabbitMqConnectionProviderFactory(IConfiguration config, ILogger<Shared.Messaging.RabbitMqClient.Provider.RabbitMqConnectionProvider> logger)
     {
         _config = config;
         _logger = logger;
     }
     public IRabbitMqConnectionProvider CreateProvider1()
     {
-        return new RabbitMqConnectionProviderTls(_config, _logger);
+        return new RabbitMqConnectionProviderSsl(_config, _logger);
     }
     public IRabbitMqConnectionProvider CreateProvider2()
     {
-        return new RabbitMqConnectionProviderNonTls(_config, _logger);
+        return new RabbitMqConnectionProvider(_config, _logger);
     }
 }

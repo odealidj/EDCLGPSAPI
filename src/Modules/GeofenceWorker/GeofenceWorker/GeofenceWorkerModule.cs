@@ -10,6 +10,7 @@ using GeofenceWorker.Workers.Features.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared.Messaging.RabbitMqClient.Provider;
+using RabbitMqConnectionProvider = GeofenceWorker.Services.RabbitMqClient.RabbitMqConnectionProvider;
 
 namespace GeofenceWorker;
 
@@ -55,8 +56,8 @@ public static class GeofenceWorkerModule
         services.AddScoped<IGpsLastPositionHRepository, GpsLastPositionHRepository>();
         ////services.AddSingleton<IRabbitMqService, RabbitMqService>();
         
-        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProviderTls>();
-        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProviderNonTls>();
+        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProviderSsl>();
+        services.AddSingleton<IRabbitMqConnectionProvider, RabbitMqConnectionProvider>();
         services.AddSingleton<IRabbitMqConnectionProviderFactory, RabbitMqConnectionProviderFactory>();
         services.AddSingleton<IGpsPublisherService, GpsPublisherService>();
         
