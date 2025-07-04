@@ -147,7 +147,7 @@ app.MapHealthChecks("/hc", new Microsoft.AspNetCore.Diagnostics.HealthChecks.Hea
 app.MapGet("/", () => Results.Json(new
 {
     ApiName = "Edcl GPS Web API",
-    Version = "1.2.3"
+    Version = "1.3.1"
 }));
 
 app.Run();

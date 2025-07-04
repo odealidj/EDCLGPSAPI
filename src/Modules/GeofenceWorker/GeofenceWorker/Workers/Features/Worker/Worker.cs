@@ -67,7 +67,7 @@ public class Worker : BackgroundService
                     
                     // Get all vendors that need to call endpoints
                     var vendors = await context.GpsVendors
-                        .Where(x => x.Id == Guid.Parse("a92e50e8-b8df-4dfa-b434-76aee4c39e70"))
+                        ////.Where(x => x.Id == Guid.Parse("a92e50e8-b8df-4dfa-b434-76aee4c39e70"))
                         .Include(v => v.Auth)
                         .ToListAsync(stoppingToken);
 
@@ -99,10 +99,6 @@ public class Worker : BackgroundService
                         }
                     }
                 }
-                
-                // Wait for 1 minute (60,000 milliseconds) before next cycle
-                
-                //await Task.Delay(60000, stoppingToken); // 1 minute delay
                 
                 if (!int.TryParse(durationTime, out var delayTime))
                 {
