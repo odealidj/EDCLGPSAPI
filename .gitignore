@@ -406,6 +406,9 @@ FodyWeavers.xsd
 **/appsettings*.json
 !**/appsettings.template.json
 
-# Exclude local database scripts & dump files
+# Exclude local database scripts & dump files (allow database/ folder)
 *.sql
 src/*.sql
+!database/
+!database/**
+
