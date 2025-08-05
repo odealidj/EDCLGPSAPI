@@ -14,5 +14,12 @@ services:
   messagebus5672:
       image: rabbitmq:management
 
+  mongodb:
+    image: mongo:7.0
+
+  mongo-express:
+    image: mongo-express:latest
+
 volumes:
   postgres_ae031db:
+  mongodb_data:
