@@ -9,6 +9,7 @@ using GeofenceWorker.Workers;
 using GeofenceWorker.Workers.Features.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Shared.Data.Mongo;
 using Shared.Messaging.RabbitMqClient.Provider;
 using RabbitMqConnectionProvider = GeofenceWorker.Services.RabbitMqClient.RabbitMqConnectionProvider;
 
@@ -32,6 +33,18 @@ public static class GeofenceWorkerModule
         services.AddSingleton<RabbitMqSettings>(sp => 
             sp.GetRequiredService<IOptions<RabbitMqSettings>>().Value
         );
+
+        // Register MongoDB and Redis caching for telemetry logs & fast query
+        services.AddMongoDbLogs(configuration);
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConn;
+                options.InstanceName = "edcl:";
+            });
+        }
     
         var connectionString = configuration.GetConnectionString("Database");
         

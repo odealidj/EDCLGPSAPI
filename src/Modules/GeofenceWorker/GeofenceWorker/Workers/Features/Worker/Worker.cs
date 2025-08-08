@@ -13,6 +13,7 @@ using GeofenceWorker.Workers.Dtos;
 using GeofenceWorker.Workers.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json.Linq;
 
 namespace GeofenceWorker.Workers.Features.Worker;
@@ -198,7 +199,14 @@ public class Worker : BackgroundService
                         await response.Content.ReadAsStringAsync(stoppingToken);
 
                     responses.Add(responseData);
-                    //var dataMapping = GetDataItems(responseData, "vin");
+
+                    await SaveRawResponseToMongoAsync(
+                        vendor.Id,
+                        vendor.VendorName,
+                        endpoint.BaseUrl,
+                        responseData,
+                        0,
+                        stoppingToken);
                 }
                 else
                 {
@@ -354,6 +362,14 @@ public class Worker : BackgroundService
         if (response.IsSuccessStatusCode)
         {
             var responseData = await response.Content.ReadAsStringAsync(stoppingToken);
+
+            await SaveRawResponseToMongoAsync(
+                endpoint.GpsVendor.Id,
+                endpoint.GpsVendor.VendorName,
+                endpoint.BaseUrl,
+                responseData,
+                0,
+                stoppingToken);
 
             var lastPositionDs = await ProcessMappingResponse(
                 endpoint.GpsVendor.Id,
@@ -879,6 +895,8 @@ public class Worker : BackgroundService
         await repository.InsertGpsLastPositionH(h, cancellationToken);
         await repository.InsertGpsDelivery(gpsDelivery, cancellationToken);
 
+        await CacheLastPositionsInRedisAsync(vendor.VendorName, lpsLastPositionDs, cancellationToken);
+
         return h;
     }
     
@@ -1086,7 +1104,82 @@ public class Worker : BackgroundService
 
         return currentElement.GetString() ?? string.Empty; // Return the token or empty if not found
     }
-    
+
+    private async Task SaveRawResponseToMongoAsync(
+        Guid vendorId,
+        string vendorName,
+        string endpointUrl,
+        string rawJson,
+        int recordCount,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var rawRepo = scope.ServiceProvider.GetService<Shared.Data.Mongo.Repositories.IGpsRawResponseRepository>();
+            if (rawRepo != null)
+            {
+                await rawRepo.InsertAsync(
+                    vendorId: vendorId,
+                    vendorName: vendorName,
+                    endpointUrl: endpointUrl,
+                    rawJson: rawJson,
+                    recordCount: recordCount,
+                    batchId: Guid.NewGuid().ToString("N"),
+                    ct: cancellationToken);
+            }
+        }
+        catch (Exception exMongo)
+        {
+            _logger.LogWarning(exMongo, "Failed to persist raw response in MongoDB for vendor {VendorName}", vendorName);
+        }
+    }
+
+    private async Task CacheLastPositionsInRedisAsync(
+        string vendorName,
+        IEnumerable<GpsLastPositionD> positions,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var cache = scope.ServiceProvider.GetService<IDistributedCache>();
+            if (cache == null) return;
+
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
+            };
+
+            foreach (var pos in positions)
+            {
+                if (!string.IsNullOrWhiteSpace(pos.PlatNo))
+                {
+                    var cacheKey = $"gps:last:{pos.PlatNo.Trim().ToUpperInvariant()}";
+                    var json = JsonSerializer.Serialize(new
+                    {
+                        pos.Id,
+                        pos.GpsLastPositionHId,
+                        pos.Lpcd,
+                        pos.PlatNo,
+                        pos.DeviceId,
+                        pos.Datetime,
+                        pos.X,
+                        pos.Y,
+                        pos.Speed,
+                        pos.Course,
+                        pos.StreetName,
+                        CachedAt = DateTime.UtcNow
+                    });
+                    await cache.SetStringAsync(cacheKey, json, cacheOptions, cancellationToken);
+                }
+            }
+        }
+        catch (Exception exRedis)
+        {
+            _logger.LogWarning(exRedis, "Failed to update Redis last position cache for vendor {VendorName}", vendorName);
+        }
+    }
 }
 
 public class TestMessage
