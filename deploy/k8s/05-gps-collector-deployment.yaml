@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gps-collector-deployment
+  namespace: edcl-prod
+  labels:
+    app: gps-collector-svc
+    app.kubernetes.io/part-of: edcl-gps-telematics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gps-collector-svc
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: gps-collector-svc
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gps-collector-svc
+          image: ghcr.io/odealidj/edcl-gps-worker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: edcl-gps-config
+            - secretRef:
+                name: edcl-gps-secret
+          env:
+            - name: ConnectionStrings__Database
+              value: "Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);Include Error Detail=true;Timezone=Asia/Jakarta;"
+            - name: ConnectionStrings__Redis
+              value: "$(REDIS_HOST):$(REDIS_PORT)"
+            - name: MongoDb__ConnectionString
+              value: "mongodb://$(MONGO_APP_USER):$(MONGO_APP_PASS)@$(MONGODB_HOST):$(MONGODB_PORT)/$(MONGODB_DB)?authSource=admin"
+            - name: MongoDb__DatabaseName
+              value: "$(MONGODB_DB)"
+            - name: RabbitMq__HostName
+              value: "$(RABBITMQ_HOST)"
+            - name: RabbitMq__Port
+              value: "$(RABBITMQ_PORT)"
+            - name: RabbitMq__UserName
+              value: "$(RABBITMQ_USER)"
+            - name: RabbitMq__Password
+              value: "$(RABBITMQ_PASS)"
+          livenessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"

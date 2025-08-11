@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edcl-gps-config
+  namespace: edcl-prod
+  labels:
+    app.kubernetes.io/part-of: edcl-gps-telematics
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+
+  # Database Hostnames (Ganti ke endpoint AWS RDS / DocumentDB saat di AWS EKS)
+  POSTGRES_HOST: "postgres-svc.edcl-infra.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "AE031_EDCL_GPS_DB"
+  POSTGRES_DB_VENDOR: "vendor_master_db"
+  POSTGRES_DB_TELEMETRY: "gps_telemetry_db"
+  POSTGRES_DB_DELIVERY: "delivery_db"
+
+  MONGODB_HOST: "mongodb-svc.edcl-infra.svc.cluster.local"
+  MONGODB_PORT: "27017"
+  MONGODB_DB: "edcl_logs_db"
+
+  REDIS_HOST: "redis-svc.edcl-infra.svc.cluster.local"
+  REDIS_PORT: "6379"
+
+  RABBITMQ_HOST: "rabbitmq-svc.edcl-infra.svc.cluster.local"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "/"
+
+  # Telematics Worker Parameters
+  Worker__MaxConcurrentVendors: "10"
+  Worker__PollIntervalMinutes: "1"
+  Worker__LeaderLockTtlSeconds: "90"
+  Worker__LeaderRenewIntervalSeconds: "30"
+  Cache__VendorTtlMinutes: "5"
+  Cache__LastPositionTtlSeconds: "90"
+  Cache__DeliveryActiveTtlHours: "2"

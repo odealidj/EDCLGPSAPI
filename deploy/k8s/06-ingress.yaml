@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edcl-gps-ingress
+  namespace: edcl-prod
+  labels:
+    app.kubernetes.io/part-of: edcl-gps-telematics
+  annotations:
+    # NGINX Ingress Controller (Local / Generic K8s)
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-gzip: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    # Saat deploy ke AWS EKS dengan ALB Ingress Controller, ganti annotations ke:
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gps-api-svc
+                port:
+                  number: 80

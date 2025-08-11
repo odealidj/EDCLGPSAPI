@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gps-api-deployment
+  namespace: edcl-prod
+  labels:
+    app: gps-api
+    app.kubernetes.io/part-of: edcl-gps-telematics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gps-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: gps-api
+    spec:
+      containers:
+        - name: gps-api
+          image: ghcr.io/odealidj/edcl-gps-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: edcl-gps-config
+            - secretRef:
+                name: edcl-gps-secret
+          env:
+            - name: ConnectionStrings__Database
+              value: "Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);Include Error Detail=true;Timezone=Asia/Jakarta;"
+            - name: ConnectionStrings__Redis
+              value: "$(REDIS_HOST):$(REDIS_PORT)"
+            - name: MongoDb__ConnectionString
+              value: "mongodb://$(MONGO_APP_USER):$(MONGO_APP_PASS)@$(MONGODB_HOST):$(MONGODB_PORT)/$(MONGODB_DB)?authSource=admin"
+            - name: MongoDb__DatabaseName
+              value: "$(MONGODB_DB)"
+            - name: RabbitMq__HostName
+              value: "$(RABBITMQ_HOST)"
+            - name: RabbitMq__Port
+              value: "$(RABBITMQ_PORT)"
+            - name: RabbitMq__UserName
+              value: "$(RABBITMQ_USER)"
+            - name: RabbitMq__Password
+              value: "$(RABBITMQ_PASS)"
+          livenessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gps-api-svc
+  namespace: edcl-prod
+  labels:
+    app: gps-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: gps-api
