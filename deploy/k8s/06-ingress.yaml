@@ -23,6 +23,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: gps-api-svc
+                name: edcl-api-gateway-svc
                 port:
                   number: 80

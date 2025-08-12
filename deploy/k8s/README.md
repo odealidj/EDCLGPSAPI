@@ -14,7 +14,8 @@ deploy/k8s/
 ├── 03-infra-local.yaml               # Stack PostgreSQL, MongoDB 7, Redis, RabbitMQ untuk K8s lokal
 ├── 04-gps-api-deployment.yaml        # Deployment & Service (ClusterIP) untuk REST API
 ├── 05-gps-collector-deployment.yaml  # Deployment Background Worker (Replicas: 2, HA)
-├── 06-ingress.yaml                   # Routing Ingress (NGINX / AWS ALB)
+├── 06-ingress.yaml                   # Routing Ingress (NGINX / AWS ALB) ke API Gateway
+├── 07-api-gateway-deployment.yaml    # YARP API Gateway 1 Pintu (Port 8080 / 80)
 └── README.md                         # Panduan operasional (file ini)
 ```
 
@@ -47,11 +48,14 @@ cp deploy/k8s/02-secret.template.yaml deploy/k8s/02-secret.yaml
 kubectl apply -f deploy/k8s/02-secret.yaml
 ```
 
-### 4. Deploy Aplikasi & Ingress
+### 4. Deploy Aplikasi, API Gateway & Ingress
 ```bash
-# Deploy API dan Worker
+# Deploy Backend Services
 kubectl apply -f deploy/k8s/04-gps-api-deployment.yaml
 kubectl apply -f deploy/k8s/05-gps-collector-deployment.yaml
+
+# Deploy YARP API Gateway (Satu Pintu Masuk)
+kubectl apply -f deploy/k8s/07-api-gateway-deployment.yaml
 
 # Deploy Ingress
 kubectl apply -f deploy/k8s/06-ingress.yaml
