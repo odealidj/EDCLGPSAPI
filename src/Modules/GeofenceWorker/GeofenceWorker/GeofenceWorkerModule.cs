@@ -22,8 +22,12 @@ public static class GeofenceWorkerModule
     {
 
         services.AddHttpClient();
-        services.AddHostedService<Worker>();
-        ////services.AddHostedService<AmqpMessage>();
+        
+        var isWorkerEnabled = configuration.GetValue<bool>("Worker:Enabled", true);
+        if (isWorkerEnabled)
+        {
+            services.AddHostedService<Worker>();
+        }
         
         // Binding konfigurasi ke kelas RabbitMqSettings
         services.Configure<RabbitMqSettings>(
