@@ -73,4 +73,34 @@ services:
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
     depends_on:
-      - mongodb
+      - mongodb
+
+  api-gateway:
+    container_name: api-gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ReverseProxy__Clusters__legacy-monolith-cluster__Destinations__destination1__Address=http://host.docker.internal:5000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - distributedcache
+
+  gps-collector-svc:
+    container_name: gps-collector-svc
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Database=Server=ae031db;Port=5432;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;
+      - ConnectionStrings__Redis=distributedcache:6379
+      - MongoDb__ConnectionString=mongodb://admin:adminpassword@mongodb:27017/?authSource=admin
+      - MongoDb__DatabaseName=edcl_logs_db
+      - RabbitMq__HostName=messagebus
+      - Worker__Enabled=true
+    ports:
+      - "8082:8080"
+    depends_on:
+      - ae031db
+      - distributedcache
+      - mongodb
+      - messagebus
+

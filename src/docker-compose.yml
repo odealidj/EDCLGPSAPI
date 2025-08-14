@@ -20,6 +20,18 @@ services:
   mongo-express:
     image: mongo-express:latest
 
+  api-gateway:
+    image: ${DOCKER_REGISTRY-}apigateway
+    build:
+      context: ..
+      dockerfile: src/Services/ApiGateway/Dockerfile
+
+  gps-collector-svc:
+    image: ${DOCKER_REGISTRY-}gpscollectorsvc
+    build:
+      context: ..
+      dockerfile: src/Services/GpsCollector/Dockerfile
+
 volumes:
   postgres_ae031db:
-  mongodb_data:
+  mongodb_data:
