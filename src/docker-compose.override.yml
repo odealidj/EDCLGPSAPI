@@ -103,4 +103,17 @@ services:
       - distributedcache
       - mongodb
       - messagebus
+
+  position-query-svc:
+    container_name: position-query-svc
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Database=Server=ae031db;Port=5432;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;
+      - ConnectionStrings__Redis=distributedcache:6379
+    ports:
+      - "8083:8080"
+    depends_on:
+      - ae031db
+      - distributedcache
+
 

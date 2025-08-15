@@ -16,6 +16,7 @@ deploy/k8s/
 ├── 05-gps-collector-deployment.yaml  # Deployment Background Worker (Replicas: 2, HA)
 ├── 06-ingress.yaml                   # Routing Ingress (NGINX / AWS ALB) ke API Gateway
 ├── 07-api-gateway-deployment.yaml    # YARP API Gateway 1 Pintu (Port 8080 / 80)
+├── 08-position-query-deployment.yaml # High-throughput Query Service (HPA 2-10 replicas)
 └── README.md                         # Panduan operasional (file ini)
 ```
 
