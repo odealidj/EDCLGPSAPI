@@ -38,6 +38,12 @@ services:
       context: ..
       dockerfile: src/Services/PositionQuery.Api/Dockerfile
 
+  vendor-master-svc:
+    image: ${DOCKER_REGISTRY-}vendormastersvc
+    build:
+      context: ..
+      dockerfile: src/Services/VendorMaster.Api/Dockerfile
+
 volumes:
   postgres_ae031db:
   mongodb_data:

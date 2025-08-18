@@ -116,4 +116,15 @@ services:
       - ae031db
       - distributedcache
 
+  vendor-master-svc:
+    container_name: vendor-master-svc
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Database=Server=ae031db;Port=5432;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;
+    ports:
+      - "8084:8080"
+    depends_on:
+      - ae031db
+
+
 

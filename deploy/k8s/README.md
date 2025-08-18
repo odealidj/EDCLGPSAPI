@@ -17,6 +17,7 @@ deploy/k8s/
 ├── 06-ingress.yaml                   # Routing Ingress (NGINX / AWS ALB) ke API Gateway
 ├── 07-api-gateway-deployment.yaml    # YARP API Gateway 1 Pintu (Port 8080 / 80)
 ├── 08-position-query-deployment.yaml # High-throughput Query Service (HPA 2-10 replicas)
+├── 09-vendor-master-deployment.yaml  # Vendor & Geofence Master Service (Replicas: 2)
 └── README.md                         # Panduan operasional (file ini)
 ```
 
