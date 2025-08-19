@@ -44,6 +44,12 @@ services:
       context: ..
       dockerfile: src/Services/VendorMaster.Api/Dockerfile
 
+  delivery-tracking-svc:
+    image: ${DOCKER_REGISTRY-}deliverytrackingsvc
+    build:
+      context: ..
+      dockerfile: src/Services/DeliveryTracking.Api/Dockerfile
+
 volumes:
   postgres_ae031db:
   mongodb_data:

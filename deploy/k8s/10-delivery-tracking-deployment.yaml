@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: delivery-tracking-deployment
+  namespace: edcl-prod
+  labels:
+    app: delivery-tracking-svc
+    app.kubernetes.io/part-of: edcl-gps-telematics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: delivery-tracking-svc
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: delivery-tracking-svc
+    spec:
+      containers:
+        - name: delivery-tracking-svc
+          image: ghcr.io/odealidj/edcl-delivery-tracking-svc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: edcl-gps-config
+            - secretRef:
+                name: edcl-gps-secret
+          env:
+            - name: ConnectionStrings__Database
+              value: "Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);Include Error Detail=true;Timezone=Asia/Jakarta;"
+          livenessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /hc
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: delivery-tracking-svc
+  namespace: edcl-prod
+  labels:
+    app: delivery-tracking-svc
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: delivery-tracking-svc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: delivery-tracking-hpa
+  namespace: edcl-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: delivery-tracking-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
