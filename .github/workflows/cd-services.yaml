@@ -1,0 +1,66 @@
+name: Continuous Delivery - Microservices
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - '.github/workflows/cd-services.yaml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/edcl
+
+jobs:
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: src/Services/ApiGateway/Dockerfile
+            image_name: edcl-api-gateway
+          - service: gps-collector
+            dockerfile: src/Services/GpsCollector/Dockerfile
+            image_name: edcl-gps-collector
+          - service: position-query
+            dockerfile: src/Services/PositionQuery.Api/Dockerfile
+            image_name: edcl-position-query-svc
+          - service: vendor-master
+            dockerfile: src/Services/VendorMaster.Api/Dockerfile
+            image_name: edcl-vendor-master-svc
+          - service: delivery-tracking
+            dockerfile: src/Services/DeliveryTracking.Api/Dockerfile
+            image_name: edcl-delivery-tracking-svc
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=short
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
