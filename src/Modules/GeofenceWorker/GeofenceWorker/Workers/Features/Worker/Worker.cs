@@ -27,26 +27,20 @@ public class Worker : BackgroundService
     ///private readonly IBus _bus;
     //////private readonly IRabbitMqService _rabbitMqService;
     private readonly IGpsPublisherService _gpsPublisherService;
-    ////private readonly IPublishEndpoint _publishEndpoint;
-    public Worker( IServiceScopeFactory scopeFactory, 
-        ////IBus bus,
-        /////IPublishEndpoint publishEndpoint,
+    private readonly Shared.Infrastructure.LeaderElection.ILeaderElection? _leaderElection;
+
+    public Worker(
+        IServiceScopeFactory scopeFactory, 
         IHttpClientFactory httpClientFactory,
-        ////HttpClient httpClient, 
-        //////IRabbitMqService rabbitMqService,
         IGpsPublisherService gpsPublisherService,
-        ILogger<Worker> logger)
+        ILogger<Worker> logger,
+        Shared.Infrastructure.LeaderElection.ILeaderElection? leaderElection = null)
     {
         _scopeFactory = scopeFactory;
-        /////_httpClient = httpClient;
         _httpClientFactory = httpClientFactory;
-        ///_bus = bus; 
-        //////_rabbitMqService = rabbitMqService;
         _gpsPublisherService = gpsPublisherService;
-        ////_publishEndpoint = publishEndpoint;
         _logger = logger;
-        
-        
+        _leaderElection = leaderElection;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -55,6 +49,17 @@ public class Worker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                if (_leaderElection != null)
+                {
+                    var isLeader = await _leaderElection.TryAcquireAsync(TimeSpan.FromSeconds(90), stoppingToken);
+                    if (!isLeader)
+                    {
+                        // Standby instance waits 30 seconds before re-checking lease
+                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                        continue;
+                    }
+                }
+
                 var durationTime = "1"; // Default ke 1 menit jika tidak ada nilai di database
                 
                 using (var scope = _scopeFactory.CreateScope()) // Create a scope for DbContext
@@ -105,13 +110,29 @@ public class Worker : BackgroundService
                 {
                     delayTime = 1; // Default ke 1 menit jika tidak ada nilai di database
                 }
+
+                if (_leaderElection != null)
+                {
+                    await _leaderElection.RenewAsync(TimeSpan.FromSeconds(90), stoppingToken);
+                }
                 
                 await Task.Delay(TimeSpan.FromMinutes(delayTime), stoppingToken); 
             }
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Worker loop cancelled gracefully.");
+        }
         catch (Exception e)
         {
             _logger.LogError(e, "An error occurred in the worker: {Message}", e.Message);
+        }
+        finally
+        {
+            if (_leaderElection != null)
+            {
+                await _leaderElection.ReleaseAsync(CancellationToken.None);
+            }
         }
     }
 

@@ -48,7 +48,24 @@ public static class GeofenceWorkerModule
                 options.Configuration = redisConn;
                 options.InstanceName = "edcl:";
             });
+
+            try
+            {
+                var multiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisConn);
+                services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(multiplexer);
+            }
+            catch (Exception)
+            {
+                // Fallback if Redis is unreachable during startup
+            }
         }
+
+        services.AddSingleton<Shared.Infrastructure.LeaderElection.ILeaderElection>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Shared.Infrastructure.LeaderElection.RedisLeaderElection>>();
+            var redis = sp.GetService<StackExchange.Redis.IConnectionMultiplexer>();
+            return new Shared.Infrastructure.LeaderElection.RedisLeaderElection(logger, redis);
+        });
     
         var connectionString = configuration.GetConnectionString("Database");
         
