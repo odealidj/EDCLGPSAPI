@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: edcl-gps-alerts
+  namespace: edcl-prod
+  labels:
+    role: alert-rules
+    app.kubernetes.io/part-of: edcl-gps-telematics
+spec:
+  groups:
+    - name: edcl-gps-critical
+      rules:
+        - alert: NoActiveGpsLeader
+          expr: (gps_leader_status == 0) or (absent(gps_leader_status))
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Tidak ada GPS Collector leader aktif > 3 menit!"
+            description: "Semua instance gps-collector-svc gagal acquire lease Redis lock 'edcl:collector:leader'. Polling vendor terhenti."
+
+        - alert: VendorPollingHighErrorRate
+          expr: rate(gps_vendor_polls_total{success="false"}[5m]) / (rate(gps_vendor_polls_total[5m]) > 0) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tingkat kegagalan polling vendor {{ $labels.vendorName }} > 50% selama 5 menit"
+            description: "Vendor endpoint gagal merespons atau mengembalikan HTTP 5xx/timeout berturut-turut."
+
+        - alert: GpsDataStale
+          expr: time() - gps_last_collection_timestamp > 180
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Data telemetri GPS macet / tidak ada data masuk > 3 menit"
+            description: "Timestamp koleksi GPS terakhir melampaui ambang batas toleransi (normal: interval 60s)."
+
+        - alert: HighMemoryUsageMicroservices
+          expr: container_memory_working_set_bytes{namespace="edcl-prod"} / container_spec_memory_limit_bytes{namespace="edcl-prod"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Penggunaan memori pod {{ $labels.pod }} mendekati batas kuota (> 85%)"
+            description: "Pod berisiko terkena OOMKilled jika alokasi heap terus bertambah."

@@ -19,6 +19,8 @@ deploy/k8s/
 ├── 08-position-query-deployment.yaml # High-throughput Query Service (HPA 2-10 replicas)
 ├── 09-vendor-master-deployment.yaml  # Vendor & Geofence Master Service (Replicas: 2)
 ├── 10-delivery-tracking-deployment.yaml # Delivery Tracking Service (HPA 2-5 replicas)
+├── 11-monitoring-alerts.yaml         # Prometheus AlertManager Rules (Leader, Stale, Errors)
+├── 12-network-policies.yaml          # Zero-Trust Network Policies (Tier Isolation)
 └── README.md                         # Panduan operasional (file ini)
 ```
 

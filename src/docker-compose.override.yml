@@ -36,6 +36,9 @@ services:
     ports:
       - "5673:5672"
       - "15673:15672"
+    volumes:
+      - ../database/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ../database/rabbitmq-definitions.json:/etc/rabbitmq/definitions.json:ro
       
   messagebus5672:
     container_name: messagebus5672
@@ -47,6 +50,9 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - ../database/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ../database/rabbitmq-definitions.json:/etc/rabbitmq/definitions.json:ro
 
   mongodb:
     container_name: mongodb

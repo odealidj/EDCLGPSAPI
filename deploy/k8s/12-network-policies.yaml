@@ -1,0 +1,145 @@
+# =============================================================================
+# Zero-Trust Kubernetes Network Policies for EDCL GPS Telematics
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway-netpol
+  namespace: edcl-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: edcl-api-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Boleh diakses oleh Ingress Controller (traefik / nginx / alb)
+    - ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Egress ke microservices internal & legacy API
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: edcl-gps-telematics
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+    # Egress ke DNS cluster
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: internal-services-netpol
+  namespace: edcl-prod
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [position-query-svc, vendor-master-svc, delivery-tracking-svc, gps-api]
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Hanya boleh diakses oleh API Gateway & Prometheus monitoring
+    - from:
+        - podSelector:
+            matchLabels:
+              app: edcl-api-gateway
+        - namespaceSelector:
+            matchLabels:
+              name: edcl-monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+  egress:
+    # Egress ke infrastruktur database & message broker di edcl-infra
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: edcl-infra
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 27017 # MongoDB
+        - protocol: TCP
+          port: 6379  # Redis
+        - protocol: TCP
+          port: 5672  # RabbitMQ
+    # Egress ke DNS cluster
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gps-collector-netpol
+  namespace: edcl-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: gps-collector-svc
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Hanya Prometheus scraper yang boleh request ke health check / metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: edcl-monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Akses ke edcl-infra
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: edcl-infra
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 27017
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 5672
+    # Akses ke vendor eksternal melalui internet (HTTPS/HTTP)
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Egress ke DNS cluster
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
