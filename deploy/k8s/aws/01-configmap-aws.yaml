@@ -1,0 +1,36 @@
+# =============================================================================
+# Production ConfigMap for AWS EKS
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edcl-gps-config
+  namespace: edcl-prod
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  
+  # AWS Managed Endpoints (Update with your provisioned endpoints)
+  POSTGRES_HOST: "edcl-gps-pg.c7xxxxxx.ap-southeast-1.rds.amazonaws.com"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "AE031_EDCL_GPS_DB"
+
+  MONGODB_HOST: "cluster0.xxxxxx.mongodb.net"
+  MONGODB_PORT: "27017"
+  MONGODB_DB: "edcl_logs_db"
+
+  REDIS_HOST: "edcl-gps-redis.xxxxxx.ng.0001.apse1.cache.amazonaws.com"
+  REDIS_PORT: "6379"
+
+  RABBITMQ_HOST: "b-xxxxxx.mq.ap-southeast-1.amazonaws.com"
+  RABBITMQ_PORT: "5671" # SSL/TLS port on Amazon MQ
+  RABBITMQ_VHOST: "/"
+
+  Worker__Enabled: "true"
+  Worker__MaxConcurrentVendors: "15"
+  Worker__PollIntervalMinutes: "1"
+  Worker__LeaderLockTtlSeconds: "90"
+  Worker__LeaderRenewIntervalSeconds: "30"
+  Cache__VendorTtlMinutes: "5"
+  Cache__LastPositionTtlSeconds: "90"
+  Cache__DeliveryActiveTtlHours: "2"
