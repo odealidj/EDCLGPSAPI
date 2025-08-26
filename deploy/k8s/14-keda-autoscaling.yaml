@@ -1,0 +1,40 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: delivery-tracking-keda-scaler
+  namespace: edcl-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: delivery-tracking-deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 300
+  pollingInterval: 15
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: edcl.delivery.collector
+        mode: QueueLength
+        value: "50"
+      authenticationRef:
+        name: keda-rabbitmq-trigger-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-rabbitmq-trigger-auth
+  namespace: edcl-prod
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: edcl-gps-secret
+      key: RABBITMQ_HOST
+    - parameter: username
+      name: edcl-gps-secret
+      key: RABBITMQ_USER
+    - parameter: password
+      name: edcl-gps-secret
+      key: RABBITMQ_PASS

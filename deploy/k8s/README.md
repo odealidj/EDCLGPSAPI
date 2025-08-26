@@ -21,6 +21,7 @@ deploy/k8s/
 ├── 10-delivery-tracking-deployment.yaml # Delivery Tracking Service (HPA 2-5 replicas)
 ├── 11-monitoring-alerts.yaml         # Prometheus AlertManager Rules (Leader, Stale, Errors)
 ├── 12-network-policies.yaml          # Zero-Trust Network Policies (Tier Isolation)
+├── 14-keda-autoscaling.yaml          # KEDA Event-Driven Autoscaler (RabbitMQ Queue Depth)
 └── README.md                         # Panduan operasional (file ini)
 ```
 
@@ -87,3 +88,14 @@ Ketika berpindah ke AWS EKS:
    - Cukup update `01-configmap.yaml` dengan endpoint RDS / Atlas / ElastiCache.
 4. **Ingress**:
    - Pada `06-ingress.yaml`, aktifkan anotasi `alb` untuk memicu otomatisasi pembuatan AWS Application Load Balancer.
+
+---
+
+## ⚡ Event-Driven Autoscaling (KEDA)
+
+Untuk melakukan autoscaling consumer worker (seperti `delivery-tracking-deployment`) secara dinamis berdasarkan antrian pesan di RabbitMQ:
+```bash
+# Terapkan ScaledObject dan TriggerAuthentication KEDA
+kubectl apply -f deploy/k8s/14-keda-autoscaling.yaml
+```
+Spesifikasi ini memantau panjang antrian `edcl.delivery.collector`. Jika antrian melebihi 50 pesan, pod konsumen akan otomatis scale-out dari 2 hingga 10 replicas untuk mengosongkan antrian dengan cepat.
