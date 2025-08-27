@@ -22,6 +22,7 @@ deploy/k8s/
 ├── 11-monitoring-alerts.yaml         # Prometheus AlertManager Rules (Leader, Stale, Errors)
 ├── 12-network-policies.yaml          # Zero-Trust Network Policies (Tier Isolation)
 ├── 14-keda-autoscaling.yaml          # KEDA Event-Driven Autoscaler (RabbitMQ Queue Depth)
+├── 15-argocd-gitops.yaml             # ArgoCD Application & AppProject GitOps Declarations
 └── README.md                         # Panduan operasional (file ini)
 ```
 
@@ -99,3 +100,16 @@ Untuk melakukan autoscaling consumer worker (seperti `delivery-tracking-deployme
 kubectl apply -f deploy/k8s/14-keda-autoscaling.yaml
 ```
 Spesifikasi ini memantau panjang antrian `edcl.delivery.collector`. Jika antrian melebihi 50 pesan, pod konsumen akan otomatis scale-out dari 2 hingga 10 replicas untuk mengosongkan antrian dengan cepat.
+
+---
+
+## 🐙 GitOps Continuous Delivery (ArgoCD)
+
+Untuk menerapkan deklarasi GitOps tersinkronisasi otomatis dari repository Git ke cluster:
+```bash
+# Terapkan ArgoCD AppProject dan Applications untuk Staging & Production
+kubectl apply -f deploy/k8s/15-argocd-gitops.yaml
+```
+- **Staging (`edcl-gps-staging`)**: Terhubung ke branch `develop`, sinkronisasi otomatis (`auto-sync`, `self-heal`, `auto-prune`).
+- **Production (`edcl-gps-prod`)**: Terhubung ke branch `main`, sinkronisasi otomatis dengan proteksi `prune: false` untuk mencegah penghapusan resource tanpa persetujuan.
+

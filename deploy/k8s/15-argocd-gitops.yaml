@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: edcl-gps-project
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "EDCL GPS Telematics Platform GitOps Project"
+  sourceRepos:
+    - "https://github.com/odealidj/EDCLGPSAPI.git"
+    - "git@github.com:odealidj/EDCLGPSAPI.git"
+  destinations:
+    - namespace: edcl-staging
+      server: https://kubernetes.default.svc
+    - namespace: edcl-prod
+      server: https://kubernetes.default.svc
+    - namespace: edcl-infra
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: "networking.k8s.io"
+      kind: Ingress
+    - group: "networking.k8s.io"
+      kind: NetworkPolicy
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: edcl-gps-staging
+  namespace: argocd
+  labels:
+    env: staging
+    app.kubernetes.io/part-of: edcl-gps
+spec:
+  project: edcl-gps-project
+  source:
+    repoURL: https://github.com/odealidj/EDCLGPSAPI.git
+    targetRevision: develop
+    path: deploy/k8s
+    directory:
+      recurse: false
+      exclude: "{aws/*,02-secret.template.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edcl-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: edcl-gps-prod
+  namespace: argocd
+  labels:
+    env: production
+    app.kubernetes.io/part-of: edcl-gps
+spec:
+  project: edcl-gps-project
+  source:
+    repoURL: https://github.com/odealidj/EDCLGPSAPI.git
+    targetRevision: main
+    path: deploy/k8s
+    directory:
+      recurse: false
+      exclude: "{03-infra-local.yaml,02-secret.template.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edcl-prod
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
