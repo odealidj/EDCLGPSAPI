@@ -1,7 +1,11 @@
 using GeofenceWorker;
+using Shared.Infrastructure.Telemetry;
 using Shared.Messaging.RabbitMqClient.Extension;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 0. Distributed Tracing & Metrics (OpenTelemetry)
+builder.Services.AddEdclOpenTelemetry(builder.Configuration, "gps-collector-svc");
 
 // 1. Register Geofence Worker Module (MongoDB, Redis, PostgreSQL, Polly, RabbitMQ)
 builder.Services.AddGeofenceWorkerModule(builder.Configuration);

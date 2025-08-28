@@ -1,7 +1,11 @@
 using Carter;
 using PositionQuery.Api.Services;
+using Shared.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 0. Distributed Tracing & Metrics (OpenTelemetry)
+builder.Services.AddEdclOpenTelemetry(builder.Configuration, "position-query-svc");
 
 // 1. Carter & Swagger
 builder.Services.AddCarter();

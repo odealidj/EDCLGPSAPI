@@ -2,8 +2,12 @@ using Carter;
 using GeofenceMaster;
 using Shared.Exceptions.Handler;
 using Shared.Extensions;
+using Shared.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 0. Distributed Tracing & Metrics (OpenTelemetry)
+builder.Services.AddEdclOpenTelemetry(builder.Configuration, "vendor-master-svc");
 
 var geofenceMasterAssembly = typeof(GeofenceMasterModule).Assembly;
 

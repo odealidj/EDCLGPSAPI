@@ -11,9 +11,13 @@ using Serilog;
 using Shared.Exceptions;
 using Shared.Exceptions.Handler;
 using Shared.Extensions;
+using Shared.Infrastructure.Telemetry;
 using Shared.Messaging.RabbitMqClient.Extension;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 0. Distributed Tracing & Metrics (OpenTelemetry)
+builder.Services.AddEdclOpenTelemetry(builder.Configuration, "edcl-gps-api-monolith");
 
 ////builder.Host.UseSerilog((context, config) =>
     ////config.ReadFrom.Configuration(context.Configuration));

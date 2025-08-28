@@ -1,7 +1,11 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Shared.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 0. Distributed Tracing & Metrics (OpenTelemetry)
+builder.Services.AddEdclOpenTelemetry(builder.Configuration, "api-gateway");
 
 // 1. Add YARP Reverse Proxy from Configuration
 builder.Services.AddReverseProxy()

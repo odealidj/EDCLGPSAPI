@@ -34,3 +34,8 @@ data:
   Cache__VendorTtlMinutes: "5"
   Cache__LastPositionTtlSeconds: "90"
   Cache__DeliveryActiveTtlHours: "2"
+
+  # Distributed Tracing & Metrics (AWS ADOT Collector / OTLP)
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://adot-collector.edcl-monitoring.svc.cluster.local:4317"
+  OpenTelemetry__OtlpEndpoint: "http://adot-collector.edcl-monitoring.svc.cluster.local:4317"
+
