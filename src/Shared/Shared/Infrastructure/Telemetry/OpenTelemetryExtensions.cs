@@ -95,37 +95,38 @@ public static class OpenTelemetryExtensions
             var activity = Activity.Current;
             var traceId = activity?.TraceId.ToString() ?? context.TraceIdentifier;
 
-            // Resolve requestId from client (X-Correlation-Id / X-Request-Id / requestId) or fallback to traceId
+            // Resolve correlationId from client (X-Correlation-Id / correlationId / X-Request-Id / requestId) or fallback to traceId
             const string correlationHeader = "X-Correlation-Id";
-            string requestId = traceId;
+            string correlationId = traceId;
             if (context.Request.Headers.TryGetValue(correlationHeader, out var clientCorrId) &&
                 !string.IsNullOrWhiteSpace(clientCorrId))
             {
-                requestId = clientCorrId.ToString();
+                correlationId = clientCorrId.ToString();
+            }
+            else if (context.Request.Headers.TryGetValue("correlationId", out var clientCorrId2) &&
+                     !string.IsNullOrWhiteSpace(clientCorrId2))
+            {
+                correlationId = clientCorrId2.ToString();
             }
             else if (context.Request.Headers.TryGetValue("X-Request-Id", out var clientReqId) &&
                      !string.IsNullOrWhiteSpace(clientReqId))
             {
-                requestId = clientReqId.ToString();
+                correlationId = clientReqId.ToString();
             }
             else if (context.Request.Headers.TryGetValue("requestId", out var clientReqId2) &&
                      !string.IsNullOrWhiteSpace(clientReqId2))
             {
-                requestId = clientReqId2.ToString();
+                correlationId = clientReqId2.ToString();
             }
 
             // Propagate on request headers for downstream calls
-            context.Request.Headers[correlationHeader] = requestId;
-            context.Request.Headers["X-Request-Id"] = requestId;
+            context.Request.Headers[correlationHeader] = correlationId;
 
-            // Expose traceId and requestId in HTTP response headers
-            context.Response.Headers["traceId"] = traceId;
-            context.Response.Headers["requestId"] = requestId;
+            // Expose traceId and correlationId in HTTP response headers
             context.Response.Headers["X-Trace-Id"] = traceId;
-            context.Response.Headers["X-Request-Id"] = requestId;
-            context.Response.Headers[correlationHeader] = requestId;
+            context.Response.Headers[correlationHeader] = correlationId;
 
-            // Buffer response to inject traceId & requestId into successful JSON object bodies
+            // Buffer response to inject traceId & correlationId into successful JSON object bodies
             var originalBodyStream = context.Response.Body;
             await using var memoryStream = new MemoryStream();
             context.Response.Body = memoryStream;
@@ -150,9 +151,9 @@ public static class OpenTelemetryExtensions
                             {
                                 jsonObject["traceId"] = traceId;
                             }
-                            if (!jsonObject.ContainsKey("requestId"))
+                            if (!jsonObject.ContainsKey("correlationId"))
                             {
-                                jsonObject["requestId"] = requestId;
+                                jsonObject["correlationId"] = correlationId;
                             }
 
                             var newBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(jsonObject);

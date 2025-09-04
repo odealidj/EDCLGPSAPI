@@ -14,33 +14,35 @@ public class CustomExceptionHandler
         var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
 
         const string correlationHeader = "X-Correlation-Id";
-        string requestId = traceId;
+        string correlationId = traceId;
         if (context.Request.Headers.TryGetValue(correlationHeader, out var clientCorrId) &&
             !string.IsNullOrWhiteSpace(clientCorrId))
         {
-            requestId = clientCorrId.ToString();
+            correlationId = clientCorrId.ToString();
+        }
+        else if (context.Request.Headers.TryGetValue("correlationId", out var clientCorrId2) &&
+                 !string.IsNullOrWhiteSpace(clientCorrId2))
+        {
+            correlationId = clientCorrId2.ToString();
         }
         else if (context.Request.Headers.TryGetValue("X-Request-Id", out var clientReqId) &&
                  !string.IsNullOrWhiteSpace(clientReqId))
         {
-            requestId = clientReqId.ToString();
+            correlationId = clientReqId.ToString();
         }
         else if (context.Request.Headers.TryGetValue("requestId", out var clientReqId2) &&
                  !string.IsNullOrWhiteSpace(clientReqId2))
         {
-            requestId = clientReqId2.ToString();
+            correlationId = clientReqId2.ToString();
         }
 
-        context.Response.Headers["traceId"] = traceId;
-        context.Response.Headers["requestId"] = requestId;
         context.Response.Headers["X-Trace-Id"] = traceId;
-        context.Response.Headers["X-Request-Id"] = requestId;
-        context.Response.Headers[correlationHeader] = requestId;
+        context.Response.Headers[correlationHeader] = correlationId;
 
         logger.LogError(
             exception,
-            "Error Message: {exceptionMessage}, TraceId: {traceId}, RequestId: {requestId}, Time: {time}",
-            exception.Message, traceId, requestId, DateTime.UtcNow);
+            "Error Message: {exceptionMessage}, TraceId: {traceId}, CorrelationId: {correlationId}, Time: {time}",
+            exception.Message, traceId, correlationId, DateTime.UtcNow);
 
         (string Detail, string Title, int StatusCode) details = exception switch
         {
@@ -85,7 +87,7 @@ public class CustomExceptionHandler
         };
 
         problemDetails.Extensions.Add("traceId", traceId);
-        problemDetails.Extensions.Add("requestId", requestId);
+        problemDetails.Extensions.Add("correlationId", correlationId);
 
         if (exception is ValidationException validationException)
         {
