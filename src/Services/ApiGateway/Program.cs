@@ -62,6 +62,7 @@ app.Use(async (context, next) =>
 
 // 6. Endpoints
 app.MapHealthChecks("/hc");
+app.MapEdclPrometheus();
 
 app.MapGet("/", () => Results.Json(new
 {

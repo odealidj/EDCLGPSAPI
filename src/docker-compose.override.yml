@@ -81,12 +81,33 @@ services:
     depends_on:
       - mongodb
 
+  prometheus:
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../database/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
   api-gateway:
     container_name: api-gateway
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ReverseProxy__Clusters__legacy-monolith-cluster__Destinations__destination1__Address=http://host.docker.internal:5000
     ports:
       - "8080:8080"
     depends_on:

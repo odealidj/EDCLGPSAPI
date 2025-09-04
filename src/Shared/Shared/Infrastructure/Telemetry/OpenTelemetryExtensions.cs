@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -64,7 +66,9 @@ public static class OpenTelemetryExtensions
                     .SetResourceBuilder(resourceBuilder)
                     .AddHttpClientInstrumentation()
                     .AddAspNetCoreInstrumentation()
-                    .AddMeter(serviceName);
+                    .AddMeter(serviceName)
+                    .AddMeter("edcl.gps.collector")
+                    .AddPrometheusExporter();
 
                 if (!string.IsNullOrEmpty(otlpEndpoint))
                 {
@@ -76,5 +80,11 @@ public static class OpenTelemetryExtensions
             });
 
         return services;
+    }
+
+    public static IEndpointRouteBuilder MapEdclPrometheus(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPrometheusScrapingEndpoint();
+        return endpoints;
     }
 }

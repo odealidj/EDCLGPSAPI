@@ -40,6 +40,7 @@ app.UseExceptionHandler(options => { });
 app.UseGeofenceMasterModule();
 app.MapCarter();
 app.MapHealthChecks("/hc");
+app.MapEdclPrometheus();
 
 app.MapGet("/", () => Results.Json(new
 {

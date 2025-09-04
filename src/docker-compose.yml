@@ -20,6 +20,12 @@ services:
   mongo-express:
     image: mongo-express:latest
 
+  prometheus:
+    image: prom/prometheus:latest
+
+  grafana:
+    image: grafana/grafana:latest
+
   api-gateway:
     image: ${DOCKER_REGISTRY-}apigateway
     build:
@@ -52,4 +58,6 @@ services:
 
 volumes:
   postgres_ae031db:
-  mongodb_data:
+  mongodb_data:
+  prometheus_data:
+  grafana_data:

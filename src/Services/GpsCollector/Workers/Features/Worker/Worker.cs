@@ -28,19 +28,22 @@ public class Worker : BackgroundService
     //////private readonly IRabbitMqService _rabbitMqService;
     private readonly IGpsPublisherService _gpsPublisherService;
     private readonly Shared.Infrastructure.LeaderElection.ILeaderElection? _leaderElection;
+    private readonly GpsCollector.Metrics.ICollectorMetrics? _metrics;
 
     public Worker(
         IServiceScopeFactory scopeFactory, 
         IHttpClientFactory httpClientFactory,
         IGpsPublisherService gpsPublisherService,
         ILogger<Worker> logger,
-        Shared.Infrastructure.LeaderElection.ILeaderElection? leaderElection = null)
+        Shared.Infrastructure.LeaderElection.ILeaderElection? leaderElection = null,
+        GpsCollector.Metrics.ICollectorMetrics? metrics = null)
     {
         _scopeFactory = scopeFactory;
         _httpClientFactory = httpClientFactory;
         _gpsPublisherService = gpsPublisherService;
         _logger = logger;
         _leaderElection = leaderElection;
+        _metrics = metrics;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,12 +55,17 @@ public class Worker : BackgroundService
                 if (_leaderElection != null)
                 {
                     var isLeader = await _leaderElection.TryAcquireAsync(TimeSpan.FromSeconds(90), stoppingToken);
+                    _metrics?.SetLeaderStatus(isLeader);
                     if (!isLeader)
                     {
                         // Standby instance waits 30 seconds before re-checking lease
                         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
                         continue;
                     }
+                }
+                else
+                {
+                    _metrics?.SetLeaderStatus(true);
                 }
 
                 var durationTime = "1"; // Default ke 1 menit jika tidak ada nilai di database
@@ -79,6 +87,8 @@ public class Worker : BackgroundService
 
                     foreach (var vendor in vendors)
                     {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var success = false;
                         try
                         {                        
                             var endpoints = await context.GpsVendorEndpoints
@@ -98,10 +108,17 @@ public class Worker : BackgroundService
                                     await ProcessIndividualEndPoint(endpoint, scope, context, stoppingToken);
                                 }
                             }
+                            success = true;
+                            _metrics?.UpdateLastCollectionTimestamp();
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "Error processing vendor {VendorName}: {Message}", vendor.VendorName, ex.Message);
+                        }
+                        finally
+                        {
+                            sw.Stop();
+                            _metrics?.RecordVendorPoll(vendor.VendorName ?? "unknown", success, sw.Elapsed.TotalMilliseconds);
                         }
                     }
                 }
@@ -129,6 +146,7 @@ public class Worker : BackgroundService
         }
         finally
         {
+            _metrics?.SetLeaderStatus(false);
             if (_leaderElection != null)
             {
                 await _leaderElection.ReleaseAsync(CancellationToken.None);
@@ -915,6 +933,7 @@ public class Worker : BackgroundService
         
         await repository.InsertGpsLastPositionH(h, cancellationToken);
         await repository.InsertGpsDelivery(gpsDelivery, cancellationToken);
+        _metrics?.RecordRecordsInserted(lpsLastPositionDs.Count);
 
         await CacheLastPositionsInRedisAsync(vendor.VendorName, lpsLastPositionDs, cancellationToken);
 
@@ -1148,6 +1167,7 @@ public class Worker : BackgroundService
                     recordCount: recordCount,
                     batchId: Guid.NewGuid().ToString("N"),
                     ct: cancellationToken);
+                _metrics?.RecordMongoInserted(1);
             }
         }
         catch (Exception exMongo)

@@ -37,6 +37,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapHealthChecks("/hc");
+app.MapEdclPrometheus();
 app.MapCarter();
 
 app.MapGet("/", () => Results.Json(new

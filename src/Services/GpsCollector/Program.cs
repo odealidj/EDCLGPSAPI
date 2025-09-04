@@ -1,10 +1,12 @@
 using GeofenceWorker;
+using GpsCollector.Metrics;
 using Shared.Infrastructure.Telemetry;
 using Shared.Messaging.RabbitMqClient.Extension;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 0. Distributed Tracing & Metrics (OpenTelemetry)
+// 0. Distributed Tracing & Metrics (OpenTelemetry & Prometheus)
+builder.Services.AddSingleton<ICollectorMetrics, CollectorMetrics>();
 builder.Services.AddEdclOpenTelemetry(builder.Configuration, "gps-collector-svc");
 
 // 1. Register Geofence Worker Module (MongoDB, Redis, PostgreSQL, Polly, RabbitMQ)
@@ -20,6 +22,7 @@ var app = builder.Build();
 app.UseGeofenceWorkerModule();
 
 app.MapHealthChecks("/hc");
+app.MapEdclPrometheus();
 
 app.MapGet("/", () => Results.Json(new
 {
