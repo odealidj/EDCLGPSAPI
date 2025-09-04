@@ -95,19 +95,90 @@ public static class OpenTelemetryExtensions
             var activity = Activity.Current;
             var traceId = activity?.TraceId.ToString() ?? context.TraceIdentifier;
 
+            // Resolve requestId from client (X-Correlation-Id / X-Request-Id / requestId) or fallback to traceId
             const string correlationHeader = "X-Correlation-Id";
-            if (!context.Request.Headers.TryGetValue(correlationHeader, out var correlationId) ||
-                string.IsNullOrWhiteSpace(correlationId))
+            string requestId = traceId;
+            if (context.Request.Headers.TryGetValue(correlationHeader, out var clientCorrId) &&
+                !string.IsNullOrWhiteSpace(clientCorrId))
             {
-                correlationId = traceId;
-                context.Request.Headers[correlationHeader] = correlationId;
+                requestId = clientCorrId.ToString();
+            }
+            else if (context.Request.Headers.TryGetValue("X-Request-Id", out var clientReqId) &&
+                     !string.IsNullOrWhiteSpace(clientReqId))
+            {
+                requestId = clientReqId.ToString();
+            }
+            else if (context.Request.Headers.TryGetValue("requestId", out var clientReqId2) &&
+                     !string.IsNullOrWhiteSpace(clientReqId2))
+            {
+                requestId = clientReqId2.ToString();
             }
 
-            // Expose trace and correlation IDs in HTTP response headers
-            context.Response.Headers["X-Trace-Id"] = traceId;
-            context.Response.Headers[correlationHeader] = correlationId;
+            // Propagate on request headers for downstream calls
+            context.Request.Headers[correlationHeader] = requestId;
+            context.Request.Headers["X-Request-Id"] = requestId;
 
-            await next();
+            // Expose traceId and requestId in HTTP response headers
+            context.Response.Headers["traceId"] = traceId;
+            context.Response.Headers["requestId"] = requestId;
+            context.Response.Headers["X-Trace-Id"] = traceId;
+            context.Response.Headers["X-Request-Id"] = requestId;
+            context.Response.Headers[correlationHeader] = requestId;
+
+            // Buffer response to inject traceId & requestId into successful JSON object bodies
+            var originalBodyStream = context.Response.Body;
+            await using var memoryStream = new MemoryStream();
+            context.Response.Body = memoryStream;
+
+            try
+            {
+                await next();
+
+                memoryStream.Position = 0;
+                var contentType = context.Response.ContentType;
+
+                if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300 &&
+                    contentType != null && contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) &&
+                    memoryStream.Length > 0)
+                {
+                    try
+                    {
+                        var jsonNode = System.Text.Json.Nodes.JsonNode.Parse(memoryStream);
+                        if (jsonNode is System.Text.Json.Nodes.JsonObject jsonObject)
+                        {
+                            if (!jsonObject.ContainsKey("traceId"))
+                            {
+                                jsonObject["traceId"] = traceId;
+                            }
+                            if (!jsonObject.ContainsKey("requestId"))
+                            {
+                                jsonObject["requestId"] = requestId;
+                            }
+
+                            var newBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(jsonObject);
+                            context.Response.ContentLength = newBytes.Length;
+                            memoryStream.SetLength(0);
+                            await memoryStream.WriteAsync(newBytes);
+                            memoryStream.Position = 0;
+                        }
+                        else
+                        {
+                            memoryStream.Position = 0;
+                        }
+                    }
+                    catch
+                    {
+                        memoryStream.Position = 0;
+                    }
+                }
+
+                memoryStream.Position = 0;
+                await memoryStream.CopyToAsync(originalBodyStream);
+            }
+            finally
+            {
+                context.Response.Body = originalBodyStream;
+            }
         });
     }
 }
