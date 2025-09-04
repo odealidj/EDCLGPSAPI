@@ -36,6 +36,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseEdclTraceContext();
+
 app.MapHealthChecks("/hc");
 app.MapEdclPrometheus();
 app.MapCarter();

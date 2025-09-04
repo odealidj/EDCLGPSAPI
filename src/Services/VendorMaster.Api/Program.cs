@@ -36,6 +36,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler(options => { });
+app.UseEdclTraceContext();
 
 app.UseGeofenceMasterModule();
 app.MapCarter();

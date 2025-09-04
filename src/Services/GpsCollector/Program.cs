@@ -20,6 +20,7 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 app.UseGeofenceWorkerModule();
+app.UseEdclTraceContext();
 
 app.MapHealthChecks("/hc");
 app.MapEdclPrometheus();

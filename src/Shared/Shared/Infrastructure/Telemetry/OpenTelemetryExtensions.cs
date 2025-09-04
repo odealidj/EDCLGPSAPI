@@ -87,4 +87,27 @@ public static class OpenTelemetryExtensions
         endpoints.MapPrometheusScrapingEndpoint();
         return endpoints;
     }
+
+    public static IApplicationBuilder UseEdclTraceContext(this IApplicationBuilder app)
+    {
+        return app.Use(async (context, next) =>
+        {
+            var activity = Activity.Current;
+            var traceId = activity?.TraceId.ToString() ?? context.TraceIdentifier;
+
+            const string correlationHeader = "X-Correlation-Id";
+            if (!context.Request.Headers.TryGetValue(correlationHeader, out var correlationId) ||
+                string.IsNullOrWhiteSpace(correlationId))
+            {
+                correlationId = traceId;
+                context.Request.Headers[correlationHeader] = correlationId;
+            }
+
+            // Expose trace and correlation IDs in HTTP response headers
+            context.Response.Headers["X-Trace-Id"] = traceId;
+            context.Response.Headers[correlationHeader] = correlationId;
+
+            await next();
+        });
+    }
 }

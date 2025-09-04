@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,9 +11,12 @@ public class CustomExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken cancellationToken)
     {
+        var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+
         logger.LogError(
-            "Error Message: {exceptionMessage}, Time of occurrence {time}",
-            exception.Message, DateTime.UtcNow);
+            exception,
+            "Error Message: {exceptionMessage}, TraceId: {traceId}, Time: {time}",
+            exception.Message, traceId, DateTime.UtcNow);
 
         (string Detail, string Title, int StatusCode) details = exception switch
         {
@@ -57,7 +60,7 @@ public class CustomExceptionHandler
             Instance = context.Request.Path
         };
 
-        problemDetails.Extensions.Add("traceId", context.TraceIdentifier);
+        problemDetails.Extensions.Add("traceId", traceId);
 
         if (exception is ValidationException validationException)
         {

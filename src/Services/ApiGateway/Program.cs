@@ -46,19 +46,8 @@ var app = builder.Build();
 app.UseCors("DefaultCorsPolicy");
 app.UseRateLimiter();
 
-// 5. Distributed Tracing & Correlation ID Middleware
-app.Use(async (context, next) =>
-{
-    const string correlationHeader = "X-Correlation-Id";
-    if (!context.Request.Headers.TryGetValue(correlationHeader, out var correlationId) ||
-        string.IsNullOrWhiteSpace(correlationId))
-    {
-        correlationId = Guid.NewGuid().ToString("N");
-        context.Request.Headers[correlationHeader] = correlationId;
-    }
-    context.Response.Headers[correlationHeader] = correlationId;
-    await next();
-});
+// 5. Distributed Tracing (W3C trace_id) & Correlation ID Middleware
+app.UseEdclTraceContext();
 
 // 6. Endpoints
 app.MapHealthChecks("/hc");
