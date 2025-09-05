@@ -2,12 +2,14 @@ using Carter;
 using Delivery;
 using Shared.Exceptions.Handler;
 using Shared.Extensions;
+using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 0. Distributed Tracing & Metrics (OpenTelemetry)
+// 0. Distributed Tracing, Metrics & Idempotency
 builder.Services.AddEdclOpenTelemetry(builder.Configuration, "delivery-tracking-svc");
+builder.Services.AddEdclIdempotency(builder.Configuration);
 
 var deliveryAssembly = typeof(DeliveryModule).Assembly;
 

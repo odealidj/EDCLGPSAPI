@@ -1,4 +1,5 @@
 using GeofenceMaster.GeofenceMaster.Dtos;
+using Shared.Infrastructure.Idempotency;
 
 namespace GeofenceMaster.GeofenceMaster.Features.CreateGeofenceMaster;
 
@@ -73,6 +74,7 @@ public class CreateGeofenceMasterEndpoint : ICarterModule
 
                 return Results.Created($"/geofencemaster/{response.Id}", response);
             })
+            .RequireIdempotency()
             .Produces<CreateGeofenceMasterResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create Geofence Master")

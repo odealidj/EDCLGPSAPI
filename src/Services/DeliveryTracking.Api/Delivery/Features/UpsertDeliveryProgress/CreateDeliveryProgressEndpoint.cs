@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Delivery.Delivery.Dtos;
+using Shared.Infrastructure.Idempotency;
 
 namespace Delivery.Delivery.Features.UpsertDeliveryProgress;
 
@@ -50,6 +51,7 @@ public class CreateDeliveryProgressEndpoint: ICarterModule
                     return Results.BadRequest(errorResponse);
                 }
             })
+            .RequireIdempotency()
             .Produces<CreateDeliveryProgressResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create Delivery Progress")
