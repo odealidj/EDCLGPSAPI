@@ -412,3 +412,8 @@ src/*.sql
 !database/
 !database/**
 
+# Local Process Runner PIDs & Logs
+.local-pids/
+.local-logs/
+
+
