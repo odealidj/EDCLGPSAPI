@@ -15,7 +15,8 @@ public static class DeliveryModule
         IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("Database")
-            ?? throw new InvalidOperationException("Connection string 'Database' tidak ditemukan.");
+            ?? configuration["Database"]
+            ?? "Server=localhost;Port=5436;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;";
 
         // 1. registrasi npgsql data source (ado.net connection pool bawaan .net 10)
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);

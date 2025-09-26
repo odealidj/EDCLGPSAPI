@@ -52,19 +52,27 @@ public class StartDeliveryJobCommandHandler(
         var lpcd = req.Lpcd.Trim().ToUpperInvariant();
         var key = string.IsNullOrWhiteSpace(req.Key) ? "PlatNo" : req.Key.Trim();
 
-        // 1. Resolve Vendor ID & Name dari LPCD
+        // 1. Resolve Vendor ID & Name dari tabel master edcl.m_gps_vendor_lpcd & edcl.m_gps_vendor
         Guid? vendorId = null;
         string? vendorName = null;
 
-        var vendorLookup = await repository.GetVendorByLpcdAsync(lpcd, cancellationToken);
-        if (vendorLookup != null && vendorLookup.GpsVendorId != Guid.Empty)
+        const string sqlVendorByLpcd = @"
+            SELECT v.id, v.vendor_name
+            FROM edcl.m_gps_vendor_lpcd vl
+            INNER JOIN edcl.m_gps_vendor v ON vl.vendor_id = v.id
+            WHERE UPPER(vl.lpcd) = $1 AND v.is_active = true AND v.is_deleted = false
+            LIMIT 1;";
+        await using var cmdLpcd = dataSource.CreateCommand(sqlVendorByLpcd);
+        cmdLpcd.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Varchar, lpcd);
+        await using var readerLpcd = await cmdLpcd.ExecuteReaderAsync(cancellationToken);
+        if (await readerLpcd.ReadAsync(cancellationToken))
         {
-            vendorId = vendorLookup.GpsVendorId;
-            vendorName = vendorLookup.GpsVendorName;
+            vendorId = readerLpcd.GetGuid(0);
+            vendorName = readerLpcd.GetString(1);
         }
         else
         {
-            // Fallback: cari langsung dari tabel m_gps_vendor berdasarkan vendor_code
+            // Fallback 1: cari langsung dari tabel m_gps_vendor berdasarkan vendor_code
             const string sqlVendor = @"
                 SELECT id, vendor_name
                 FROM edcl.m_gps_vendor
