@@ -3,7 +3,7 @@
 # ==============================================================================
 
 SHELL := /bin/bash
-COMPOSE_FILE := src/docker-compose.yml
+COMPOSE_FILES := -f src/docker-compose.yml -f src/docker-compose.override.yml
 SOLUTION := src/edcl-gps-api.sln
 PID_DIR := .local-pids
 LOG_DIR := .local-logs
@@ -108,7 +108,7 @@ help:
 # ------------------------------------------------------------------------------
 infra-up:
 	@echo -e "${BOLD}${CYAN}🚀 Starting Infrastructure Stack (PostgreSQL, MongoDB, Redis, RabbitMQ, Prometheus, Grafana, Seq)...${RESET}"
-	@docker compose -f $(COMPOSE_FILE) up -d $(INFRA_SERVICES)
+	@docker compose $(COMPOSE_FILES) up -d $(INFRA_SERVICES)
 	@echo -e "${BOLD}${GREEN}✅ Infrastructure services are running!${RESET}"
 	@echo -e "  • PostgreSQL    : localhost:5436"
 	@echo -e "  • MongoDB       : localhost:27017 (MongoExpress: http://localhost:8081)"
@@ -120,7 +120,7 @@ infra-up:
 
 infra-down:
 	@echo -e "${BOLD}${YELLOW}🛑 Stopping Infrastructure Containers...${RESET}"
-	@docker compose -f $(COMPOSE_FILE) stop $(INFRA_SERVICES)
+	@docker compose $(COMPOSE_FILES) stop $(INFRA_SERVICES)
 	@echo -e "${BOLD}${GREEN}✅ Infrastructure containers stopped.${RESET}"
 
 infra-restart: infra-down infra-up
@@ -130,7 +130,7 @@ infra-restart: infra-down infra-up
 # ------------------------------------------------------------------------------
 run-all:
 	@echo -e "${BOLD}${CYAN}🚀 Building and Starting Entire Platform in Docker Compose...${RESET}"
-	@docker compose -f $(COMPOSE_FILE) up -d --build
+	@docker compose $(COMPOSE_FILES) up -d --build
 	@echo -e "${BOLD}${GREEN}✅ All microservices & infrastructure are running in Docker!${RESET}"
 	@echo -e "  • YARP API Gateway  : http://localhost:5000 (or :8080)"
 	@echo -e "  • VendorMaster API  : http://localhost:5001/swagger"
@@ -140,40 +140,40 @@ run-all:
 
 stop-all:
 	@echo -e "${BOLD}${YELLOW}🛑 Tearing down all Docker Compose containers...${RESET}"
-	@docker compose -f $(COMPOSE_FILE) down
+	@docker compose $(COMPOSE_FILES) down
 	@echo -e "${BOLD}${GREEN}✅ All Docker containers stopped and removed.${RESET}"
 
 restart-all: stop-all run-all
 
 logs-all:
-	@docker compose -f $(COMPOSE_FILE) logs -f
+	@docker compose $(COMPOSE_FILES) logs -f
 
 docker-restart:
 	@if [ -z "$(s)" ]; then \
 		echo -e "${RED}Error: Service name required. Example: make docker-restart s=vendor-master-svc${RESET}"; \
 	else \
-		docker compose -f $(COMPOSE_FILE) restart $(s); \
+		docker compose $(COMPOSE_FILES) restart $(s); \
 	fi
 
 docker-logs:
 	@if [ -z "$(s)" ]; then \
 		echo -e "${RED}Error: Service name required. Example: make docker-logs s=vendor-master-svc${RESET}"; \
 	else \
-		docker compose -f $(COMPOSE_FILE) logs -f $(s); \
+		docker compose $(COMPOSE_FILES) logs -f $(s); \
 	fi
 
 docker-stop:
 	@if [ -z "$(s)" ]; then \
 		echo -e "${RED}Error: Service name required. Example: make docker-stop s=vendor-master-svc${RESET}"; \
 	else \
-		docker compose -f $(COMPOSE_FILE) stop $(s); \
+		docker compose $(COMPOSE_FILES) stop $(s); \
 	fi
 
 docker-run:
 	@if [ -z "$(s)" ]; then \
 		echo -e "${RED}Error: Service name required. Example: make docker-run s=vendor-master-svc${RESET}"; \
 	else \
-		docker compose -f $(COMPOSE_FILE) up -d $(s); \
+		docker compose $(COMPOSE_FILES) up -d $(s); \
 	fi
 
 # ------------------------------------------------------------------------------
@@ -463,7 +463,7 @@ status:
 	@echo -e "${BOLD}${CYAN}========================================================================${RESET}"
 	@echo -e "${BOLD}${CYAN} 📦 DOCKER CONTAINERS STATUS${RESET}"
 	@echo -e "${BOLD}${CYAN}========================================================================${RESET}"
-	@docker compose -f $(COMPOSE_FILE) ps
+	@docker compose $(COMPOSE_FILES) ps
 	@echo -e ""
 	@echo -e "${BOLD}${CYAN}========================================================================${RESET}"
 	@echo -e "${BOLD}${CYAN} 💻 LOCAL PC PROCESSES STATUS${RESET}"
