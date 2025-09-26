@@ -156,10 +156,12 @@ public static class OpenTelemetryExtensions
                                 jsonObject["correlationId"] = correlationId;
                             }
 
-                            var newBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(jsonObject);
-                            context.Response.ContentLength = newBytes.Length;
                             memoryStream.SetLength(0);
-                            await memoryStream.WriteAsync(newBytes);
+                            using (var writer = new System.Text.Json.Utf8JsonWriter(memoryStream))
+                            {
+                                jsonObject.WriteTo(writer);
+                            }
+                            context.Response.ContentLength = memoryStream.Length;
                             memoryStream.Position = 0;
                         }
                         else

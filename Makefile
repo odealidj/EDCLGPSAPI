@@ -22,7 +22,7 @@ INFRA_SERVICES := ae031db distributedcache messagebus5672 mongodb mongo-express 
 
 .PHONY: help infra-up infra-down infra-restart run-all stop-all restart-all \
         run-local-all stop-local-all restart-local-all status logs-all logs-local \
-        build test clean health \
+        build build-aot docker-build-aot test clean health \
         run-gateway stop-gateway restart-gateway logs-gateway \
         run-vendor stop-vendor restart-vendor logs-vendor \
         run-position stop-position restart-position logs-position \
@@ -97,6 +97,8 @@ help:
 	@echo -e ""
 	@echo -e "${BOLD}${YELLOW}🛠️  BUILD & MAINTENANCE:${RESET}"
 	@echo -e "  ${GREEN}make build${RESET}                 Compile the entire solution (dotnet build)"
+	@echo -e "  ${GREEN}make build-aot${RESET}             Publish ApiGateway with Native AOT (dotnet publish)"
+	@echo -e "  ${GREEN}make docker-build-aot${RESET}      Build ultra-slim Native AOT container (33MB chiseled)"
 	@echo -e "  ${GREEN}make test${RESET}                  Run tests (dotnet test)"
 	@echo -e "  ${GREEN}make clean${RESET}                 Clean build artifacts (bin/obj) & local log/pid files"
 	@echo -e ""
@@ -207,7 +209,7 @@ stop-gateway:
 		fi; \
 		rm -f $(PID_DIR)/api-gateway.pid; \
 	fi
-	@pkill -f 'ApiGateway\.dll' 2>/dev/null || true
+	@pkill -f 'ApiGateway' 2>/dev/null || true
 	@echo -e "  ${GREEN}✅ ApiGateway stopped.${RESET}"
 
 restart-gateway: stop-gateway run-gateway
@@ -229,7 +231,7 @@ run-vendor:
 		echo -e "  ${YELLOW}⚠️  VendorMaster.Api is already running (PID: $$(cat $(PID_DIR)/vendor-master.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting VendorMaster.Api (:5001)...${RESET}"; \
-		dotnet run --project src/Services/VendorMaster.Api --launch-profile http > $(LOG_DIR)/vendor-master.log 2>&1 & \
+		dotnet run --project src/Services/VendorMaster/VendorMaster.Api --launch-profile http > $(LOG_DIR)/vendor-master.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/vendor-master.pid; \
 		sleep 1.5; \
@@ -266,42 +268,21 @@ restart-vendor-master: restart-vendor
 logs-vendor-master: logs-vendor
 
 
-# --- 3. PositionQuery.Api (:5002) ---
+# --- 3. PositionQuery.Api (Consolidated into DeliveryTracking.Api :5003) ---
 run-position:
-	@mkdir -p $(PID_DIR) $(LOG_DIR)
-	@if [ -f "$(PID_DIR)/position-query.pid" ] && kill -0 $$(cat $(PID_DIR)/position-query.pid) 2>/dev/null; then \
-		echo -e "  ${YELLOW}⚠️  PositionQuery.Api is already running (PID: $$(cat $(PID_DIR)/position-query.pid))${RESET}"; \
-	else \
-		echo -e "  ${GREEN}▶ Starting PositionQuery.Api (:5002)...${RESET}"; \
-		dotnet run --project src/Services/PositionQuery.Api --launch-profile http > $(LOG_DIR)/position-query.log 2>&1 & \
-		PID=$$!; \
-		echo $$PID > $(PID_DIR)/position-query.pid; \
-		sleep 1.5; \
-		if kill -0 $$PID 2>/dev/null; then \
-			echo -e "  ${GREEN}✅ PositionQuery.Api started (PID: $$PID) at http://localhost:5002/swagger${RESET}"; \
-		else \
-			echo -e "  ${RED}❌ Failed to start PositionQuery.Api! Check log: $(LOG_DIR)/position-query.log${RESET}"; \
-		fi; \
-	fi
+	@echo -e "  ${YELLOW}ℹ️  PositionQuery.Api telah dilebur ke DeliveryTracking.Api (:5003). Menjalankan DeliveryTracking.Api...${RESET}"
+	@$(MAKE) run-delivery
 
 stop-position:
-	@echo -e "  ${YELLOW}🛑 Stopping PositionQuery.Api...${RESET}"
-	@if [ -f "$(PID_DIR)/position-query.pid" ]; then \
-		PID=$$(cat $(PID_DIR)/position-query.pid); \
-		if kill -0 $$PID 2>/dev/null; then \
-			kill -TERM $$PID 2>/dev/null || true; \
-			for i in {1..5}; do kill -0 $$PID 2>/dev/null || break; sleep 0.2; done; \
-			kill -9 $$PID 2>/dev/null || true; \
-		fi; \
-		rm -f $(PID_DIR)/position-query.pid; \
-	fi
-	@pkill -f 'PositionQuery\.Api\.dll' 2>/dev/null || true
-	@echo -e "  ${GREEN}✅ PositionQuery.Api stopped.${RESET}"
+	@echo -e "  ${YELLOW}ℹ️  PositionQuery.Api telah dilebur ke DeliveryTracking.Api (:5003). Menghentikan DeliveryTracking.Api...${RESET}"
+	@$(MAKE) stop-delivery
 
-restart-position: stop-position run-position
+restart-position:
+	@echo -e "  ${YELLOW}ℹ️  PositionQuery.Api telah dilebur ke DeliveryTracking.Api (:5003). Merestart DeliveryTracking.Api...${RESET}"
+	@$(MAKE) restart-delivery
 
 logs-position:
-	@tail -n 50 -f $(LOG_DIR)/position-query.log 2>/dev/null || echo -e "${YELLOW}No log file found for PositionQuery.Api.${RESET}"
+	@$(MAKE) logs-delivery
 
 # Aliases for PositionQuery
 run-position-query: run-position
@@ -467,7 +448,6 @@ stop-local-all:
 	@$(MAKE) stop-collector
 	@$(MAKE) stop-delivery
 	@$(MAKE) stop-vendor
-	@$(MAKE) stop-position
 	@echo -e "${BOLD}${GREEN}✅ All local microservices stopped.${RESET}"
 
 restart-local-all: stop-local-all run-local-all
@@ -504,9 +484,15 @@ status:
 
 health:
 	@echo -e "${BOLD}${CYAN}🔍 Probing Microservices Health Endpoints (/hc)...${RESET}"
-	@for port in 5000 5001 5002 5003; do \
-		echo -n "  • Port $$port : "; \
-		curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 http://localhost:$$port/hc 2>/dev/null && echo " OK" || echo " UNREACHABLE"; \
+	@declare -A services=( [5000]="YARP ApiGateway" [5001]="VendorMaster.Api" [5003]="DeliveryTracking.Api" [5004]="GpsCollector Worker" ); \
+	for port in 5000 5001 5003 5004; do \
+		name=$${services[$$port]}; \
+		code=$$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 http://localhost:$$port/hc 2>/dev/null); \
+		if [ "$$code" = "200" ]; then \
+			echo -e "  • Port $$port ($$name) : ${GREEN}HEALTHY (200 OK)${RESET}"; \
+		else \
+			echo -e "  • Port $$port ($$name) : ${RED}UNREACHABLE / DOWN (code: $$code)${RESET}"; \
+		fi; \
 	done
 
 # ------------------------------------------------------------------------------
@@ -515,6 +501,16 @@ health:
 build:
 	@echo -e "${BOLD}${CYAN}🔨 Building Entire Solution...${RESET}"
 	@dotnet build $(SOLUTION)
+
+build-aot:
+	@echo -e "${BOLD}${CYAN}⚡ Publishing ApiGateway with Native AOT Compilation...${RESET}"
+	@dotnet publish src/Services/ApiGateway/ApiGateway.csproj -c Release -r linux-x64
+	@echo -e "${BOLD}${GREEN}✅ Native AOT binary generated at src/Services/ApiGateway/bin/Release/net10.0/linux-x64/publish/ApiGateway${RESET}"
+
+docker-build-aot:
+	@echo -e "${BOLD}${CYAN}🐳 Building Ultra-Slim Native AOT Docker Container (Chiseled)...${RESET}"
+	@docker build -f src/Services/ApiGateway/Dockerfile -t edcl-api-gateway:aot .
+	@echo -e "${BOLD}${GREEN}✅ Docker image edcl-api-gateway:aot built successfully!${RESET}"
 
 test:
 	@echo -e "${BOLD}${CYAN}🧪 Running Unit & Integration Tests...${RESET}"

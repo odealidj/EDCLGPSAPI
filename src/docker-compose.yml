@@ -43,7 +43,7 @@ services:
     image: ${DOCKER_REGISTRY-}vendormastersvc
     build:
       context: ..
-      dockerfile: src/Services/VendorMaster.Api/Dockerfile
+      dockerfile: src/Services/VendorMaster/VendorMaster.Api/Dockerfile
 
   delivery-tracking-svc:
     image: ${DOCKER_REGISTRY-}deliverytrackingsvc

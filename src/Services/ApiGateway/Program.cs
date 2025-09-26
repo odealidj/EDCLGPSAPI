@@ -8,6 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEdclOpenTelemetry(builder.Configuration, "api-gateway");
 
 // 1. Add YARP Reverse Proxy from Configuration
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.TypeInfoResolverChain.Insert(0, ApiGatewayJsonSerializerContext.Default);
+});
+
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -53,15 +58,25 @@ app.UseEdclTraceContext();
 app.MapHealthChecks("/hc");
 app.MapEdclPrometheus();
 
-app.MapGet("/", () => Results.Json(new
-{
-    Service = "EDCL Telematics API Gateway",
-    Engine = "YARP (.NET 8)",
-    Status = "Healthy",
-    Version = "2.1.0"
-}));
+app.MapGet("/", () => Results.Ok(new GatewayStatusDto(
+    Service: "EDCL Telematics API Gateway",
+    Engine: "YARP Reverse Proxy (.NET 10 Native AOT)",
+    Status: "Healthy",
+    Version: "2.1.0"
+)));
 
 // 7. Map Reverse Proxy
 app.MapReverseProxy();
 
 app.Run();
+
+public sealed record GatewayStatusDto(
+    string Service,
+    string Engine,
+    string Status,
+    string Version);
+
+[System.Text.Json.Serialization.JsonSerializable(typeof(GatewayStatusDto))]
+internal partial class ApiGatewayJsonSerializerContext : System.Text.Json.Serialization.JsonSerializerContext
+{
+}
