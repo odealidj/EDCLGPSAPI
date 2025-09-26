@@ -24,6 +24,11 @@ namespace GpsCollector.Application.DTOs;
 [JsonSerializable(typeof(Shared.Data.Mongo.DTOs.RawResponseItemDto))]
 [JsonSerializable(typeof(List<Shared.Data.Mongo.DTOs.RawResponseItemDto>))]
 [JsonSerializable(typeof(Shared.Pagination.PaginatedResult<Shared.Data.Mongo.DTOs.RawResponseItemDto>))]
+[JsonSerializable(typeof(Shared.Data.Cache.ActiveVendorCacheDto))]
+[JsonSerializable(typeof(List<Shared.Data.Cache.ActiveVendorCacheDto>))]
+[JsonSerializable(typeof(Shared.Data.Cache.ActiveVendorEndpointCacheDto))]
+[JsonSerializable(typeof(Shared.Data.Cache.ActiveVendorAuthCacheDto))]
+[JsonSerializable(typeof(Shared.Data.Cache.ActiveVendorMappingCacheDto))]
 public partial class GpsCollectorJsonContext : JsonSerializerContext
 {
 }

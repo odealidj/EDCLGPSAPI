@@ -86,5 +86,45 @@ public class VendorEndpoints : ICarterModule
         .Produces<DeleteVendorResult>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Hapus vendor GPS");
+
+        // GET /api/v1/vendors/active
+        group.MapGet("/active", async (
+            StackExchange.Redis.IConnectionMultiplexer? redis,
+            IVendorCacheSyncService cacheSync,
+            IVendorMasterRepository repo,
+            CancellationToken ct) =>
+        {
+            if (redis != null && redis.IsConnected)
+            {
+                var db = redis.GetDatabase();
+                var cachedJson = await db.StringGetAsync(Shared.Data.Cache.VendorCacheConstants.ActiveVendorsCacheKey);
+                if (cachedJson.HasValue && !cachedJson.IsNullOrEmpty)
+                {
+                    var cachedVendors = System.Text.Json.JsonSerializer.Deserialize<List<Shared.Data.Cache.ActiveVendorCacheDto>>(
+                        cachedJson.ToString(),
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (cachedVendors is { Count: > 0 })
+                    {
+                        return Results.Ok(new { Source = "RedisCache", Data = cachedVendors });
+                    }
+                }
+            }
+
+            // Fallback ke PostgreSQL & rehydrate Redis
+            await cacheSync.RefreshActiveVendorsCacheAsync(ct);
+            var vendors = await repo.GetVendorsAsync(null, null, null, 1, 100, true, ct);
+            return Results.Ok(new { Source = "PostgreSQL", Data = vendors });
+        })
+        .WithName("GetActiveVendors")
+        .WithSummary("Ambil seluruh konfigurasi vendor aktif dari Redis (atau fallback ke PostgreSQL)");
+
+        // POST /api/v1/vendors/cache/refresh
+        group.MapPost("/cache/refresh", async (IVendorCacheSyncService cacheSync, CancellationToken ct) =>
+        {
+            await cacheSync.RefreshActiveVendorsCacheAsync(ct);
+            return Results.Ok(new { Message = "Cache vendor aktif di Redis berhasil di-refresh dan disimpan selamanya." });
+        })
+        .WithName("RefreshActiveVendorsCache")
+        .WithSummary("Paksa sinkronisasi ulang data vendor aktif ke Redis cache (hapus & isi ulang)");
     }
 }

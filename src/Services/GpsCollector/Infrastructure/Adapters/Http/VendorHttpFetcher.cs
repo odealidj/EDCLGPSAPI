@@ -38,7 +38,7 @@ public sealed class VendorHttpFetcher : IVendorHttpFetcher
                     .Handle<TimeoutException>()
                     .HandleResult(resp => (int)resp.StatusCode >= 500 || resp.StatusCode == System.Net.HttpStatusCode.RequestTimeout)
             })
-            .AddTimeout(TimeSpan.FromSeconds(25))
+            .AddTimeout(TimeSpan.FromSeconds(45))
             .Build();
     }
 
@@ -47,24 +47,27 @@ public sealed class VendorHttpFetcher : IVendorHttpFetcher
         var client = _httpClientFactory.CreateClient("VendorHttpClient");
         var requestUri = BuildRequestUri(endpoint);
 
-        var request = new HttpRequestMessage(new HttpMethod(endpoint.Method), requestUri);
-
-        // Pasang Request Body jika ada
-        if (!string.IsNullOrWhiteSpace(endpoint.BodiesJson) && endpoint.BodiesJson != "{}")
-        {
-            request.Content = new StringContent(endpoint.BodiesJson, Encoding.UTF8, "application/json");
-        }
-
-        // Pasang Headers
-        ApplyHeaders(request, endpoint.HeadersJson);
-
-        // Pasang Authorization
-        await ApplyAuthorizationAsync(client, request, vendor, ct);
-
         try
         {
             var response = await _resiliencePipeline.ExecuteAsync(
-                async token => await client.SendAsync(request, token),
+                async token =>
+                {
+                    var request = new HttpRequestMessage(new HttpMethod(endpoint.Method), requestUri);
+
+                    // Pasang Request Body jika ada
+                    if (!string.IsNullOrWhiteSpace(endpoint.BodiesJson) && endpoint.BodiesJson != "{}")
+                    {
+                        request.Content = new StringContent(endpoint.BodiesJson, Encoding.UTF8, "application/json");
+                    }
+
+                    // Pasang Headers
+                    ApplyHeaders(request, endpoint.HeadersJson);
+
+                    // Pasang Authorization
+                    await ApplyAuthorizationAsync(client, request, vendor, token);
+
+                    return await client.SendAsync(request, token);
+                },
                 ct);
 
             var body = await response.Content.ReadAsStringAsync(ct);

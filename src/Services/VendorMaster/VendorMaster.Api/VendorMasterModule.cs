@@ -25,6 +25,20 @@ public static class VendorMasterModule
         // registrasi port repository
         services.AddScoped<IVendorMasterRepository, VendorMasterRepository>();
 
+        // registrasi redis caching untuk sinkronisasi vendor aktif
+        var redisConn = configuration.GetConnectionString("Redis") ?? "localhost:6379";
+        try
+        {
+            var multiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisConn);
+            services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(multiplexer);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VendorMasterModule] Warning: Redis connection failed ({ex.Message}). Cache sync will run gracefully in offline fallback mode.");
+        }
+
+        services.AddScoped<IVendorCacheSyncService, VendorMaster.Infrastructure.Services.VendorCacheSyncService>();
+
         return services;
     }
 

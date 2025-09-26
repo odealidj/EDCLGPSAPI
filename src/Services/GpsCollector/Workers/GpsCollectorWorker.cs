@@ -10,17 +10,20 @@ namespace GpsCollector.Workers;
 public sealed class GpsCollectorWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IHostEnvironment _env;
     private readonly ILeaderElection? _leaderElection;
     private readonly ICollectorMetrics? _metrics;
     private readonly ILogger<GpsCollectorWorker> _logger;
 
     public GpsCollectorWorker(
         IServiceProvider serviceProvider,
+        IHostEnvironment env,
         ILogger<GpsCollectorWorker> logger,
         ILeaderElection? leaderElection = null,
         ICollectorMetrics? metrics = null)
     {
         _serviceProvider = serviceProvider;
+        _env = env;
         _logger = logger;
         _leaderElection = leaderElection;
         _metrics = metrics;
@@ -72,8 +75,21 @@ public sealed class GpsCollectorWorker : BackgroundService
                     await _leaderElection.RenewAsync(TimeSpan.FromSeconds(90), stoppingToken);
                 }
 
-                // 4. Istirahat sesuai interval jeda
-                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+                // 4. Istirahat sesuai environment:
+                // Production: tepat setiap 1 menit (60 detik) sesuai ketentuan
+                // Development: acak > 30 detik (35 - 75 detik) agar tidak terdeteksi sebagai robot
+                if (_env.IsDevelopment())
+                {
+                    var randomDelaySeconds = Random.Shared.Next(35, 76);
+                    _logger.LogInformation("Development mode: Next vendor poll cycle scheduled in {Sec}s (randomized > 30s to prevent bot detection).", randomDelaySeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(randomDelaySeconds), stoppingToken);
+                }
+                else
+                {
+                    var prodDelay = delayMinutes > 0 ? delayMinutes : 1;
+                    _logger.LogInformation("Production mode: Next vendor poll cycle scheduled in {Minutes} minute(s) (60s interval).", prodDelay);
+                    await Task.Delay(TimeSpan.FromMinutes(prodDelay), stoppingToken);
+                }
             }
         }
         catch (OperationCanceledException)

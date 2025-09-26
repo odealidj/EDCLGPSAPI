@@ -52,7 +52,8 @@ public class CreateVendorValidator : AbstractValidator<CreateVendorCommand>
 // handler use case pendaftaran vendor baru
 public class CreateVendorHandler(
     IVendorMasterRepository repository,
-    ILogger<CreateVendorHandler> logger) : ICommandHandler<CreateVendorCommand, CreateVendorResult>
+    ILogger<CreateVendorHandler> logger,
+    IVendorCacheSyncService? vendorCacheSync = null) : ICommandHandler<CreateVendorCommand, CreateVendorResult>
 {
     public async Task<CreateVendorResult> Handle(CreateVendorCommand command, CancellationToken cancellationToken)
     {
@@ -187,6 +188,12 @@ public class CreateVendorHandler(
         // simpan ke database
         await repository.CreateVendorAsync(vendor, cancellationToken);
         logger.LogInformation("Berhasil mendaftarkan vendor baru: {VendorCode} ({Id})", vendor.VendorCode, vendor.Id);
+
+        // sinkronisasi update/insert ke redis cache vendor aktif
+        if (vendorCacheSync != null)
+        {
+            await vendorCacheSync.RefreshActiveVendorsCacheAsync(cancellationToken);
+        }
 
         return new CreateVendorResult(vendor.Id, vendor.VendorCode, primaryLpcd);
     }

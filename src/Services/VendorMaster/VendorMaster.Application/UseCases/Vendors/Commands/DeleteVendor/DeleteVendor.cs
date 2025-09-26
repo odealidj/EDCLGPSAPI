@@ -16,7 +16,8 @@ public class DeleteVendorValidator : AbstractValidator<DeleteVendorCommand>
 // handler use case hapus vendor
 public class DeleteVendorHandler(
     IVendorMasterRepository repository,
-    ILogger<DeleteVendorHandler> logger) : ICommandHandler<DeleteVendorCommand, DeleteVendorResult>
+    ILogger<DeleteVendorHandler> logger,
+    IVendorCacheSyncService? vendorCacheSync = null) : ICommandHandler<DeleteVendorCommand, DeleteVendorResult>
 {
     public async Task<DeleteVendorResult> Handle(DeleteVendorCommand command, CancellationToken cancellationToken)
     {
@@ -27,6 +28,13 @@ public class DeleteVendorHandler(
         }
 
         logger.LogInformation("Berhasil menghapus vendor dengan Id: {Id}", command.Id);
+
+        // sinkronisasi update/delete ke redis cache vendor aktif (hapus cache lama & isi ulang)
+        if (vendorCacheSync != null)
+        {
+            await vendorCacheSync.RefreshActiveVendorsCacheAsync(cancellationToken);
+        }
+
         return new DeleteVendorResult(true);
     }
 }

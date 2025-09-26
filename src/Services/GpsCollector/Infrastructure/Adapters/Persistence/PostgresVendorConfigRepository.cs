@@ -1,25 +1,92 @@
 using System.Data;
+using System.Text.Json;
+using GpsCollector.Application.DTOs;
 using GpsCollector.Application.Ports;
 using GpsCollector.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using Shared.Data.Cache;
+using StackExchange.Redis;
 
 namespace GpsCollector.Infrastructure.Adapters.Persistence;
 
-// Repositori konfigurasi vendor dan sistem menggunakan pure ADO.NET (AOT Ready)
+// Repositori konfigurasi vendor dengan strategi Redis-First (Persistent Infinite TTL) & PostgreSQL Fallback (AOT Ready)
 public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly IConnectionMultiplexer? _redis;
     private readonly ILogger<PostgresVendorConfigRepository> _logger;
 
-    public PostgresVendorConfigRepository(NpgsqlDataSource dataSource, ILogger<PostgresVendorConfigRepository> logger)
+    public PostgresVendorConfigRepository(
+        NpgsqlDataSource dataSource,
+        ILogger<PostgresVendorConfigRepository> logger,
+        IConnectionMultiplexer? redis = null)
     {
         _dataSource = dataSource;
         _logger = logger;
+        _redis = redis;
     }
 
     public async Task<List<VendorConfig>> GetActiveVendorsAsync(CancellationToken ct)
+    {
+        // 1. Redis-First Strategy: Coba ambil dari Redis cache persisten (disimpan selamanya)
+        if (_redis != null && _redis.IsConnected)
+        {
+            try
+            {
+                var db = _redis.GetDatabase();
+                var cachedValue = await db.StringGetAsync(VendorCacheConstants.ActiveVendorsCacheKey);
+
+                if (cachedValue.HasValue && !cachedValue.IsNullOrEmpty)
+                {
+                    var cachedDtos = JsonSerializer.Deserialize<List<ActiveVendorCacheDto>>(
+                        cachedValue.ToString(),
+                        GpsCollectorJsonContext.Default.ListActiveVendorCacheDto);
+
+                    if (cachedDtos is { Count: > 0 })
+                    {
+                        _logger.LogInformation("Loaded {Count} active vendor configurations from Redis cache (key: '{Key}').",
+                            cachedDtos.Count, VendorCacheConstants.ActiveVendorsCacheKey);
+
+                        return cachedDtos.Select(MapFromCacheDto).ToList();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read active vendors from Redis cache. Falling back to PostgreSQL query...");
+            }
+        }
+
+        // 2. Fallback ke PostgreSQL jika cache di Redis kosong atau belum ada
+        _logger.LogInformation("Cache miss for active vendors. Fetching active vendor configurations directly from PostgreSQL...");
+        var vendors = await FetchActiveVendorsFromPostgresAsync(ct);
+
+        // 3. Simpan hasil query ke Redis selamanya (Rehydration)
+        if (vendors.Count > 0 && _redis != null && _redis.IsConnected)
+        {
+            try
+            {
+                var cacheDtos = vendors.Select(MapToCacheDto).ToList();
+                var json = JsonSerializer.Serialize(cacheDtos, GpsCollectorJsonContext.Default.ListActiveVendorCacheDto);
+                var db = _redis.GetDatabase();
+
+                // Simpan selamanya (expiry: null)
+                await db.StringSetAsync(VendorCacheConstants.ActiveVendorsCacheKey, json, expiry: null);
+                _logger.LogInformation("Successfully cached {Count} active vendor configurations to Redis indefinitely (Key: '{Key}').",
+                    cacheDtos.Count, VendorCacheConstants.ActiveVendorsCacheKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache active vendors to Redis.");
+            }
+        }
+
+        return vendors;
+    }
+
+    private async Task<List<VendorConfig>> FetchActiveVendorsFromPostgresAsync(CancellationToken ct)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
 
@@ -166,7 +233,9 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     {
         const string sql = @"
             SELECT sys_value FROM edcl.m_system
-            WHERE sys_cat = 'Delay' AND sys_sub_cat = 'EDCL_GPS_WORKER_SERVICE' AND sys_cd = '1'
+            WHERE (sys_cat = 'Delay' AND sys_sub_cat = 'EDCL_GPS_WORKER_SERVICE' AND sys_cd = '1')
+               OR (sys_cat = 'WORKER' AND sys_sub_cat = 'INTERVAL' AND sys_cd = 'POLLING_SEC')
+            ORDER BY created_at DESC
             LIMIT 1;";
 
         try
@@ -175,9 +244,10 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
             await using var cmd = new NpgsqlCommand(sql, conn);
             var result = await cmd.ExecuteScalarAsync(ct);
 
-            if (result != null && int.TryParse(result.ToString(), out var minutes) && minutes > 0)
+            if (result != null && int.TryParse(result.ToString(), out var val) && val > 0)
             {
-                return minutes;
+                // Jika nilai dalam detik (> 5), konversi ke menit (minimal 1 menit)
+                return val >= 60 ? (int)Math.Ceiling(val / 60.0) : 1;
             }
         }
         catch (Exception ex)
@@ -208,12 +278,117 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
             cmd.Parameters.Add(new NpgsqlParameter("modifiedAt", NpgsqlDbType.Timestamp) { Value = DateTime.UtcNow });
 
             await cmd.ExecuteNonQueryAsync(ct);
+
+            // Invalidate Redis cache agar polling berikutnya mengambil var_params terbaru
+            if (_redis != null && _redis.IsConnected)
+            {
+                var db = _redis.GetDatabase();
+                await db.KeyDeleteAsync(VendorCacheConstants.ActiveVendorsCacheKey);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update VarParams for endpoint {EndpointId}", endpointId);
         }
     }
+
+    private static VendorConfig MapFromCacheDto(ActiveVendorCacheDto dto) => new()
+    {
+        Id = dto.Id,
+        VendorCode = dto.VendorCode,
+        VendorName = dto.VendorName,
+        Lpcd = dto.Lpcd,
+        RequiredAuth = dto.RequiredAuth,
+        AuthType = dto.AuthType,
+        Username = dto.Username,
+        Password = dto.Password,
+        ProcessingStrategy = dto.ProcessingStrategy,
+        ProcessingStrategyPathKey = dto.ProcessingStrategyPathKey,
+        ProcessingStrategyPathData = dto.ProcessingStrategyPathData,
+        Auth = dto.Auth == null ? null : new VendorAuthConfig
+        {
+            Id = dto.Auth.Id,
+            GpsVendorId = dto.Auth.GpsVendorId,
+            BaseUrl = dto.Auth.BaseUrl,
+            Method = dto.Auth.Method,
+            AuthType = dto.Auth.AuthType,
+            ContentType = dto.Auth.ContentType,
+            Username = dto.Auth.Username,
+            Password = dto.Auth.Password,
+            HeadersJson = dto.Auth.HeadersJson,
+            ParamsJson = dto.Auth.ParamsJson,
+            BodiesJson = dto.Auth.BodiesJson,
+            TokenPath = dto.Auth.TokenPath
+        },
+        Endpoints = dto.Endpoints.Select(e => new VendorEndpointConfig
+        {
+            Id = e.Id,
+            GpsVendorId = e.GpsVendorId,
+            EndpointName = e.EndpointName,
+            BaseUrl = e.BaseUrl,
+            Method = e.Method,
+            HeadersJson = e.HeadersJson,
+            ParamsJson = e.ParamsJson,
+            BodiesJson = e.BodiesJson,
+            VarParamsJson = e.VarParamsJson,
+            MaxPath = e.MaxPath
+        }).ToList(),
+        Mappings = dto.Mappings.Select(m => new VendorFieldMapping
+        {
+            GpsVendorId = m.GpsVendorId,
+            ResponseField = m.ResponseField,
+            MappedField = m.MappedField
+        }).ToList()
+    };
+
+    private static ActiveVendorCacheDto MapToCacheDto(VendorConfig v) => new()
+    {
+        Id = v.Id,
+        VendorCode = v.VendorCode,
+        VendorName = v.VendorName,
+        Lpcd = v.Lpcd,
+        RequiredAuth = v.RequiredAuth,
+        AuthType = v.AuthType,
+        Username = v.Username,
+        Password = v.Password,
+        ProcessingStrategy = v.ProcessingStrategy,
+        ProcessingStrategyPathKey = v.ProcessingStrategyPathKey,
+        ProcessingStrategyPathData = v.ProcessingStrategyPathData,
+        Auth = v.Auth == null ? null : new ActiveVendorAuthCacheDto
+        {
+            Id = v.Auth.Id,
+            GpsVendorId = v.Auth.GpsVendorId,
+            BaseUrl = v.Auth.BaseUrl,
+            Method = v.Auth.Method,
+            AuthType = v.Auth.AuthType,
+            ContentType = v.Auth.ContentType,
+            Username = v.Auth.Username,
+            Password = v.Auth.Password,
+            HeadersJson = v.Auth.HeadersJson,
+            ParamsJson = v.Auth.ParamsJson,
+            BodiesJson = v.Auth.BodiesJson,
+            TokenPath = v.Auth.TokenPath
+        },
+        Endpoints = v.Endpoints.Select(e => new ActiveVendorEndpointCacheDto
+        {
+            Id = e.Id,
+            GpsVendorId = e.GpsVendorId,
+            EndpointName = e.EndpointName,
+            BaseUrl = e.BaseUrl,
+            Method = e.Method,
+            HeadersJson = e.HeadersJson,
+            ParamsJson = e.ParamsJson,
+            BodiesJson = e.BodiesJson,
+            VarParamsJson = e.VarParamsJson,
+            MaxPath = e.MaxPath
+        }).ToList(),
+        Mappings = v.Mappings.Select(m => new ActiveVendorMappingCacheDto
+        {
+            GpsVendorId = m.GpsVendorId,
+            ResponseField = m.ResponseField,
+            MappedField = m.MappedField
+        }).ToList()
+    };
 
     private sealed class VendorConfigBuilder
     {

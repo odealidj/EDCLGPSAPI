@@ -50,7 +50,8 @@ public class UpdateVendorValidator : AbstractValidator<UpdateVendorCommand>
 // handler use case update konfigurasi vendor
 public class UpdateVendorHandler(
     IVendorMasterRepository repository,
-    ILogger<UpdateVendorHandler> logger) : ICommandHandler<UpdateVendorCommand, UpdateVendorResult>
+    ILogger<UpdateVendorHandler> logger,
+    IVendorCacheSyncService? vendorCacheSync = null) : ICommandHandler<UpdateVendorCommand, UpdateVendorResult>
 {
     public async Task<UpdateVendorResult> Handle(UpdateVendorCommand command, CancellationToken cancellationToken)
     {
@@ -267,6 +268,12 @@ public class UpdateVendorHandler(
         // commit perubahan
         await repository.UpdateVendorAsync(vendor, cancellationToken);
         logger.LogInformation("Berhasil update vendor: {VendorCode} ({Id})", vendor.VendorCode, vendor.Id);
+
+        // sinkronisasi update/insert ke redis cache vendor aktif (hapus cache lama & isi ulang)
+        if (vendorCacheSync != null)
+        {
+            await vendorCacheSync.RefreshActiveVendorsCacheAsync(cancellationToken);
+        }
 
         return new UpdateVendorResult(true, vendor.Id, vendor.VendorCode, primaryLpcd);
     }

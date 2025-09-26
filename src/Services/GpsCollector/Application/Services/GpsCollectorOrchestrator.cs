@@ -22,6 +22,7 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
     private readonly IGpsApiLogRepository _apiLogRepo;
     private readonly IVendorHealthTracker _healthTracker;
     private readonly ICollectorMetrics? _metrics;
+    private readonly Microsoft.Extensions.Hosting.IHostEnvironment? _env;
     private readonly ILogger<GpsCollectorOrchestrator> _logger;
 
     public GpsCollectorOrchestrator(
@@ -36,7 +37,8 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
         IGpsApiLogRepository apiLogRepo,
         IVendorHealthTracker healthTracker,
         ILogger<GpsCollectorOrchestrator> logger,
-        ICollectorMetrics? metrics = null)
+        ICollectorMetrics? metrics = null,
+        Microsoft.Extensions.Hosting.IHostEnvironment? env = null)
     {
         _vendorConfigRepo = vendorConfigRepo;
         _deliverySessionRepo = deliverySessionRepo;
@@ -50,7 +52,10 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
         _healthTracker = healthTracker;
         _logger = logger;
         _metrics = metrics;
+        _env = env;
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTime> s_nextAllowedVendorCallTimes = new();
 
     public async Task<List<VendorPollingResultDto>> CollectAllVendorsAsync(CancellationToken ct)
     {
@@ -61,8 +66,12 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
         {
             if (ct.IsCancellationRequested) break;
 
-            var result = await CollectVendorInternalAsync(vendor, ct);
+            var result = await CollectVendorInternalAsync(vendor, ct, force: false);
             results.Add(result);
+
+            // Jeda acak antar vendor (300ms - 800ms) untuk mencegah burst request bersamaan ke network/WAF
+            var interVendorDelay = Random.Shared.Next(300, 801);
+            await Task.Delay(interVendorDelay, ct);
         }
 
         return results;
@@ -83,10 +92,11 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
                 ErrorMessage: $"Vendor with ID {vendorId} not found");
         }
 
-        return await CollectVendorInternalAsync(vendor, ct);
+        // Manual trigger dari REST API / test mengaktifkan force: true
+        return await CollectVendorInternalAsync(vendor, ct, force: true);
     }
 
-    private async Task<VendorPollingResultDto> CollectVendorInternalAsync(VendorConfig vendor, CancellationToken ct)
+    private async Task<VendorPollingResultDto> CollectVendorInternalAsync(VendorConfig vendor, CancellationToken ct, bool force = false)
     {
         var sw = Stopwatch.StartNew();
         var success = false;
@@ -101,6 +111,62 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
                 _logger.LogWarning("Vendor {VendorName} has no endpoints configured.", vendor.VendorName);
                 return new VendorPollingResultDto(vendor.Id, vendor.VendorName, true, 0, 0, 0);
             }
+
+            // 1. Ambil seluruh sesi delivery tracking yang aktif untuk vendor / LPCD ini di awal
+            var activeSessions = (await _deliverySessionRepo.GetActiveSessionsForVendorAsync(vendor.Id, vendor.Lpcd, ct)) ?? [];
+
+            if (activeSessions.Count == 0)
+            {
+                // Fallback untuk backward compatibility / mock unit tests lama
+                var legacyDict = await _deliverySessionRepo.GetActiveSessionsByPlatNosAsync([], ct);
+                if (legacyDict != null && legacyDict.Count > 0)
+                {
+                    activeSessions = legacyDict.Values.ToList();
+                }
+            }
+
+            // Perlindungan Anti-Bot 1: On-Demand Polling
+            // Jika tidak ada job delivery yang aktif untuk vendor ini, JANGAN lakukan HTTP request ke vendor
+            if (!force && activeSessions.Count == 0)
+            {
+                _logger.LogInformation("No active delivery tracking jobs for vendor {VendorName} (LPCD: {Lpcd}). Skipping polling to protect against rate limits and bot blacklisting.",
+                    vendor.VendorName, vendor.Lpcd);
+
+                return new VendorPollingResultDto(vendor.Id, vendor.VendorName, true, 0, 0, sw.ElapsedMilliseconds);
+            }
+
+            // Perlindungan Anti-Bot 2: Cooldown Throttling & Randomized Jitter
+            // Hindari pemanggilan vendor GPS yang terlalu sering (khususnya INOVATRACK minimal di atas 30 detik sesuai request user)
+            if (!force && s_nextAllowedVendorCallTimes.TryGetValue(vendor.Id, out var nextAllowedTime))
+            {
+                if (DateTime.UtcNow < nextAllowedTime)
+                {
+                    var remaining = (nextAllowedTime - DateTime.UtcNow).TotalSeconds;
+                    _logger.LogInformation("Throttling protection: Vendor {VendorName} is in cooldown (remaining {Remaining:N1}s). Skipping to prevent bot detection / IP blacklisting.",
+                        vendor.VendorName, remaining);
+
+                    return new VendorPollingResultDto(vendor.Id, vendor.VendorName, true, 0, 0, sw.ElapsedMilliseconds);
+                }
+            }
+
+            // Tentukan cooldown berikutnya:
+            // Production: setiap 1 menit (60 detik)
+            // Development: hindari pemanggilan secara teratur, panggil secara acak namun harus > 30 detik (35 - 75 detik)
+            int cooldownSec;
+            if (_env != null && !_env.IsDevelopment())
+            {
+                // Production: 60 detik (dengan variasi kecil 1-2 detik)
+                cooldownSec = 60 + Random.Shared.Next(-1, 3);
+            }
+            else
+            {
+                // Development: acak > 30 detik (35 - 75 detik) agar tidak terdeteksi sebagai robot
+                var minSec = string.Equals(vendor.VendorCode, "INOVATRACK", StringComparison.OrdinalIgnoreCase) ? 38 : 35;
+                cooldownSec = Random.Shared.Next(minSec, 76);
+            }
+
+            s_nextAllowedVendorCallTimes[vendor.Id] = DateTime.UtcNow.AddSeconds(cooldownSec);
+            _logger.LogInformation("Scheduled next call window for vendor {VendorName} in {Sec}s (Anti-Bot Throttling).", vendor.VendorName, cooldownSec);
 
             var allPoints = new List<TelemetryPoint>();
             var rawResponses = new List<string>(vendor.Endpoints.Count);
@@ -126,6 +192,19 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
                         isFetchSuccessful = false;
                         firstFailureReason = $"{fetchResult.StatusCode} {fetchResult.ReasonPhrase}";
                         await _healthTracker.RecordFailureAsync(vendor, ep, fetchResult.StatusCode, firstFailureReason, ct);
+
+                        // Perlindungan Anti-Blacklist: Jika vendor merespons 429 (Rate Limit) atau 403 (WAF/Bot block),
+                        // terapkan penalti cooldown 3-5 menit agar tidak di-blacklist permanen!
+                        if (fetchResult.StatusCode == 429)
+                        {
+                            s_nextAllowedVendorCallTimes[vendor.Id] = DateTime.UtcNow.AddMinutes(3);
+                            _logger.LogWarning("Vendor {VendorName} returned HTTP 429 (Too Many Requests). Applied 3-minute backoff cooldown to prevent IP blacklisting.", vendor.VendorName);
+                        }
+                        else if (fetchResult.StatusCode == 403)
+                        {
+                            s_nextAllowedVendorCallTimes[vendor.Id] = DateTime.UtcNow.AddMinutes(5);
+                            _logger.LogWarning("Vendor {VendorName} returned HTTP 403 (Forbidden / WAF Challenge). Applied 5-minute backoff cooldown.", vendor.VendorName);
+                        }
 
                         // Kategori 1: Catat kegagalan koneksi HTTP vendor ke edcl.m_gps_api_log
                         await _apiLogRepo.LogApiCallAsync(new GpsApiLogRecord
@@ -165,6 +244,19 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
                         firstFailureReason = $"{fetchResult.StatusCode} {fetchResult.ReasonPhrase}";
                         await _healthTracker.RecordFailureAsync(vendor, ep, fetchResult.StatusCode, firstFailureReason, ct);
 
+                        // Perlindungan Anti-Blacklist: Jika vendor merespons 429 (Rate Limit) atau 403 (WAF/Bot block),
+                        // terapkan penalti cooldown 3-5 menit agar tidak di-blacklist permanen!
+                        if (fetchResult.StatusCode == 429)
+                        {
+                            s_nextAllowedVendorCallTimes[vendor.Id] = DateTime.UtcNow.AddMinutes(3);
+                            _logger.LogWarning("Vendor {VendorName} returned HTTP 429 (Too Many Requests). Applied 3-minute backoff cooldown to prevent IP blacklisting.", vendor.VendorName);
+                        }
+                        else if (fetchResult.StatusCode == 403)
+                        {
+                            s_nextAllowedVendorCallTimes[vendor.Id] = DateTime.UtcNow.AddMinutes(5);
+                            _logger.LogWarning("Vendor {VendorName} returned HTTP 403 (Forbidden / WAF Challenge). Applied 5-minute backoff cooldown.", vendor.VendorName);
+                        }
+
                         // Kategori 1: Catat kegagalan koneksi HTTP vendor ke edcl.m_gps_api_log
                         await _apiLogRepo.LogApiCallAsync(new GpsApiLogRecord
                         {
@@ -197,18 +289,6 @@ public sealed class GpsCollectorOrchestrator : IGpsCollectorOrchestrator
                 }
             }
 
-            // 1. Ambil seluruh sesi delivery tracking yang aktif untuk vendor / LPCD ini
-            var activeSessions = (await _deliverySessionRepo.GetActiveSessionsForVendorAsync(vendor.Id, vendor.Lpcd, ct)) ?? [];
-
-            if (activeSessions.Count == 0)
-            {
-                // Fallback untuk backward compatibility / mock unit tests lama
-                var legacyDict = await _deliverySessionRepo.GetActiveSessionsByPlatNosAsync([], ct);
-                if (legacyDict != null && legacyDict.Count > 0)
-                {
-                    activeSessions = legacyDict.Values.ToList();
-                }
-            }
 
             // Kategori 1: Jika koneksi HTTP vendor gagal dan terdapat delivery aktif yang bergantung padanya
             if (!isFetchSuccessful && activeSessions.Count > 0)
