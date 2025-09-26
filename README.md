@@ -27,7 +27,7 @@ Platform ini beroperasi di garis terdepan (*Public Edge Ingress*) untuk mengumpu
 ### Nilai Strategis Pemisahan Service:
 1. **Isolasi Beban Write-Heavy**: Ratusan armada truk logistik mengirimkan titik koordinat setiap 1 menit (akumulasi jutaan rekam jejak GPS per hari). Pemisahan ke platform ini menjamin server database transaksional inti di pabrik TMMIN (*SQL Server*) terbebas 100% dari beban *I/O disk* koordinat mentah.
 2. **Keamanan Korporat (Zero-Trust Isolation)**: Server pabrik TMMIN tidak membuka port inbound publik ke internet untuk vendor GPS. Seluruh penyerapan data berlangsung di lingkungan terisolasi, kemudian dialirkan melalui jalur privat terenkripsi (*TLS/VPN/AMQPS*).
-3. **Agilitas Integrasi Vendor (Zero-Downtime Deployment)**: Struktur data vendor pihak ketiga bervariasi dan dapat berubah sewaktu-waktu. Mesin *dynamic mapping* berbasis database (`tb_m_mapping`) memungkinkan penambahan vendor baru tanpa memerlukan *re-compilation* maupun *deployment downtime*.
+3. **Agilitas Integrasi Vendor (Zero-Downtime Deployment)**: Struktur data vendor pihak ketiga bervariasi dan dapat berubah sewaktu-waktu. Mesin *dynamic mapping* berbasis database (`m_gps_vendor_mapping`) memungkinkan penambahan vendor baru tanpa memerlukan *re-compilation* maupun *deployment downtime*.
 
 ---
 
@@ -83,8 +83,8 @@ Platform ini dibangun 100% dengan prinsip **Pure Microservices Architecture**, m
 
 ## 🌟 Fitur Utama Sistem
 
-### 1. Dynamic Response Field Mapping (`tb_m_mapping`)
-Sistem tidak mengikat skema DTO secara kaku ke satu vendor. Melalui tabel master `edcl.tb_m_mapping`, nama field respons JSON vendor (misalnya `lat`, `latitude`, `y_pos`) dipetakan secara dinamis pada *runtime* ke field standar EDCL (`Y`), dan longitude ke (`X`) menggunakan *compiled expression tree* berkecapatan tinggi.
+### 1. Dynamic Response Field Mapping (`m_gps_vendor_mapping`)
+Sistem tidak mengikat skema DTO secara kaku ke satu vendor. Melalui tabel master `edcl.m_gps_vendor_mapping`, nama field respons JSON vendor (misalnya `lat`, `latitude`, `y_pos`) dipetakan secara dinamis pada *runtime* ke field standar EDCL (`Y`), dan longitude ke (`X`) menggunakan *compiled expression tree* berkecapatan tinggi.
 
 ### 2. Multi-Protocol Vendor Authentication & Self-Healing Token Rotation
 Mendukung strategi autentikasi vendor pihak ketiga secara otonom:
@@ -94,7 +94,7 @@ Mendukung strategi autentikasi vendor pihak ketiga secara otonom:
 - **API Key / Custom Header Param**
 
 ### 3. Dual-Tier Storage Architecture (PostgreSQL 16 + MongoDB 7)
-- **PostgreSQL 16 (Partisi Bulanan)**: Riwayat spasial terstruktur (`tb_r_gps_last_position_d`, `tb_r_gps_delivery_d`) disimpan pada partisi rentang bulanan (*monthly range partitioning*) yang diindeks B-Tree & BRIN.
+- **PostgreSQL 16 (Pure Delivery-Centric Storage Model)**: Riwayat spasial terstruktur (`t_delivery_latest_position`, `t_delivery_position_history`) hanya mencatat armada dengan sesi pengiriman aktif dari klik "Start Job" di `EDCLWEBAPI`. Riwayat rute disimpan pada partisi rentang bulanan (*monthly range partitioning*) yang diindeks B-Tree & BRIN.
 - **MongoDB 7 (TTL Automated Cleanup)**:
   - `gps_api_logs`: Seluruh pesan galat dan HTTP status error disimpan dalam BSON dengan masa kedaluwarsa otomatis 90 hari.
   - `gps_raw_responses`: Payload JSON mentah dari vendor disimpan untuk keperluan audit dan replay jika mapping berubah (TTL 30 hari).
