@@ -2,11 +2,17 @@ using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shared.Exceptions;
 
 namespace Shared.Exceptions.Handler;
-public class CustomExceptionHandler
-    (ILogger<CustomExceptionHandler> logger)
+
+// global exception handler buat bungkus error jadi format problem details (rfc 7807)
+public class CustomExceptionHandler(
+    ILogger<CustomExceptionHandler> logger,
+    IHostEnvironment? env = null)
     : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken cancellationToken)
@@ -44,42 +50,68 @@ public class CustomExceptionHandler
             "Error Message: {exceptionMessage}, TraceId: {traceId}, CorrelationId: {correlationId}, Time: {time}",
             exception.Message, traceId, correlationId, DateTime.UtcNow);
 
-        (string Detail, string Title, int StatusCode) details = exception switch
+        (string Detail, string Title, int StatusCode, string Type) details = exception switch
         {
-            InternalServerException =>
-            (
-                exception.Message,
-                exception.GetType().Name,
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError
-            ),
             ValidationException =>
             (
                 exception.Message,
-                exception.GetType().Name,
-                context.Response.StatusCode = StatusCodes.Status400BadRequest
+                "Validation Error",
+                StatusCodes.Status400BadRequest,
+                "https://tools.ietf.org/html/rfc7231#section-6.5.1"
             ),
             BadRequestException =>
             (
                 exception.Message,
-                exception.GetType().Name,
-                context.Response.StatusCode = StatusCodes.Status400BadRequest
+                "Bad Request",
+                StatusCodes.Status400BadRequest,
+                "https://tools.ietf.org/html/rfc7231#section-6.5.1"
             ),
             NotFoundException =>
             (
                 exception.Message,
-                exception.GetType().Name,
-                context.Response.StatusCode = StatusCodes.Status404NotFound
+                "Resource Not Found",
+                StatusCodes.Status404NotFound,
+                "https://tools.ietf.org/html/rfc7231#section-6.5.4"
+            ),
+            ConflictException =>
+            (
+                exception.Message,
+                "Conflict",
+                StatusCodes.Status409Conflict,
+                "https://tools.ietf.org/html/rfc7231#section-6.5.8"
+            ),
+            DbUpdateException dbUpdateEx when dbUpdateEx.InnerException?.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true ||
+                                             dbUpdateEx.InnerException?.Message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase) == true =>
+            (
+                "Data yang dikirim bentrok dengan data yang sudah ada (duplikat unique key).",
+                "Conflict",
+                StatusCodes.Status409Conflict,
+                "https://tools.ietf.org/html/rfc7231#section-6.5.8"
+            ),
+            InternalServerException =>
+            (
+                exception.Message,
+                "Internal Server Error",
+                StatusCodes.Status500InternalServerError,
+                "https://tools.ietf.org/html/rfc7231#section-6.6.1"
             ),
             _ =>
             (
-                exception.Message,
-                exception.GetType().Name,
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError
+                env != null && env.IsDevelopment()
+                    ? exception.Message
+                    : "Terjadi kesalahan internal pada server. Silakan hubungi admin dengan menyertakan TraceId.",
+                "Internal Server Error",
+                StatusCodes.Status500InternalServerError,
+                "https://tools.ietf.org/html/rfc7231#section-6.6.1"
             )
         };
 
+        context.Response.StatusCode = details.StatusCode;
+        context.Response.ContentType = "application/problem+json";
+
         var problemDetails = new ProblemDetails
         {
+            Type = details.Type,
             Title = details.Title,
             Detail = details.Detail,
             Status = details.StatusCode,
@@ -94,7 +126,24 @@ public class CustomExceptionHandler
             problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
         }
 
-        await context.Response.WriteAsJsonAsync(problemDetails, cancellationToken: cancellationToken);
+        if (exception is BadRequestException badRequestEx && !string.IsNullOrWhiteSpace(badRequestEx.Details))
+        {
+            problemDetails.Extensions.Add("details", badRequestEx.Details);
+        }
+        else if (exception is ConflictException conflictEx && !string.IsNullOrWhiteSpace(conflictEx.Details))
+        {
+            problemDetails.Extensions.Add("details", conflictEx.Details);
+        }
+        else if (exception is InternalServerException internalEx && !string.IsNullOrWhiteSpace(internalEx.Details))
+        {
+            problemDetails.Extensions.Add("details", internalEx.Details);
+        }
+
+        await context.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: (System.Text.Json.JsonSerializerOptions?)null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
         return true;
     }
 }

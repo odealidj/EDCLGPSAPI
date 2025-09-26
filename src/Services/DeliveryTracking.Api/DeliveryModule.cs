@@ -1,74 +1,48 @@
-using Delivery.Data;
-using Delivery.Data.Repositories;
-using Delivery.Data.Repositories.IRepositories;
+using DeliveryTracking.Application.Ports;
+using DeliveryTracking.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
-namespace Delivery;
+namespace DeliveryTracking;
 
+// modul konfigurasi dependensi layanan delivery tracking (arsitektur hexagonal)
 public static class DeliveryModule
 {
-    public static IServiceCollection AddDeliveryModule(this IServiceCollection services,
+    public static IServiceCollection AddDeliveryModule(
+        this IServiceCollection services,
         IConfiguration configuration)
     {
-        
-        var connectionString = configuration.GetConnectionString("Database");
-        
-        services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
-        services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
-        
-        services.AddDbContext<DeliveryDbContext>((sp, options) =>
-        {
-            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseNpgsql(connectionString)
-                .EnableSensitiveDataLogging()
-                .LogTo(Console.WriteLine, LogLevel.Warning);
-        },ServiceLifetime.Scoped);
-        
-        services.AddScoped<IDeliveryRepository, DeliveryRepository>();
-        
-        services.AddScoped<IDeliveryDapperRepository>(sp =>
-            new DeliveryDapperRepository(
-                connectionString!,
-                sp.GetRequiredService<ILogger<DeliveryDapperRepository>>()
-            ));
-        
-        /*
-        services.AddScoped<Func<IDeliveryRepository>>(serviceProvider => () =>
-        {
-            var logger = serviceProvider.GetRequiredService<ILogger<DeliveryRepository>>();
-            var dbContext = serviceProvider.GetRequiredService<DeliveryDbContext>();
-            return new DeliveryRepository(connectionString!, dbContext, logger);
-        });
-        */
-        
-        // Daftarkan repository dengan ftory pattern
-        /*
-        services.AddScoped<IDeliveryRepository>(sp =>
-        {
-            // Resolve DbContext secara otomatis dari DI container
-            var dbContext = sp.GetService<DeliveryDbContext>();
+        var connectionString = configuration.GetConnectionString("Database")
+            ?? throw new InvalidOperationException("Connection string 'Database' tidak ditemukan.");
 
-            // Resolve ILogger secara otomatis dari DI container
-            var logger = sp.GetRequiredService<ILogger<DeliveryRepository>>();
+        // 1. registrasi npgsql data source (ado.net connection pool bawaan .net 10)
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+        var dataSource = dataSourceBuilder.Build();
+        services.AddSingleton(dataSource);
 
-            // Buat instance repository dengan connectionString, dbContext, dan logger
-            return new DeliveryRepository(connectionString, dbContext, logger);
+        // 2. registrasi repository port -> driven adapter ado.net
+        services.AddScoped<IDeliveryTrackingRepository, DeliveryTrackingAdoRepository>();
+
+        // 3. registrasi redis distributed cache untuk high-speed position lookup
+        var redisConnectionString = configuration.GetConnectionString("Redis")
+            ?? configuration["Redis"]
+            ?? "localhost:6379";
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnectionString;
+            options.InstanceName = "";
         });
-        */
-        
+
+        // 4. registrasi layanan kueri posisi armada (redis-first + db fallback)
+        services.AddScoped<IPositionQueryService, DeliveryTracking.Infrastructure.Services.PositionQueryService>();
+
         return services;
     }
 
     public static IApplicationBuilder UseDeliveryModule(this IApplicationBuilder app)
     {
-        // Configure the HTTP request pipeline.
-
-        // 1. Use Api Endpoint services
-
-        // 2. Use Application Use Case services
-
-        // 3. Use Data - Infrastructure services  
-        ////app.UseMigration<CatalogDbContext>();
-
         return app;
     }
 }

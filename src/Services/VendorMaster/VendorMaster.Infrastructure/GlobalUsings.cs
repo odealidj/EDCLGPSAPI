@@ -1,0 +1,19 @@
+// global usings buat infrastructure layer (ef core, persistence, adapters)
+global using System.Reflection;
+global using System.Text.Json;
+global using System.Text.Json.Nodes;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Metadata.Builders;
+global using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+global using Microsoft.Extensions.Logging;
+global using Shared.Exceptions;
+global using VendorMaster.Domain.Constants;
+global using VendorMaster.Domain.Entities;
+global using VendorMaster.Domain.Enums;
+global using VendorMaster.Domain.Exceptions;
+global using VendorMaster.Application.DTOs;
+global using VendorMaster.Application.Ports;
+global using VendorMaster.Infrastructure.Converters;
+global using VendorMaster.Infrastructure.Persistence;
+global using VendorMaster.Infrastructure.Persistence.Repositories;
+global using VendorMaster.Infrastructure.Persistence.Configurations;

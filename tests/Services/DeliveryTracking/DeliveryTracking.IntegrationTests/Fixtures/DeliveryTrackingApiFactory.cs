@@ -1,0 +1,268 @@
+namespace DeliveryTracking.IntegrationTests.Fixtures;
+
+// factory buat bootstrap webapplicationfactory + postgres testcontainer (.net 10)
+public class DeliveryTrackingApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    static DeliveryTrackingApiFactory()
+    {
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+    }
+
+    private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine")
+        .WithDatabase("edclgps_delivery_test")
+        .WithUsername("postgres")
+        .WithPassword("postgres")
+        .Build();
+
+    public async Task InitializeAsync()
+    {
+        // 1. nyalakan postgres container
+        await _dbContainer.StartAsync();
+
+        // 2. siapkan skema database & fungsi / sp postgres untuk tes
+        await using var conn = new NpgsqlConnection(_dbContainer.GetConnectionString());
+        await conn.OpenAsync();
+
+        const string ddlSql = @"
+            CREATE SCHEMA IF NOT EXISTS edcl;
+
+            -- tabel delivery progress
+            CREATE TABLE IF NOT EXISTS edcl.tb_r_delivery_progress (
+                id UUID PRIMARY KEY,
+                delivery_no VARCHAR(100) UNIQUE NOT NULL,
+                plat_no VARCHAR(50) NOT NULL,
+                no_ktp VARCHAR(50) NOT NULL,
+                vendor_name VARCHAR(100),
+                lpcd VARCHAR(50),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                created_by VARCHAR(50) DEFAULT 'System',
+                last_modified TIMESTAMP DEFAULT NOW(),
+                last_modified_by VARCHAR(50) DEFAULT 'System'
+            );
+
+            -- tabel telemetri gps delivery
+            CREATE TABLE IF NOT EXISTS edcl.tb_r_gps_delivery (
+                id UUID PRIMARY KEY,
+                gps_vendor_id UUID,
+                gps_vendor_name VARCHAR(100),
+                gps_delivery_h_id UUID,
+                lpcd_id UUID,
+                lpcd VARCHAR(50),
+                delivery_no VARCHAR(100),
+                no_ktp VARCHAR(50),
+                plat_no VARCHAR(50),
+                device_id VARCHAR(50),
+                datetime TIMESTAMP,
+                x NUMERIC(18, 8),
+                y NUMERIC(18, 8),
+                speed NUMERIC(10, 2),
+                course NUMERIC(10, 2),
+                street_name VARCHAR(255),
+                created_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR(50) DEFAULT 'System',
+                last_modified TIMESTAMP DEFAULT NOW(),
+                last_modified_by VARCHAR(50) DEFAULT 'System'
+            );
+
+            -- stored procedure 1 tracking koordinat gps
+            CREATE OR REPLACE FUNCTION edcl.sp_edclgps1_get_track_delivery(p_delivery_no VARCHAR, p_density INT)
+            RETURNS TABLE (
+                positionid INT,
+                deliveryno VARCHAR,
+                noktp VARCHAR,
+                lpcd VARCHAR,
+                gpsvendor VARCHAR,
+                flaggps VARCHAR,
+                platno VARCHAR,
+                deviceid VARCHAR,
+                datetime TIMESTAMP,
+                x NUMERIC,
+                y NUMERIC,
+                speed NUMERIC,
+                course NUMERIC,
+                streetname VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    1 AS positionid,
+                    g.delivery_no AS deliveryno,
+                    g.no_ktp AS noktp,
+                    g.lpcd AS lpcd,
+                    g.gps_vendor_name AS gpsvendor,
+                    'OK'::VARCHAR AS flaggps,
+                    g.plat_no AS platno,
+                    g.device_id AS deviceid,
+                    g.datetime AS datetime,
+                    g.x AS x,
+                    g.y AS y,
+                    g.speed AS speed,
+                    g.course AS course,
+                    g.street_name AS streetname
+                FROM edcl.tb_r_gps_delivery g
+                WHERE g.delivery_no = p_delivery_no
+                ORDER BY g.datetime ASC;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- stored procedure 2 fallback tracking
+            CREATE OR REPLACE FUNCTION edcl.sp_edclgps2_get_track_delivery(p_delivery_no VARCHAR, p_density INT)
+            RETURNS TABLE (
+                positionid INT,
+                deliveryno VARCHAR,
+                noktp VARCHAR,
+                lpcd VARCHAR,
+                gpsvendor VARCHAR,
+                flaggps VARCHAR,
+                platno VARCHAR,
+                deviceid VARCHAR,
+                datetime TIMESTAMP,
+                x NUMERIC,
+                y NUMERIC,
+                speed NUMERIC,
+                course NUMERIC,
+                streetname VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    1 AS positionid,
+                    g.delivery_no AS deliveryno,
+                    g.no_ktp AS noktp,
+                    g.lpcd AS lpcd,
+                    g.gps_vendor_name AS gpsvendor,
+                    'OK'::VARCHAR AS flaggps,
+                    g.plat_no AS platno,
+                    g.device_id AS deviceid,
+                    g.datetime AS datetime,
+                    g.x AS x,
+                    g.y AS y,
+                    g.speed AS speed,
+                    g.course AS course,
+                    g.street_name AS streetname
+                FROM edcl.tb_r_gps_delivery g
+                WHERE g.delivery_no = p_delivery_no
+                ORDER BY g.datetime ASC;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- mock function vendor lookup by lpcd
+            CREATE OR REPLACE FUNCTION edcl.get_latest_gps_vendor_by_lpcd(p_lpcd VARCHAR)
+            RETURNS TABLE (
+                gpsvendorid UUID,
+                gpsvendorname VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 'a0000000-0000-0000-0000-000000000001'::UUID, 'PT Vendor Tracker'::VARCHAR;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- mock function vendor lookup by plat no
+            CREATE OR REPLACE FUNCTION edcl.get_latest_gps_vendor_by_plat_no(p_plat_no VARCHAR)
+            RETURNS TABLE (
+                gpsvendorid UUID,
+                vendorname VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 'a0000000-0000-0000-0000-000000000001'::UUID, 'PT Vendor Tracker'::VARCHAR;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- mock function lpcd lookup by vendor name
+            CREATE OR REPLACE FUNCTION edcl.get_latest_lpcd_by_gps_vendor_name(p_vendor_name VARCHAR)
+            RETURNS TABLE (
+                gpsvendorid UUID,
+                lpcd VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 'a0000000-0000-0000-0000-000000000001'::UUID, 'LPCD-TEST-001'::VARCHAR;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- mock function sp_edclgps1_get_last_positions
+            CREATE OR REPLACE FUNCTION edcl.sp_edclgps1_get_last_positions(
+                p_gps_vendor_id UUID,
+                p_vendor_name VARCHAR,
+                p_plat_no VARCHAR,
+                p_device_id VARCHAR,
+                p_datetime TIMESTAMP,
+                p_created_at DATE,
+                p_page_index INT,
+                p_page_size INT
+            )
+            RETURNS TABLE (
+                id UUID,
+                gpsvendorid UUID,
+                vendorname VARCHAR,
+                platno VARCHAR,
+                deviceid VARCHAR,
+                datetime TIMESTAMP,
+                x NUMERIC,
+                y NUMERIC,
+                speed NUMERIC,
+                course NUMERIC,
+                streetname VARCHAR,
+                created_at TIMESTAMP
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    'b0000000-0000-0000-0000-000000000001'::UUID AS id,
+                    COALESCE(p_gps_vendor_id, 'a0000000-0000-0000-0000-000000000001'::UUID) AS gpsvendorid,
+                    'PT Vendor Tracker'::VARCHAR AS vendorname,
+                    COALESCE(p_plat_no, 'B1234XYZ')::VARCHAR AS platno,
+                    'DEV-001'::VARCHAR AS deviceid,
+                    NOW()::TIMESTAMP AS datetime,
+                    106.827153::NUMERIC AS x,
+                    -6.175392::NUMERIC AS y,
+                    45.5::NUMERIC AS speed,
+                    180.0::NUMERIC AS course,
+                    'Jl. Sudirman No. 1'::VARCHAR AS streetname,
+                    NOW()::TIMESTAMP AS created_at;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            -- mock function sp_edclgps1_get_last_positions_count
+            CREATE OR REPLACE FUNCTION edcl.sp_edclgps1_get_last_positions_count(
+                p_gps_vendor_id UUID,
+                p_vendor_name VARCHAR,
+                p_plat_no VARCHAR,
+                p_device_id VARCHAR,
+                p_datetime TIMESTAMP,
+                p_created_at DATE
+            )
+            RETURNS BIGINT AS $$
+            BEGIN
+                RETURN 1::BIGINT;
+            END;
+            $$ LANGUAGE plpgsql;
+        ";
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = ddlSql;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public new async Task DisposeAsync()
+    {
+        await _dbContainer.StopAsync();
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // pasang koneksi postgres test container
+        builder.UseSetting("ConnectionStrings:Database", _dbContainer.GetConnectionString());
+        builder.UseSetting("Database", _dbContainer.GetConnectionString());
+        builder.UseSetting("EnableSwagger", "true");
+    }
+
+    // helper buat dapetin npgsql datasource container pas butuh assert query langsung
+    public NpgsqlDataSource GetDataSource()
+    {
+        return Services.GetRequiredService<NpgsqlDataSource>();
+    }
+}
