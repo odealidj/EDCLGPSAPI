@@ -376,5 +376,142 @@ public class DeliveryTrackingAdoRepository(
 
         return result.Data.FirstOrDefault();
     }
+
+    // 12. daftarkan atau perbarui manifes sesi delivery aktif (Start Job)
+    public async Task<DeliveryTrackingSession> StartDeliverySessionAsync(
+        DeliveryTrackingSession session,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            INSERT INTO edcl.t_delivery_tracking_session (
+                id, delivery_no, lpcd, vendor_id, match_key, match_value,
+                clean_match_value, driver_ktp, status, started_at, is_deleted, created_at, created_by
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, 'STARTED', CURRENT_TIMESTAMP, false, CURRENT_TIMESTAMP, 'EDCL_API'
+            )
+            ON CONFLICT (delivery_no)
+            DO UPDATE SET
+                lpcd              = EXCLUDED.lpcd,
+                vendor_id         = EXCLUDED.vendor_id,
+                match_key         = EXCLUDED.match_key,
+                match_value       = EXCLUDED.match_value,
+                clean_match_value = EXCLUDED.clean_match_value,
+                driver_ktp        = COALESCE(EXCLUDED.driver_ktp, edcl.t_delivery_tracking_session.driver_ktp),
+                status            = 'STARTED',
+                started_at        = CURRENT_TIMESTAMP,
+                arrived_at        = NULL,
+                completed_at      = NULL,
+                is_deleted        = false,
+                last_modified     = CURRENT_TIMESTAMP,
+                last_modified_by  = 'EDCL_API'
+            RETURNING id, started_at;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Uuid, session.Id == Guid.Empty ? Guid.NewGuid() : session.Id);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, session.DeliveryNo.Trim().ToUpperInvariant());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, session.Lpcd.Trim().ToUpperInvariant());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Uuid, (object?)session.VendorId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, session.MatchKey);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, session.MatchValue);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, session.CleanMatchValue);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, (object?)session.DriverKtp ?? DBNull.Value);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            session.Id = reader.GetGuid(0);
+            session.StartedAt = reader.GetDateTime(1);
+        }
+
+        return session;
+    }
+
+    // 13. ambil manifes sesi delivery berdasarkan nomor delivery order
+    public async Task<DeliveryTrackingSession?> GetDeliverySessionByDeliveryNoAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT id, delivery_no, lpcd, vendor_id, match_key, match_value,
+                   clean_match_value, driver_ktp, status, started_at, arrived_at,
+                   destination_geofence_id, completed_at, completed_by, completion_source, is_deleted
+            FROM edcl.t_delivery_tracking_session
+            WHERE delivery_no = $1 AND is_deleted = false
+            LIMIT 1;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo.Trim().ToUpperInvariant());
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return reader.MapToDeliveryTrackingSession();
+        }
+
+        return null;
+    }
+
+    // 14. selesaikan sesi delivery (Complete Job)
+    public async Task<DeliveryTrackingSession?> CompleteDeliverySessionAsync(
+        string deliveryNo,
+        string? completedBy = null,
+        string? source = null,
+        decimal? latitude = null,
+        decimal? longitude = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE edcl.t_delivery_tracking_session
+            SET status               = 'COMPLETED',
+                completed_at         = CURRENT_TIMESTAMP,
+                completed_by         = $2,
+                completion_source    = $3,
+                last_modified        = CURRENT_TIMESTAMP,
+                last_modified_by     = $2
+            WHERE delivery_no = $1 AND is_deleted = false
+            RETURNING id, delivery_no, lpcd, vendor_id, match_key, match_value,
+                      clean_match_value, driver_ktp, status, started_at, arrived_at,
+                      destination_geofence_id, completed_at, completed_by, completion_source, is_deleted;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo.Trim().ToUpperInvariant());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, (object?)completedBy ?? "System");
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, (object?)source ?? "MANUAL_MOBILE");
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return reader.MapToDeliveryTrackingSession();
+        }
+
+        return null;
+    }
+
+    // 15. ambil daftar sesi delivery aktif
+    public async Task<IReadOnlyList<DeliveryTrackingSession>> GetActiveDeliverySessionsAsync(
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT id, delivery_no, lpcd, vendor_id, match_key, match_value,
+                   clean_match_value, driver_ktp, status, started_at, arrived_at,
+                   destination_geofence_id, completed_at, completed_by, completion_source, is_deleted
+            FROM edcl.t_delivery_tracking_session
+            WHERE status IN ('STARTED', 'IN_TRANSIT') AND is_deleted = false
+            ORDER BY started_at DESC
+            LIMIT $1;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, limit <= 0 ? 100 : limit);
+
+        var sessions = new List<DeliveryTrackingSession>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            sessions.Add(reader.MapToDeliveryTrackingSession());
+        }
+
+        return sessions;
+    }
 }
 

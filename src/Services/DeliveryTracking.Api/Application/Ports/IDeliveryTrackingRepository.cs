@@ -61,5 +61,29 @@ public interface IDeliveryTrackingRepository
     Task<LastPositionDto?> GetLastPositionByPlatNoFromDbAsync(
         string platNo,
         CancellationToken cancellationToken = default);
+
+    // simpan / daftarkan sesi pelacakan pengiriman baru (Start Job)
+    Task<DeliveryTrackingSession> StartDeliverySessionAsync(
+        DeliveryTrackingSession session,
+        CancellationToken cancellationToken = default);
+
+    // ambil sesi pelacakan pengiriman berdasarkan nomor do
+    Task<DeliveryTrackingSession?> GetDeliverySessionByDeliveryNoAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default);
+
+    // selesaikan sesi pelacakan pengiriman (Complete Job)
+    Task<DeliveryTrackingSession?> CompleteDeliverySessionAsync(
+        string deliveryNo,
+        string? completedBy = null,
+        string? source = null,
+        decimal? latitude = null,
+        decimal? longitude = null,
+        CancellationToken cancellationToken = default);
+
+    // ambil daftar sesi pelacakan pengiriman aktif
+    Task<IReadOnlyList<DeliveryTrackingSession>> GetActiveDeliverySessionsAsync(
+        int limit = 100,
+        CancellationToken cancellationToken = default);
 }
 

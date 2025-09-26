@@ -65,6 +65,69 @@ public class DeliveryTrackingApiFactory : WebApplicationFactory<Program>, IAsync
                 last_modified_by VARCHAR(50) DEFAULT 'System'
             );
 
+            -- master vendor gps
+            CREATE TABLE IF NOT EXISTS edcl.m_gps_vendor (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                vendor_code VARCHAR(50) UNIQUE NOT NULL,
+                vendor_name VARCHAR(150) NOT NULL,
+                protocol_type VARCHAR(50) NOT NULL DEFAULT 'REST_API',
+                timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Jakarta',
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                version INT NOT NULL DEFAULT 1,
+                processing_strategy VARCHAR(50) NOT NULL DEFAULT 'Individual',
+                processing_strategy_path_data VARCHAR(255) NULL,
+                processing_strategy_path_key VARCHAR(255) NULL,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_by VARCHAR(50) DEFAULT 'System',
+                last_modified TIMESTAMP WITHOUT TIME ZONE NULL,
+                last_modified_by VARCHAR(50) NULL,
+                is_deleted BOOLEAN NOT NULL DEFAULT false
+            );
+
+            -- master vendor lpcd
+            CREATE TABLE IF NOT EXISTS edcl.m_gps_vendor_lpcd (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                vendor_id UUID NOT NULL REFERENCES edcl.m_gps_vendor(id) ON DELETE CASCADE,
+                lpcd VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_by VARCHAR(50) DEFAULT 'System',
+                last_modified TIMESTAMP WITHOUT TIME ZONE NULL,
+                last_modified_by VARCHAR(50) NULL
+            );
+
+            -- delivery tracking session
+            CREATE TABLE IF NOT EXISTS edcl.t_delivery_tracking_session (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                delivery_no VARCHAR(50) UNIQUE NOT NULL,
+                lpcd VARCHAR(20) NOT NULL,
+                vendor_id UUID NULL REFERENCES edcl.m_gps_vendor(id),
+                match_key VARCHAR(50) NOT NULL DEFAULT 'PlatNo',
+                match_value VARCHAR(100) NOT NULL,
+                clean_match_value VARCHAR(100) NOT NULL,
+                driver_ktp VARCHAR(50) NULL,
+                status VARCHAR(30) NOT NULL DEFAULT 'STARTED',
+                started_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                arrived_at TIMESTAMP WITHOUT TIME ZONE NULL,
+                destination_geofence_id UUID NULL,
+                completed_at TIMESTAMP WITHOUT TIME ZONE NULL,
+                completed_by VARCHAR(50) NULL,
+                completion_source VARCHAR(50) NULL,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_by VARCHAR(50) DEFAULT 'System',
+                last_modified TIMESTAMP WITHOUT TIME ZONE NULL,
+                last_modified_by VARCHAR(50) NULL,
+                is_deleted BOOLEAN NOT NULL DEFAULT false
+            );
+
+            -- seed dummy vendor AJL jika belum ada
+            INSERT INTO edcl.m_gps_vendor (id, vendor_code, vendor_name, protocol_type, timezone, is_active, version)
+            VALUES ('11111111-1111-1111-1111-111111111111', 'AJL', 'PT Anugerah Jaya Logistic', 'REST_API', 'Asia/Jakarta', true, 1)
+            ON CONFLICT (vendor_code) DO NOTHING;
+
+            INSERT INTO edcl.m_gps_vendor_lpcd (vendor_id, lpcd)
+            VALUES ('11111111-1111-1111-1111-111111111111', 'AJL')
+            ON CONFLICT DO NOTHING;
+
             -- stored procedure 1 tracking koordinat gps
             CREATE OR REPLACE FUNCTION edcl.sp_edclgps1_get_track_delivery(p_delivery_no VARCHAR, p_density INT)
             RETURNS TABLE (

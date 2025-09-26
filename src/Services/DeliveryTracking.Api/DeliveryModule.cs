@@ -35,6 +35,16 @@ public static class DeliveryModule
             options.InstanceName = "";
         });
 
+        // 3.1 registrasi multiplexer redis untuk in-memory O(1) active delivery hash lookup
+        services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+        {
+            var config = StackExchange.Redis.ConfigurationOptions.Parse(redisConnectionString);
+            config.AbortOnConnectFail = false;
+            config.ConnectRetry = 3;
+            config.ConnectTimeout = 5000;
+            return StackExchange.Redis.ConnectionMultiplexer.Connect(config);
+        });
+
         // 4. registrasi layanan kueri posisi armada (redis-first + db fallback)
         services.AddScoped<IPositionQueryService, DeliveryTracking.Infrastructure.Services.PositionQueryService>();
 

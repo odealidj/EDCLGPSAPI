@@ -124,5 +124,29 @@ public static class DataReaderExtensions
             DataSource = "PostgreSQL"
         };
     }
+
+    // pemetaan manifes sesi delivery dari data reader postgresql
+    public static DeliveryTrackingSession MapToDeliveryTrackingSession(this DbDataReader reader)
+    {
+        return new DeliveryTrackingSession
+        {
+            Id = reader.GetSafeGuid("id"),
+            DeliveryNo = reader.GetSafeString("delivery_no"),
+            Lpcd = reader.GetSafeString("lpcd"),
+            VendorId = reader.GetNullableGuid("vendor_id"),
+            MatchKey = reader.HasColumn("match_key") ? reader.GetSafeString("match_key") : "PlatNo",
+            MatchValue = reader.HasColumn("match_value") ? reader.GetSafeString("match_value") : string.Empty,
+            CleanMatchValue = reader.HasColumn("clean_match_value") ? reader.GetSafeString("clean_match_value") : string.Empty,
+            DriverKtp = reader.HasColumn("driver_ktp") ? reader.GetNullableString("driver_ktp") : null,
+            Status = reader.HasColumn("status") ? reader.GetSafeString("status") : "STARTED",
+            StartedAt = reader.HasColumn("started_at") ? (reader.GetNullableDateTime("started_at") ?? DateTime.UtcNow) : DateTime.UtcNow,
+            ArrivedAt = reader.HasColumn("arrived_at") ? reader.GetNullableDateTime("arrived_at") : null,
+            DestinationGeofenceId = reader.HasColumn("destination_geofence_id") ? reader.GetNullableGuid("destination_geofence_id") : null,
+            CompletedAt = reader.HasColumn("completed_at") ? reader.GetNullableDateTime("completed_at") : null,
+            CompletedBy = reader.HasColumn("completed_by") ? reader.GetNullableString("completed_by") : null,
+            CompletionSource = reader.HasColumn("completion_source") ? reader.GetNullableString("completion_source") : null,
+            IsDeleted = reader.HasColumn("is_deleted") && reader.GetBoolean(reader.GetOrdinal("is_deleted"))
+        };
+    }
 }
 

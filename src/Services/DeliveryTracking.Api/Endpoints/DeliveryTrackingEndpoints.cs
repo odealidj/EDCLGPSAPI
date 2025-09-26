@@ -2,8 +2,12 @@ using Carter;
 using DeliveryTracking.Application.DTOs;
 using DeliveryTracking.Application.UseCases.BulkInsertDeliveryProgress;
 using DeliveryTracking.Application.UseCases.BulkInsertGpsDelivery;
+using DeliveryTracking.Application.UseCases.CompleteDeliveryJob;
 using DeliveryTracking.Application.UseCases.DeleteDeliveryProgress;
+using DeliveryTracking.Application.UseCases.GetActiveDeliverySessions;
 using DeliveryTracking.Application.UseCases.GetDeliveryProgress;
+using DeliveryTracking.Application.UseCases.GetDeliverySession;
+using DeliveryTracking.Application.UseCases.StartDeliveryJob;
 using DeliveryTracking.Application.UseCases.TrackDelivery;
 using DeliveryTracking.Application.UseCases.UpsertDeliveryProgress;
 using MediatR;
@@ -101,5 +105,84 @@ public class DeliveryTrackingEndpoints : ICarterModule
         .Produces<DeleteDeliveryProgressResult>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Hapus status progres pengiriman berdasarkan nomor DO");
+
+        // 7. POST /api/v1/deliveries/start-job (Start Job dari Mobile via EDCL_API)
+        group.MapPost("/start-job", async (StartDeliveryJobRequestDto request, ISender sender) =>
+        {
+            var result = await sender.Send(new StartDeliveryJobCommand(request));
+            return Results.Ok(result);
+        })
+        .WithName("StartDeliveryJob")
+        .Produces<StartDeliveryJobResultDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .WithSummary("Mulai sesi pelacakan GPS pengiriman armada (Start Job dipanggil oleh EDCL_API saat supir klik Start Job di Mobile App)")
+        .WithDescription("Menerima DeliveryNo, Lpcd, Key (kunci mapping: PlatNo, VehicleId, Imei, DriverKtp), dan Val (nilai kunci). Menyimpan sesi ke PostgreSQL (edcl.t_delivery_tracking_session) dan mendaftarkan pemetaan in-memory ke Redis RAM untuk korelasi O(1).");
+
+        // 8. POST /api/v1/deliveries/complete-job (Complete Job dari Mobile via EDCL_API)
+        group.MapPost("/complete-job", async (CompleteDeliveryJobRequestDto request, ISender sender) =>
+        {
+            var result = await sender.Send(new CompleteDeliveryJobCommand(request));
+            return Results.Ok(result);
+        })
+        .WithName("CompleteDeliveryJob")
+        .Produces<CompleteDeliveryJobResultDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .WithSummary("Selesaikan sesi pelacakan GPS pengiriman armada (Complete Job)");
+
+        // 9. GET /api/v1/deliveries/session/{deliveryNo}
+        group.MapGet("/session/{deliveryNo}", async (string deliveryNo, ISender sender) =>
+        {
+            var result = await sender.Send(new GetDeliverySessionQuery(deliveryNo));
+            return Results.Ok(result);
+        })
+        .WithName("GetDeliverySession")
+        .Produces<DeliveryTrackingSessionDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Ambil detail status sesi pelacakan pengiriman berdasarkan nomor DO");
+
+        // 10. GET /api/v1/deliveries/sessions/active
+        group.MapGet("/sessions/active", async (int? limit, ISender sender) =>
+        {
+            var result = await sender.Send(new GetActiveDeliverySessionsQuery(limit ?? 100));
+            return Results.Ok(result);
+        })
+        .WithName("GetActiveDeliverySessions")
+        .Produces<IReadOnlyList<DeliveryTrackingSessionDto>>(StatusCodes.Status200OK)
+        .WithSummary("Ambil daftar seluruh sesi pelacakan pengiriman yang sedang aktif (STARTED / IN_TRANSIT)");
+
+        // --- Alias Routes untuk kesesuaian spesifikasi /api/v1/delivery-session/* ---
+        var sessionGroup = app.MapGroup("/api/v1/delivery-session")
+            .WithTags("Delivery Sessions");
+
+        sessionGroup.MapPost("/start", async (StartDeliveryJobRequestDto request, ISender sender) =>
+        {
+            var result = await sender.Send(new StartDeliveryJobCommand(request));
+            return Results.Ok(result);
+        })
+        .WithName("StartDeliverySessionAlias")
+        .Produces<StartDeliveryJobResultDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .WithSummary("Alias: Mulai sesi pelacakan GPS pengiriman armada (Start Job)");
+
+        sessionGroup.MapPost("/complete", async (CompleteDeliveryJobRequestDto request, ISender sender) =>
+        {
+            var result = await sender.Send(new CompleteDeliveryJobCommand(request));
+            return Results.Ok(result);
+        })
+        .WithName("CompleteDeliverySessionAlias")
+        .Produces<CompleteDeliveryJobResultDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Alias: Selesaikan sesi pelacakan GPS pengiriman armada (Complete Job)");
+
+        sessionGroup.MapGet("/{deliveryNo}", async (string deliveryNo, ISender sender) =>
+        {
+            var result = await sender.Send(new GetDeliverySessionQuery(deliveryNo));
+            return Results.Ok(result);
+        })
+        .WithName("GetDeliverySessionAlias")
+        .Produces<DeliveryTrackingSessionDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Alias: Ambil status sesi pelacakan pengiriman berdasarkan nomor DO");
     }
 }
