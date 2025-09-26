@@ -23,12 +23,13 @@ public class GetVendorsHandler(IVendorMasterRepository repository)
     public async Task<GetVendorsResult> Handle(GetVendorsQuery query, CancellationToken cancellationToken)
     {
         var p = query.Params;
+        var normalizedPageIndex = p.PageIndex < 1 ? 1 : p.PageIndex;
 
         // load vendor dari db terpaginasi
         var vendors = await repository.GetVendorsAsync(
             p.Id,
             p.VendorName,
-            p.PageIndex,
+            normalizedPageIndex,
             p.PageSize,
             asNoTracking: true,
             cancellationToken: cancellationToken);
@@ -104,7 +105,7 @@ public class GetVendorsHandler(IVendorMasterRepository repository)
         }).ToList();
 
         var paginatedResult = new PaginatedResult<VendorDto>(
-            p.PageIndex,
+            normalizedPageIndex,
             p.PageSize,
             totalCount,
             dtos);

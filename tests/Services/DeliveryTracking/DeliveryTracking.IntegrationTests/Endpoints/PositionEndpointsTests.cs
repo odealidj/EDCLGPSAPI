@@ -38,6 +38,9 @@ public class PositionEndpointsTests(DeliveryTrackingApiFactory factory) : IClass
         var paginated = await response.Content.ReadFromJsonAsync<PaginatedPositionResponse>();
         paginated.Should().NotBeNull();
         paginated!.Count.Should().Be(1);
+        paginated.PageIndex.Should().Be(1);
+        paginated.Next.Should().BeFalse();
+        paginated.Prev.Should().BeFalse();
         paginated.Data.Should().NotBeEmpty();
         paginated.Data.First().PlatNo.Should().Be("B1234XYZ");
     }

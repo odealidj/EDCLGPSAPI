@@ -371,7 +371,7 @@ public class DeliveryTrackingAdoRepository(
         CancellationToken cancellationToken = default)
     {
         var result = await QueryPositionsFromDbAsync(
-            new LastPositionRequest(PlatNo: platNo, PageIndex: 0, PageSize: 1),
+            new LastPositionRequest(PlatNo: platNo, PageIndex: 1, PageSize: 1),
             cancellationToken);
 
         return result.Data.FirstOrDefault();

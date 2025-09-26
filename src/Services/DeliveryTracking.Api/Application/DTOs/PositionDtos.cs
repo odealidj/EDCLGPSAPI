@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DeliveryTracking.Application.DTOs;
 
 // request parameter untuk filter kueri posisi kendaraan (aot-ready record)
@@ -8,7 +10,7 @@ public record LastPositionRequest(
     string? DeviceId = null,
     DateTime? Datetime = null,
     DateTime? CreatedAt = null,
-    int PageIndex = 0,
+    int PageIndex = 1,
     int PageSize = 100
 );
 
@@ -31,9 +33,46 @@ public class LastPositionDto
 }
 
 // respon paginasi untuk daftar posisi kendaraan
-public record PaginatedPositionResponse(
-    int PageIndex,
-    int PageSize,
-    long Count,
-    IReadOnlyList<LastPositionDto> Data
-);
+public record PaginatedPositionResponse
+{
+    public int PageIndex { get; init; } = 1;
+    public int PageSize { get; init; } = 10;
+    public long Count { get; init; }
+    public bool Next { get; init; }
+    public bool Prev { get; init; }
+    public IReadOnlyList<LastPositionDto> Data { get; init; } = Array.Empty<LastPositionDto>();
+
+    public PaginatedPositionResponse() { }
+
+    [JsonConstructor]
+    public PaginatedPositionResponse(
+        int PageIndex,
+        int PageSize,
+        long Count,
+        bool Next,
+        bool Prev,
+        IReadOnlyList<LastPositionDto> Data)
+    {
+        this.PageIndex = PageIndex < 1 ? 1 : PageIndex;
+        this.PageSize = PageSize;
+        this.Count = Count;
+        this.Next = Next;
+        this.Prev = Prev;
+        this.Data = Data ?? Array.Empty<LastPositionDto>();
+    }
+
+    public PaginatedPositionResponse(
+        int PageIndex,
+        int PageSize,
+        long Count,
+        IReadOnlyList<LastPositionDto> Data)
+        : this(
+            PageIndex,
+            PageSize,
+            Count,
+            (long)(PageIndex < 1 ? 1 : PageIndex) * PageSize < Count,
+            (PageIndex < 1 ? 1 : PageIndex) > 1,
+            Data)
+    {
+    }
+}

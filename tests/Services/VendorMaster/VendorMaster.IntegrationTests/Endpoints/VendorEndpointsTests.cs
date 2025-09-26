@@ -92,7 +92,23 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<VendorDto>>();
         result.Should().NotBeNull();
-        result!.Data.Should().Contain(x => x.VendorCode == vendorCode);
+        result!.PageIndex.Should().Be(1);
+        result.Data.Should().Contain(x => x.VendorCode == vendorCode);
+    }
+
+    [Fact]
+    public async Task Get_VendorsDefaultPagination_HarusReturnPageIndex1DanNextPrevMetadata()
+    {
+        // act
+        var response = await _client.GetAsync("/api/v1/vendors");
+
+        // assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<VendorDto>>();
+        result.Should().NotBeNull();
+        result!.PageIndex.Should().Be(1);
+        result.PageSize.Should().Be(10);
+        result.Prev.Should().BeFalse();
     }
 
     [Fact]

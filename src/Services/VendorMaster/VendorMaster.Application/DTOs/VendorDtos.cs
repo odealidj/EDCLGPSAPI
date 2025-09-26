@@ -240,7 +240,7 @@ public class VendorLpcdDto
 public record GetVendorsDto(
     Guid? Id = null,
     string? VendorName = null,
-    int PageIndex = 0,
+    int PageIndex = 1,
     int PageSize = 10
 );
 

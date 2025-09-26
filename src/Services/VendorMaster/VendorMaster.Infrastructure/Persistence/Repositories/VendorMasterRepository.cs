@@ -25,10 +25,12 @@ public class VendorMasterRepository(
         if (asNoTracking)
             query = query.AsNoTracking();
 
+        var skipCount = (pageIndex <= 1 ? 0 : pageIndex - 1) * pageSize;
+
         return await query
             .OrderBy(x => x.VendorName)
             .ThenBy(x => x.Id)
-            .Skip(pageIndex * pageSize)
+            .Skip(skipCount)
             .Take(pageSize)
             .Include(x => x.GpsVendorEndpoints)
             .Include(x => x.GpsVendorAuth)
