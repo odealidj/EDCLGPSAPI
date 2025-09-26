@@ -186,6 +186,49 @@ graph TD
   - **Payload Hash Guard**: Memverifikasi SHA-256 payload body. Jika key dipakai ulang untuk isi yang berbeda, sistem mengembalikan status `422 Unprocessable Entity`.
   - **Instant Cached Replay**: Request ulang dengan payload yang sama langsung dikembalikan dari cache Redis (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
 
+- **Event-Driven Messaging & Resilient Queuing (RabbitMQ / Amazon MQ)**:
+  Arsitektur perpesanan telemetri armada mengandalkan **RabbitMQ 3.13 / Amazon MQ** untuk menjamin isolasi beban kerja (*decoupled workload*) dan keandalan tinggi:
+  - **AMQP Topic Exchange (`gps.vendor.*`)**: Seluruh sinyal telemetri yang berhasil di-fetch dialirkan ke topic exchange untuk dikonsumsi secara paralel oleh layanan analitik, geofencing, dan downstream listener.
+  - **Penyangga Lonjakan Beban (*Queue Buffering*)**: Mampu meredam lonjakan ribuan koordinat per detik saat jam sibuk pengiriman logistik tanpa membebani thread pool pemroses.
+  - **Dead-Letter Exchange (DLX) & Retry Strategy**: Pesan yang gagal diproses diarahkan ke dead-letter exchange dan antrean `gps.dlq` dengan kebijakan *exponential backoff retry* guna memastikan **zero message loss**.
+  - **Event-Driven Autoscaling (KEDA / ECS Scaling)**: Consumer worker dapat diskalakan secara otomatis berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`).
+
+- **Distributed Tracing & Metrik Real-Time (OpenTelemetry, Prometheus & Grafana)**:
+  Platform dilengkapi observabilitas penuh dari hulu ke hilir untuk mendeteksi *bottleneck* performa secara dini:
+  - **W3C Distributed Tracing**: Menggunakan **OpenTelemetry .NET SDK** yang meneruskan header `traceparent`, `X-Trace-Id`, dan `X-Correlation-Id` melintasi `ApiGateway` -> `VendorMaster` / `DeliveryTracking` -> `GpsCollector` -> RabbitMQ. Jejak eksekusi terdistribusi dapat diinspeksi secara visual melalui Jaeger atau AWS X-Ray.
+  - **Prometheus Metrics Scraper (`/metrics`)**: Mengekspos metrik standar Prometheus yang siap di-scrape secara berkala:
+    * `gps_collector_poll_duration_seconds`: Histogram durasi waktu eksekusi polling per vendor.
+    * `gps_collector_records_ingested_total`: Counter total koordinat telemetri yang berhasil di-ingest ke database.
+    * `gps_vendor_http_requests_total` & `gps_vendor_failures_total`: Rasio keberhasilan dan kegagalan pemanggilan HTTP vendor.
+    * `delivery_tracking_positions_read_total`: Volume kueri pelacakan posisi live armada.
+    * `process_cpu_usage`, `dotnet_gc_allocated_bytes_total`: Kesehatan runtime .NET.
+  - **Grafana Live Dashboard**: Menampilkan visualisasi kesehatan vendor telematika, tren latensi respons, throughput penyerapan koordinat, dan resource container.
+  - **Seq Centralized Structured Logging**: Log terpusat berbasis JSON terstruktur yang mempercepat investigasi insiden logistik melalui korelasi `TraceId`, `DeliveryNo`, `PlateNo`, dan `VendorId`.
+
+- **Observabilitas Telemetri: Katalog Skema Database Riil & Endpoint Transaksional**:
+  Sistem memetakan seluruh operasi data secara transparan ke dalam tabel relasional, dokumen NoSQL, dan REST API resmi:
+  - **Tabel Relasional PostgreSQL (Skema `edcl`)**:
+    * `edcl.m_gps_api_log`: Catatan audit trail histori panggilan HTTP vendor (status kode, latensi, dan klasifikasi error Kategori 1/2).
+    * `edcl.m_gps_vendor`, `edcl.m_gps_vendor_endpoint`, `edcl.m_gps_vendor_auth`, `edcl.m_gps_vendor_mapping`: Konfigurasi dinamis dan kamus pemetaan respons vendor.
+    * `edcl.t_delivery_tracking_session`: Sesi aktif perjalanan armada truk (`STARTED`, `IN_TRANSIT`, `COMPLETED`).
+    * `edcl.t_delivery_latest_position`: Snapshot koordinat terkini per pengiriman armada untuk kueri cepat.
+    * `edcl.t_delivery_position_history`: Tabel partisi bulanan rekam jejak koordinat historis (misal: `t_delivery_position_history_y2025m09`).
+    * `edcl.t_delivery_geofence_log`: Log event deteksi keluar-masuk radius geofence area logistik/plant.
+  - **Koleksi Dokumen NoSQL MongoDB**:
+    * `gps_raw_responses`: Arsip payload JSON mentah asli vendor dengan indeks TTL otomatis 30 hari.
+    * `gps_audit_logs`: Log insiden dan peringatan sistem dengan indeks TTL otomatis 90 hari.
+  - **Endpoint REST API Riil**:
+    * `GET /api/v1/deliveries/raw-responses`: Kueri inspeksi payload mentah asli vendor di MongoDB dengan filter dan paginasi.
+    * `GET /api/v1/deliveries/raw-responses/{id}`: Detail dokumen JSON mentah spesifik.
+    * `GET /api/v1/deliveries/{deliveryNo}/track`: Tracking posisi live armada terkini (< 1ms via Redis, fallback PostgreSQL).
+    * `GET /api/v1/deliveries/{deliveryNo}/positions`: Riwayat koordinat rute perjalanan armada.
+    * `POST /api/v1/deliveries/start-job` & `POST /api/v1/deliveries/complete-job`: Manajemen siklus hidup sesi delivery.
+    * `GET /api/v1/vendors`: Daftar master seluruh vendor telematika yang terdaftar.
+    * `GET /api/v1/vendors/active`: Daftar vendor aktif yang disimpan permanen di cache Redis.
+    * `POST /api/v1/vendors/cache/refresh`: Pemicu manual rehidrasi cache vendor Redis dari PostgreSQL.
+    * `GET /metrics`: Endpoint scraping metrik Prometheus.
+    * `GET /hc`: Health check status gateway dan keterhubungan upstream services.
+
 ---
 
 ## 🧪 Strategi Pengujian Menyeluruh (Testing Pyramid)
@@ -438,7 +481,112 @@ $$\mathbf{Total\ Full\text{-}Stack\ Memory\ Footprint} \approx \mathbf{2.14\text
 #### 🖥️ Rekomendasi Spesifikasi Server Fisik / Cloud VM:
 * 🟢 **Min Dev / UAT Single Node**: **`4 GB RAM (2 vCPU)`** *(Sangat lega untuk menjalankan seluruh Docker Compose)*.
 * 🚀 **Production Enterprise Single Node**: **`8 GB RAM (4 vCPU)`** *(Headroom lega untuk traffic spike jutaan koordinat)*.
-* ☁️ **Cloud Multi-Server Tier (AWS EKS)**: **`Gateway 0.25 vCPU/0.5GB · Services 0.5 vCPU/1GB · DB RDS PostgreSQL 2-4 vCPU/8GB`**.
+* ☁️ **Cloud Multi-Server Tier (AWS ECS Fargate / EKS)**: **`Gateway 0.25 vCPU/0.5GB · Services 0.5 vCPU/1GB · DB RDS PostgreSQL 2-4 vCPU/8GB`**.
+
+---
+
+## ☁️ Arsitektur Penerapan di Produksi AWS (AWS Cloud Native Architecture)
+
+Pada tingkatan *enterprise production*, seluruh platform **EDCL GPS API** diimplementasikan di atas ekosistem **Amazon Web Services (AWS)** dengan mengedepankan model arsitektur *serverless container*, isolasi VPC multi-tier, dan managed database berstandar SLA tinggi:
+
+```mermaid
+flowchart TD
+    classDef client fill:#1e293b,stroke:#475569,stroke-width:2px,color:#fff;
+    classDef ingress fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff;
+    classDef compute fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff;
+    classDef db fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef mq fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff;
+
+    Clients["📱 Driver Mobile Apps / 🖥️ Web Admin TMMIN"]:::client
+    ALB["⚖️ AWS Application Load Balancer (ALB)<br/>(ACM TLS 1.3 · WAF · Target Group IP Routing)"]:::ingress
+
+    subgraph "AWS ECS on AWS Fargate (Serverless Container Tier - Private Subnet)"
+        ECR[("📦 Amazon ECR<br/>(.NET 10 Native AOT 33MB Image)")]:::compute
+        TaskGateway["⚡ ApiGateway Task<br/>(0.25 vCPU / 0.5 GB · YARP Reverse Proxy)"]:::compute
+        TaskVendor["🏢 VendorMaster Task<br/>(0.5 vCPU / 1 GB · Hexagonal Domain)"]:::compute
+        TaskTracking["🚚 DeliveryTracking Task<br/>(0.5 vCPU / 1 GB · Redis-First Live View)"]:::compute
+        TaskCollector["🛰️ GpsCollector Worker Task<br/>(0.5 vCPU / 1 GB · Anti-Bot · Distributed Lock)"]:::compute
+    end
+
+    subgraph "AWS Managed Data & Messaging Tier (Private Isolated Subnet)"
+        RDS[("🐘 Amazon RDS for PostgreSQL 16<br/>(Multi-AZ · Monthly Partitions · Binary COPY)")]:::db
+        ElastiCache[("🔴 Amazon ElastiCache for Redis 7.2<br/>(Cluster Multi-AZ · Auto-Failover · Sub-ms Cache)")]:::db
+        DocDB[("🍃 Amazon DocumentDB / MongoDB Atlas<br/>(TTL 30 Hari Raw Payloads · AWS PrivateLink)")]:::db
+        AmazonMQ[("🐰 Amazon MQ for RabbitMQ<br/>(Clustered Multi-AZ · AMQP 5671 TLS · DLX/DLQ)")]:::mq
+    end
+
+    Clients -->|"HTTPS 443"| ALB
+    ALB --> TaskGateway
+    TaskGateway -->|"Forward /api/v1/vendors/*"| TaskVendor
+    TaskGateway -->|"Forward /api/v1/deliveries/*"| TaskTracking
+    TaskGateway -->|"Forward /api/v1/positions/*"| TaskTracking
+
+    TaskVendor -->|"Master CRUD"| RDS
+    TaskVendor -->|"Sync Active Cache"| ElastiCache
+
+    TaskTracking -->|"1. Live Query <1ms"| ElastiCache
+    TaskTracking -->|"2. Route Replay Fallback"| RDS
+    TaskTracking -->|"3. Query Raw JSON"| DocDB
+
+    TaskCollector -->|"Binary COPY Ingestion"| RDS
+    TaskCollector -->|"Live Snapshot & Leader Lock"| ElastiCache
+    TaskCollector -->|"Archive Raw JSON Payload"| DocDB
+    TaskCollector -->|"Publish Telemetry Events"| AmazonMQ
+    AmazonMQ -->|"Consume Queued Signals"| TaskTracking
+```
+
+### 1. 📦 Container Registry & Serverless Compute
+* **Amazon ECR (Elastic Container Registry)**:
+  Menyimpan image container OCI berbasis **.NET 10 Native AOT Chiseled** dengan ukuran ultra-ringan (**33 MB**), bebas kerentanan sistem operasi (*zero CVE attack surface*).
+* **Amazon ECS (Elastic Container Service) with AWS Fargate**:
+  Menjalankan container microservices secara *serverless* tanpa beban pengelolaan, *patching*, atau *provisioning* server EC2 fisik:
+  - `edcl-api-gateway`: 0.25 vCPU, 0.5 GB RAM (Target Group ALB, auto-scaling horizontal).
+  - `vendor-master-svc`: 0.5 vCPU, 1.0 GB RAM (Core master data & geofence).
+  - `delivery-tracking-svc`: 0.5 vCPU, 1.0 GB RAM (Kueri armada sub-millisecond).
+  - `gps-collector-svc`: 0.5 vCPU, 1.0 GB RAM (Background ingestion worker dengan *Distributed Leader Election*).
+
+### 2. 🐘 Database Relasional: Amazon RDS PostgreSQL 16 (Multi-AZ)
+* **Ketersediaan Tinggi**: Menerapkan konfigurasi *Multi-AZ Deployment* dengan replikasi sinkron ke *standby instance* di Availability Zone berbeda untuk mencegah *single point of failure*.
+* **Partisi Bulanan (*Monthly Range Partitioning*)**: Tabel `edcl.t_delivery_position_history` terpartisi otomatis per bulan (misal `t_delivery_position_history_y2025m09`), menjaga performa indeks B-Tree dan BRIN tetap stabil meski menampung ratusan juta titik koordinat.
+* **Protokol Binary COPY**: Ingestion dari ECS Fargate worker menggunakan soket biner langsung (`NpgsqlBinaryImporter`) dengan *throughput* > 54.000 records/detik.
+
+### 3. 🍃 Database NoSQL: MongoDB di Lingkungan AWS
+Banyak pengembang menanyakan: **"Bagaimana implementasi MongoDB di AWS pada skala enterprise?"**
+
+```text
+  [Fase Awal / PoC]                               [Fase Produksi Enterprise]
+Self-Hosted di Amazon EC2   ====== Migrasi =====>   Opsi 1: Amazon DocumentDB (Native AWS Managed)
+(EBS gp3 Storage, Single VM)                         Opsi 2: MongoDB Atlas on AWS (via AWS PrivateLink)
+```
+
+1. **Fase Awal (Development / PoC / Data Kecil)**:
+   - Dijalankan secara *self-hosted* pada instance **Amazon EC2** tunggal dengan volume **Amazon EBS gp3**.
+   - Cukup hemat untuk kebutuhan awal, namun memiliki keterbatasan operasional: *failover* manual, *backup* manual, dan risiko *downtime* saat volume data membesar.
+2. **Fase Produksi Enterprise (2 Opsi Layanan Managed AWS)**:
+   * **Opsi 1 (Native AWS Fully-Managed): Amazon DocumentDB (with MongoDB compatibility)**:
+     - **Keunggulan**: Layanan resmi buatan AWS yang 100% kompatibel dengan MongoDB API.
+     - **Arsitektur Penyimpanan Terdistribusi**: Data direplikasi secara otomatis sebanyak 6 arah (6-way replication) melintasi 3 Availability Zones (AZ).
+     - **Penskalaan Otomatis**: Storage bertambah dinamis hingga 128 TiB tanpa *downtime* dan tanpa perlu memprediksi kapasitas di awal (*zero capacity planning*).
+     - **Integrasi Penuh Ekosistem AWS**: Terhubung langsung dengan AWS KMS (enkripsi at-rest), AWS IAM, CloudWatch metrics, dan VPC Security Groups.
+     - **Kesesuaian Fitur**: Sangat ideal untuk kebutuhan koleksi `gps_raw_responses` dengan indeks TTL 30 hari dan `gps_audit_logs` TTL 90 hari.
+   * **Opsi 2 (100% Native MongoDB 7.0/8.0 Feature Parity): MongoDB Atlas on AWS via AWS PrivateLink**:
+     - **Keunggulan**: Layanan resmi dari pembuat MongoDB (MongoDB Inc.) yang di-host di region AWS terdekat (misal: Region Jakarta `ap-southeast-3` atau Singapore `ap-southeast-1`).
+     - **Koneksi Privat Aman**: Terhubung ke AWS VPC privat melalui **AWS PrivateLink** (lalu lintas data tidak pernah keluar ke internet publik).
+     - **Fitur Penuh**: Memberikan 100% paritas fitur MongoDB versi 7.0+, termasuk *native Time-Series collections*, *TTL indexes*, dan *Change Streams*.
+     - **Konsolidasi Billing**: Dapat dilanggan melalui **AWS Marketplace**, sehingga biaya tagihan tetap masuk ke dalam satu tagihan resmi AWS bulanan.
+
+### 4. 🐰 Message Broker: Amazon MQ for RabbitMQ
+* **Clustered Broker Multi-AZ**: Menggunakan Amazon MQ dengan engine RabbitMQ 3.13 terkelola untuk pertukaran pesan telemetri melalui Topic Exchange `gps.vendor.*`.
+* **Resiliensi Pengiriman**: Pesan yang gagal diproses secara otomatis diarahkan ke antrean `gps.dlq` (*Dead-Letter Queue*) dengan saluran aman AMQP 5671 (TLS 1.3).
+
+### 5. 🔴 In-Memory Cache: Amazon ElastiCache for Redis 7.2
+* **Multi-AZ with Auto-Failover**: Klaster Redis in-memory terkelola untuk menyediakan latensi baca posisi armada terkini `< 1 ms`.
+* **Dual-Role Caching**: Menyimpan cache konfigurasi vendor aktif secara permanen (`vendor:configs:active`) serta mengelola *Distributed Leader Election Lock* antar-worker Fargate.
+
+### 6. ⚖️ Traffic Routing & Zero-Trust Security di AWS
+* **AWS Application Load Balancer (ALB)**: Mengakhiri enkripsi SSL/TLS publik menggunakan sertifikat AWS Certificate Manager (ACM) dan meneruskan trafik ke task container di subnet privat.
+* **AWS Secrets Manager & SSM Parameter Store**: Seluruh kata sandi database, API keys vendor (Inovatrack, Muliatrack, Puninar), dan kredensial RabbitMQ disimpan terenkripsi via AWS KMS tanpa hardcode di repositori.
+* **Observabilitas Cloud**: Seluruh container ECS Fargate mengalirkan log terstruktur ke **Amazon CloudWatch Logs** dan distributed tracing ke **AWS X-Ray** / OpenTelemetry Collector.
 
 ---
 
@@ -469,15 +617,15 @@ Pengujian performa penyerapan data (*ingestion benchmark*) membuktikan efisiensi
 | **Language & Runtime** | C# / .NET | **10.0** | Runtime performa tinggi generasi terbaru dengan optimasi JIT ReadyToRun & Native AOT |
 | **API Architecture** | Clean & Hexagonal Architecture | — | Ports & Adapters pada GpsCollector dan Clean Architecture pada VendorMaster & DeliveryTracking |
 | **API Gateway** | Microsoft YARP | **2.3.0** | Reverse proxy berkecepatan tinggi, kompilasi Native AOT, rate limiter, & W3C tracing |
-| **Relational Database** | PostgreSQL | **16.x** | Database telemetri terpartisi bulanan (monthly range partitioning) dengan indeks B-Tree & BRIN |
+| **Relational Database** | PostgreSQL 16.x / Amazon RDS | **16.x** | Database telemetri terpartisi bulanan (monthly range partitioning) dengan indeks B-Tree & BRIN |
 | **High-Speed Ingestion** | Npgsql Binary COPY Stream | **9.0.3** | `NpgsqlBinaryImporter` untuk penyerapan bulk stream langsung tanpa overhead ORM |
-| **In-Memory Cache & Lock**| Redis | **7.2** | Cache snapshot posisi armada (<1ms), vendor cache permanen, dan distributed leader election lock |
-| **Document Store (Audit)**| MongoDB | **7.0** | NoSQL TTL storage untuk raw JSON response (30 hari) dan API error logs (90 hari) |
-| **Message Broker** | RabbitMQ | **3.13** | Event-driven AMQP topic exchange (`gps.vendor.*`), dead-letter exchange (DLX), & retry queue |
+| **In-Memory Cache & Lock**| Redis 7.2 / Amazon ElastiCache | **7.2** | Cache snapshot posisi armada (<1ms), vendor cache permanen, dan distributed leader election lock |
+| **Document Store (Audit)**| MongoDB 7.0 / DocumentDB / Atlas | **7.0** | NoSQL TTL storage untuk raw JSON response (30 hari) dan API error logs (90 hari) via DocumentDB / Atlas |
+| **Message Broker** | RabbitMQ 3.13 / Amazon MQ | **3.13** | Event-driven AMQP topic exchange (`gps.vendor.*`), dead-letter exchange (DLX), & retry queue |
 | **Resilience & Fault Tolerance** | Polly | **8.x** | Circuit-breaker, retry with exponential backoff, timeout, dan in-memory Bearer token rotation |
-| **Containerization** | Docker & Distroless Chiseled | **10.0** | Base image `runtime-deps:10.0-noble-chiseled` (33 MB distroless container) |
-| **Orchestration & Deploy** | Kubernetes & AWS EKS | — | Manifests K8s, Zero-Trust NetworkPolicy, KEDA auto-scaling, & AWS Terraform/eksctl |
-| **Observability & Tracing**| OpenTelemetry, Prometheus, Grafana, Seq | — | W3C distributed tracing, PromQL metrics scraping, visual dashboard, & structured log analytics |
+| **Containerization** | Docker & Distroless Chiseled | **10.0** | Base image `runtime-deps:10.0-noble-chiseled` (33 MB distroless container) di Amazon ECR |
+| **Orchestration & Deploy** | Amazon ECS (AWS Fargate) & EKS | — | Serverless container execution via AWS Fargate, K8s manifests, Zero-Trust NetworkPolicy, & KEDA |
+| **Observability & Tracing**| OpenTelemetry, Prometheus, Grafana, CloudWatch | — | W3C distributed tracing, PromQL metrics scraping, AWS X-Ray, CloudWatch Logs, & Grafana dashboard |
 | **Testing Suite** | xUnit, Moq, FluentAssertions, WebApplicationFactory | — | Full testing pyramid: 83 Unit Tests & 38 Integration Tests (121 Tests, 100% Passed) |
 
 ---
