@@ -22,6 +22,7 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
     {
         // arrange
         var vendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var lpcd = $"L_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var request = new VendorDto
         {
             VendorCode = vendorCode,
@@ -38,7 +39,7 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
             ],
             Lpcds =
             [
-                new VendorLpcdDto { Lpcd = "B1001XYZ" }
+                new VendorLpcdDto { Lpcd = lpcd }
             ],
             Mappings =
             [
@@ -68,6 +69,7 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
         saved.GpsVendorEndpoints.Should().HaveCount(1);
         saved.Mappings.Should().HaveCount(1);
         saved.Lpcds.Should().HaveCount(1);
+        saved.Lpcds.First().Lpcd.Should().Be(lpcd);
     }
 
     [Fact]
@@ -76,12 +78,14 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
         // arrange
         var vendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var vendorName = $"Vendor {vendorCode}";
+        var lpcd = $"L_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var createRequest = new VendorDto
         {
             VendorCode = vendorCode,
             VendorName = vendorName,
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd
         };
         await PostVendorAsync(createRequest);
 
@@ -94,6 +98,10 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
         result.Should().NotBeNull();
         result!.PageIndex.Should().Be(1);
         result.Data.Should().Contain(x => x.VendorCode == vendorCode);
+
+        var vendor = result.Data.First(x => x.VendorCode == vendorCode);
+        vendor.Lpcd.Should().Be(lpcd);
+        vendor.LpcdCodes.Should().Contain(lpcd);
     }
 
     [Fact]
@@ -116,12 +124,14 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
     {
         // arrange - create vendor dulu
         var vendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var lpcd = $"L_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var createResponse = await PostVendorAsync(new VendorDto
         {
             VendorCode = vendorCode,
             VendorName = "Vendor Awal",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd
         });
         var created = await createResponse.Content.ReadFromJsonAsync<CreateVendorResult>();
 
@@ -132,7 +142,8 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
             VendorCode = vendorCode,
             VendorName = "Vendor Sudah Diupdate",
             ProtocolType = ProtocolType.MQTT.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Combined.ToString()
+            ProcessingStrategy = ProcessingStrategy.Combined.ToString(),
+            Lpcd = lpcd
         };
         var updateResponse = await _client.PutAsJsonAsync("/api/v1/vendors", updateRequest);
 
@@ -140,10 +151,13 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
         updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var db = factory.CreateDbContext();
-        var updated = await db.GpsVendors.FirstOrDefaultAsync(x => x.Id == created.Id);
+        var updated = await db.GpsVendors
+            .Include(x => x.Lpcds)
+            .FirstOrDefaultAsync(x => x.Id == created.Id);
         updated.Should().NotBeNull();
         updated!.VendorName.Should().Be("Vendor Sudah Diupdate");
         updated.ProtocolType.Should().Be(ProtocolType.MQTT.ToString());
+        updated.Lpcds.Should().Contain(x => x.Lpcd == lpcd);
     }
 
     [Fact]
@@ -151,12 +165,14 @@ public class VendorEndpointsTests(VendorMasterApiFactory factory) : IClassFixtur
     {
         // arrange - create vendor
         var vendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var lpcd = $"L_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var createResponse = await PostVendorAsync(new VendorDto
         {
             VendorCode = vendorCode,
             VendorName = "Vendor Mau Dihapus",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd
         });
         var created = await createResponse.Content.ReadFromJsonAsync<CreateVendorResult>();
 

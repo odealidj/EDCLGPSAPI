@@ -7,6 +7,7 @@ public interface IVendorMasterRepository
     Task<IEnumerable<GpsVendor>> GetVendorsAsync(
         Guid? id,
         string? vendorName,
+        string? lpcd,
         int pageIndex,
         int pageSize,
         bool asNoTracking = true,
@@ -16,6 +17,19 @@ public interface IVendorMasterRepository
     Task<int> GetVendorsCountAsync(
         Guid? id,
         string? vendorName,
+        string? lpcd,
+        CancellationToken cancellationToken = default);
+
+    // cek apakah lpcd sudah terdaftar pada vendor lain
+    Task<bool> IsLpcdExistsAsync(
+        string lpcd,
+        Guid? excludeVendorId = null,
+        CancellationToken cancellationToken = default);
+
+    // ambil vendor spesifik by lpcd
+    Task<GpsVendor?> GetVendorByLpcdAsync(
+        string lpcd,
+        bool asNoTracking = true,
         CancellationToken cancellationToken = default);
 
     // ambil vendor spesifik by id lengkap dengan child relations

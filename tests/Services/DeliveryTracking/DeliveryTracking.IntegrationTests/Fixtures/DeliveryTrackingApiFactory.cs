@@ -88,7 +88,7 @@ public class DeliveryTrackingApiFactory : WebApplicationFactory<Program>, IAsync
             CREATE TABLE IF NOT EXISTS edcl.m_gps_vendor_lpcd (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 vendor_id UUID NOT NULL REFERENCES edcl.m_gps_vendor(id) ON DELETE CASCADE,
-                lpcd VARCHAR(20) NOT NULL,
+                lpcd VARCHAR(20) UNIQUE NOT NULL,
                 created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 created_by VARCHAR(50) DEFAULT 'System',
                 last_modified TIMESTAMP WITHOUT TIME ZONE NULL,

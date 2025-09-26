@@ -29,6 +29,7 @@ public class GetVendorsHandler(IVendorMasterRepository repository)
         var vendors = await repository.GetVendorsAsync(
             p.Id,
             p.VendorName,
+            p.Lpcd,
             normalizedPageIndex,
             p.PageSize,
             asNoTracking: true,
@@ -38,6 +39,7 @@ public class GetVendorsHandler(IVendorMasterRepository repository)
         var totalCount = await repository.GetVendorsCountAsync(
             p.Id,
             p.VendorName,
+            p.Lpcd,
             cancellationToken);
 
         // mapping entity ke dto

@@ -9,6 +9,7 @@ public class VendorMasterRepository(
     public async Task<IEnumerable<GpsVendor>> GetVendorsAsync(
         Guid? id,
         string? vendorName,
+        string? lpcd,
         int pageIndex,
         int pageSize,
         bool asNoTracking = true,
@@ -21,6 +22,9 @@ public class VendorMasterRepository(
 
         if (!string.IsNullOrWhiteSpace(vendorName))
             query = query.Where(x => EF.Functions.ILike(x.VendorName, $"%{vendorName.Trim()}%"));
+
+        if (!string.IsNullOrWhiteSpace(lpcd))
+            query = query.Where(x => x.Lpcds.Any(l => EF.Functions.ILike(l.Lpcd, $"%{lpcd.Trim()}%")));
 
         if (asNoTracking)
             query = query.AsNoTracking();
@@ -43,6 +47,7 @@ public class VendorMasterRepository(
     public async Task<int> GetVendorsCountAsync(
         Guid? id,
         string? vendorName,
+        string? lpcd,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.GpsVendors.AsQueryable();
@@ -53,7 +58,51 @@ public class VendorMasterRepository(
         if (!string.IsNullOrWhiteSpace(vendorName))
             query = query.Where(x => EF.Functions.ILike(x.VendorName, $"%{vendorName.Trim()}%"));
 
+        if (!string.IsNullOrWhiteSpace(lpcd))
+            query = query.Where(x => x.Lpcds.Any(l => EF.Functions.ILike(l.Lpcd, $"%{lpcd.Trim()}%")));
+
         return await query.CountAsync(cancellationToken);
+    }
+
+    // cek apakah lpcd sudah terdaftar pada vendor lain
+    public async Task<bool> IsLpcdExistsAsync(
+        string lpcd,
+        Guid? excludeVendorId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(lpcd))
+            return false;
+
+        var normalizedLpcd = lpcd.Trim().ToUpperInvariant();
+        var query = dbContext.Lpcds.AsQueryable();
+
+        if (excludeVendorId.HasValue && excludeVendorId.Value != Guid.Empty)
+            query = query.Where(x => x.VendorId != excludeVendorId.Value);
+
+        return await query.AnyAsync(x => x.Lpcd == normalizedLpcd, cancellationToken);
+    }
+
+    // ambil vendor spesifik by lpcd
+    public async Task<GpsVendor?> GetVendorByLpcdAsync(
+        string lpcd,
+        bool asNoTracking = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(lpcd))
+            return null;
+
+        var normalizedLpcd = lpcd.Trim().ToUpperInvariant();
+        var query = dbContext.GpsVendors.AsQueryable();
+
+        if (asNoTracking)
+            query = query.AsNoTracking();
+
+        return await query
+            .Include(x => x.GpsVendorEndpoints)
+            .Include(x => x.GpsVendorAuth)
+            .Include(x => x.Mappings)
+            .Include(x => x.Lpcds)
+            .FirstOrDefaultAsync(x => x.Lpcds.Any(l => l.Lpcd == normalizedLpcd), cancellationToken);
     }
 
     // ambil vendor spesifik by id

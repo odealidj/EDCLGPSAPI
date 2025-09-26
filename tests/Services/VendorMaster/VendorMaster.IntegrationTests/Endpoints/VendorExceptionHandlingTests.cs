@@ -24,12 +24,15 @@ public class VendorExceptionHandlingTests(VendorMasterApiFactory factory) : ICla
     {
         // arrange - daftarkan vendor pertama
         var vendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var lpcd1 = $"L1_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var lpcd2 = $"L2_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
         var request1 = new VendorDto
         {
             VendorCode = vendorCode,
             VendorName = "Vendor Pertama",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd1
         };
         var firstResponse = await PostVendorAsync(request1);
         firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -40,7 +43,8 @@ public class VendorExceptionHandlingTests(VendorMasterApiFactory factory) : ICla
             VendorCode = vendorCode,
             VendorName = "Vendor Kedua Mencoba Duplikat",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd2
         };
         var conflictResponse = await PostVendorAsync(request2);
 
@@ -61,6 +65,40 @@ public class VendorExceptionHandlingTests(VendorMasterApiFactory factory) : ICla
         problem.Instance.Should().Be("/api/v1/vendors");
         problem.Extensions.Should().ContainKey("traceId");
         problem.Extensions.Should().ContainKey("correlationId");
+    }
+
+    [Fact]
+    public async Task Post_LpcdSudahTerdaftarDiVendorLain_HarusReturn409ConflictDanProblemDetails()
+    {
+        // arrange
+        var lpcd = $"LSH_{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+        var request1 = new VendorDto
+        {
+            VendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant(),
+            VendorName = "Vendor Pertama",
+            ProtocolType = ProtocolType.REST_API.ToString(),
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd
+        };
+        var firstResponse = await PostVendorAsync(request1);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // act - vendor kedua mencoba mendaftarkan lpcd yang sama
+        var request2 = new VendorDto
+        {
+            VendorCode = $"VND_{Guid.NewGuid():N}"[..10].ToUpperInvariant(),
+            VendorName = "Vendor Kedua Rebut LPCD",
+            ProtocolType = ProtocolType.REST_API.ToString(),
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = lpcd
+        };
+        var conflictResponse = await PostVendorAsync(request2);
+
+        // assert
+        conflictResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await conflictResponse.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Detail.Should().Contain(lpcd);
     }
 
     [Fact]

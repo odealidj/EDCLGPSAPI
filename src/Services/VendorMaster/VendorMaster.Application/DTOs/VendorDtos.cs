@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VendorMaster.Application.DTOs;
 
 // dto utama master vendor gps (kompatibel format baru dan legacy geofencemaster)
@@ -20,23 +22,48 @@ public class VendorDto
     public List<VendorMappingDto> Mappings { get; set; } = [];
     public List<VendorLpcdDto> Lpcds { get; set; } = [];
 
-    // kompatibilitas buat request / response payload legacy geofencemaster
-    public List<VendorEndpointDto> GeofenceMasterEndpoints
+    // convenience shortcut single lpcd dan array string
+    private string? _lpcd;
+    public string? Lpcd
     {
-        get => Endpoints;
-        set => Endpoints = value ?? [];
+        get => _lpcd ?? Lpcds.FirstOrDefault()?.Lpcd;
+        set => _lpcd = value;
     }
 
+    private List<string>? _lpcdCodes;
+    public List<string> LpcdCodes
+    {
+        get => _lpcdCodes ?? Lpcds.Select(x => x.Lpcd).ToList();
+        set => _lpcdCodes = value;
+    }
+
+    // kompatibilitas buat request legacy geofencemaster (diabaikan saat serialisasi response)
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<VendorEndpointDto>? GeofenceMasterEndpoints
+    {
+        get => null;
+        set => Endpoints = (Endpoints.Count == 0 && value != null) ? value : Endpoints;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public VendorAuthDto? GeofenceMasterAuth
     {
-        get => Auth;
-        set => Auth = value;
+        get => null;
+        set => Auth ??= value;
     }
 
-    public List<VendorMappingDto> GeofenceMasterMappings
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<VendorMappingDto>? GeofenceMasterMappings
     {
-        get => Mappings;
-        set => Mappings = value ?? [];
+        get => null;
+        set => Mappings = (Mappings.Count == 0 && value != null) ? value : Mappings;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<VendorLpcdDto>? GeofenceMasterLpcds
+    {
+        get => null;
+        set => Lpcds = (Lpcds.Count == 0 && value != null) ? value : Lpcds;
     }
 
     public bool? RequiredAuth { get; set; }
@@ -240,6 +267,7 @@ public class VendorLpcdDto
 public record GetVendorsDto(
     Guid? Id = null,
     string? VendorName = null,
+    string? Lpcd = null,
     int PageIndex = 1,
     int PageSize = 10
 );

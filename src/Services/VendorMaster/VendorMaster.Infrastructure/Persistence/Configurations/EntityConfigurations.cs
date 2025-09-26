@@ -178,6 +178,7 @@ public class GpsVendorLpcdConfiguration : IEntityTypeConfiguration<GpsVendorLpcd
         builder.Property(e => e.Id).HasColumnName("id");
         builder.Property(e => e.VendorId).HasColumnName("vendor_id").IsRequired();
         builder.Property(e => e.Lpcd).HasColumnName("lpcd").HasMaxLength(20).IsRequired();
+        builder.HasIndex(e => e.Lpcd).IsUnique();
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp without time zone");
         builder.Property(e => e.CreatedBy).HasColumnName("created_by").HasMaxLength(50);
         builder.Property(e => e.LastModified).HasColumnName("last_modified").HasColumnType("timestamp without time zone");

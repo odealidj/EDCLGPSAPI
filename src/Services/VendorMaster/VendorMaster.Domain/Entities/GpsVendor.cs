@@ -167,16 +167,36 @@ public class GpsVendor : Aggregate<Guid>
         });
     }
 
-    // tambah lpcd toyota
-    public void AddLpcd(Guid id, string lpcd)
+    // set lpcd toyota (1 vendor memiliki 1 lpcd unik)
+    public void SetLpcd(string lpcd)
     {
-        _lpcds.Add(new GpsVendorLpcd
+        var cleanLpcd = lpcd.Trim().ToUpperInvariant();
+        var existing = _lpcds.FirstOrDefault();
+        if (existing != null)
         {
-            Id = id == Guid.Empty ? Guid.NewGuid() : id,
-            VendorId = Id,
-            Lpcd = lpcd.Trim().ToUpperInvariant()
-        });
+            existing.Lpcd = cleanLpcd;
+            if (_lpcds.Count > 1)
+            {
+                var extras = _lpcds.Skip(1).ToList();
+                foreach (var extra in extras)
+                {
+                    _lpcds.Remove(extra);
+                }
+            }
+        }
+        else
+        {
+            _lpcds.Add(new GpsVendorLpcd
+            {
+                Id = Guid.NewGuid(),
+                VendorId = Id,
+                Lpcd = cleanLpcd
+            });
+        }
     }
+
+    // kompatibilitas method lama
+    public void AddLpcd(Guid id, string lpcd) => SetLpcd(lpcd);
 
     // bersihkan child collections saat replace update
     public void ClearEndpoints() => _endpoints.Clear();

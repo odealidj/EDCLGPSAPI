@@ -30,7 +30,11 @@ public class UpdateVendorHandlerTests
             VendorCode = "VND_TOYOTA",
             VendorName = "Toyota GPS Updated",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcds =
+            [
+                new VendorLpcdDto { Lpcd = "B1234XYZ" }
+            ]
         };
 
         var command = new UpdateVendorCommand(dto);
@@ -54,7 +58,7 @@ public class UpdateVendorHandlerTests
         _repository.GetVendorByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns((GpsVendor?)null);
 
-        var command = new UpdateVendorCommand(new VendorDto { Id = id, VendorName = "Vendor Baru" });
+        var command = new UpdateVendorCommand(new VendorDto { Id = id, VendorName = "Vendor Baru", Lpcd = "AJL" });
 
         // act
         var act = async () => await _handler.Handle(command, CancellationToken.None);
@@ -83,7 +87,8 @@ public class UpdateVendorHandlerTests
         {
             Id = id1,
             VendorCode = "VND_TAKEN",
-            VendorName = "Vendor Mau Rebut Kode"
+            VendorName = "Vendor Mau Rebut Kode",
+            Lpcd = "VND1_LPCD"
         };
 
         var command = new UpdateVendorCommand(dto);

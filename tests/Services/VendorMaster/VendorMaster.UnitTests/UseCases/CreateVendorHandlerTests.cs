@@ -56,7 +56,8 @@ public class CreateVendorHandlerTests
         var dto = new VendorDto
         {
             VendorCode = "VND_EXISTING",
-            VendorName = "Vendor Sudah Ada"
+            VendorName = "Vendor Sudah Ada",
+            Lpcd = "VND_LPCD"
         };
 
         var existing = GpsVendor.Create(Guid.NewGuid(), "VND_EXISTING", "Existing Vendor");
@@ -73,6 +74,26 @@ public class CreateVendorHandlerTests
             .WithMessage("*sudah terdaftar*");
 
         await _repository.DidNotReceive().CreateVendorAsync(Arg.Any<GpsVendor>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_TanpaLpcd_HarusLemparVendorBadRequestException()
+    {
+        // arrange
+        var dto = new VendorDto
+        {
+            VendorCode = "VND_TEST",
+            VendorName = "Vendor Test"
+        };
+
+        var command = new CreateVendorCommand(dto);
+
+        // act
+        var act = async () => await _handler.Handle(command, CancellationToken.None);
+
+        // assert
+        await act.Should().ThrowAsync<VendorBadRequestException>()
+            .WithMessage("*LPCD*");
     }
 
     [Fact]
@@ -104,6 +125,33 @@ public class CreateVendorHandlerTests
     }
 
     [Fact]
+    public async Task Handle_LpcdSudahTerdaftarDiVendorLain_HarusLemparVendorConflictException()
+    {
+        // arrange
+        var dto = new VendorDto
+        {
+            VendorCode = "VND_NEW",
+            VendorName = "Vendor Baru",
+            Lpcd = "LPCD_EXISTING"
+        };
+
+        _repository.GetVendorByCodeAsync(dto.VendorCode, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns((GpsVendor?)null);
+
+        _repository.IsLpcdExistsAsync("LPCD_EXISTING", null, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var command = new CreateVendorCommand(dto);
+
+        // act
+        var act = async () => await _handler.Handle(command, CancellationToken.None);
+
+        // assert
+        await act.Should().ThrowAsync<VendorConflictException>()
+            .WithMessage("*sudah terdaftar pada vendor lain*");
+    }
+
+    [Fact]
     public async Task Handle_AdaDuplikatEndpointBaseUrl_HarusLemparVendorBadRequestException()
     {
         // arrange
@@ -111,6 +159,7 @@ public class CreateVendorHandlerTests
         {
             VendorCode = "VND_TEST",
             VendorName = "Vendor Test",
+            Lpcd = "VND_LPCD",
             Endpoints =
             [
                 new VendorEndpointDto { BaseUrl = "https://api.vendor.com/gps" },

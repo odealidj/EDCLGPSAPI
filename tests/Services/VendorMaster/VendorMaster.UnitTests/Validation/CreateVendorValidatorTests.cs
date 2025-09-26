@@ -13,7 +13,8 @@ public class CreateVendorValidatorTests
             VendorCode = "VND_TOYOTA",
             VendorName = "Toyota Logistics GPS",
             ProtocolType = ProtocolType.REST_API.ToString(),
-            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString(),
+            Lpcd = "TOYOTA_LPCD"
         });
 
         // act
@@ -21,6 +22,26 @@ public class CreateVendorValidatorTests
 
         // assert
         result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_LpcdKosong_HarusGagalValidasi()
+    {
+        // arrange
+        var command = new CreateVendorCommand(new VendorDto
+        {
+            VendorCode = "VND_TOYOTA",
+            VendorName = "Toyota Logistics GPS",
+            ProtocolType = ProtocolType.REST_API.ToString(),
+            ProcessingStrategy = ProcessingStrategy.Individual.ToString()
+        });
+
+        // act
+        var result = _validator.Validate(command);
+
+        // assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.PropertyName.Contains("Lpcds"));
     }
 
     [Theory]
