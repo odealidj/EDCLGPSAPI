@@ -33,7 +33,7 @@ Platform ini beroperasi di garis terdepan (*Public Edge Ingress*) untuk mengumpu
 
 ## 🏛️ Arsitektur Platform Microservices
 
-Platform ini dibangun 100% dengan prinsip **Pure Microservices Architecture**, memisahkan domain tanggung jawab ke dalam 5 layanan independen yang terisolasi dan mandiri (*self-contained*):
+Platform ini dibangun dengan prinsip **Lean Microservices Architecture (Pure Delivery-Centric Model)**, memisahkan domain tanggung jawab ke dalam 3 layanan inti independen yang terisolasi (*self-contained*) dan 1 Ingress API Gateway:
 
 ```
                                ┌────────────────────────────────────────────────────────┐
@@ -44,39 +44,42 @@ Platform ini dibangun 100% dengan prinsip **Pure Microservices Architecture**, m
                                ┌────────────────────────────────────────────────────────┐
                                │           YARP API GATEWAY (:5000 / :8080)             │
                                │  Rate Limiting · OpenTelemetry · X-Trace-Id · Routing   │
-                               └───────┬───────────────────┬────────────────────┬───────┘
-                                       │                   │                    │
-              ┌────────────────────────┘                   │                    └───────────────────────┐
-              ▼                                            ▼                                            ▼
-   ┌──────────────────────┐                     ┌──────────────────────┐                     ┌──────────────────────┐
-   │  VendorMaster.Api    │                     │  PositionQuery.Api   │                     │ DeliveryTracking.Api │
-   │  (Port 5001)         │                     │  (Port 5002)         │                     │ (Port 5003)          │
-   │  · Master Vendor     │                     │  · Fast Last Pos     │                     │  · Delivery Progress │
-   │  · Dynamic Auth/Map  │                     │  · Redis-First (<1ms)│                     │  · Route Replay      │
-   │  · Geofence Master   │                     │  · Fallback Postgre  │                     │  · X-Idempotency-Key │
-   └──────────┬───────────┘                     └──────────┬───────────┘                     └──────────┬───────────┘
-              │                                            │                                            │
-              ▼                                            ▼                                            ▼
-   ┌──────────────────────┐                     ┌──────────────────────┐                     ┌──────────────────────┐
-   │ PostgreSQL (edcl)    │                     │ Redis 7.2 Cache      │                     │ PostgreSQL (edcl)    │
-   │ Master & Config      │                     │ Key: gps:last:*      │                     │ Delivery Progress    │
-   └──────────────────────┘                     └──────────▲───────────┘                     └──────────────────────┘
-                                                           │ Cache Write & Lock
-                                                ┌──────────┴───────────┐
-                                                │     GpsCollector     │
-                                                │ (Background Worker)  │
-                                                │ · Active-Standby HA  │
-                                                │ · Parallel Polling   │
-                                                │ · Dual-Write Mongo   │
-                                                └──────────┬───────────┘
-                                                           │
-                                ┌──────────────────────────┼──────────────────────────┐
-                                ▼                          ▼                          ▼
-                     ┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
-                     │ PostgreSQL 16        │   │ MongoDB 7 (TTL)      │   │ RabbitMQ 3.13        │
-                     │ Range Partitioning   │   │ · Error Log (90 hari)│   │ · Topic Exchange     │
-                     │ Monthly Telemetry    │   │ · Raw Resp (30 hari) │   │ · DLX / DLQ Retry    │
-                     └──────────────────────┘   └──────────────────────┘   └──────────────────────┘
+                               └───────┬────────────────────────────────────────┬───────┘
+                                       │                                        │
+              ┌────────────────────────┘                                        └───────────────────────┐
+              ▼                                                                                         ▼
+   ┌──────────────────────┐                                                                  ┌──────────────────────┐
+   │  VendorMaster.Api    │                                                                  │ DeliveryTracking.Api │
+   │  (Port 5001)         │                                                                  │ (Port 5003)          │
+   │  · Master Vendor     │                                                                  │  · Delivery Tracking │
+   │  · Dynamic Auth/Map  │                                                                  │  · Live Fleet Pos    │
+   │  · Geofence Master   │                                                                  │  · Redis-First (<1ms)│
+   └──────────┬───────────┘                                                                  │  · Route Replay      │
+              │                                                                              │  · Idempotency Guard │
+              ▼                                                                              └──────────┬───────────┘
+   ┌──────────────────────┐                                                                             │
+   │ PostgreSQL (edcl)    │                                                                             ▼
+   │ Master & Config      │                                                                  ┌──────────────────────┐
+   └──────────────────────┘                                                                  │ Redis 7.2 Cache      │
+                                                                                             │ Active Key / Live    │
+                                                ┌────────────────────────────────────────────┴──────────▲───────────┘
+                                                │                                                       │
+                                                ▼                                                       │
+                                     ┌──────────────────────┐                                ┌──────────┴───────────┐
+                                     │ PostgreSQL (edcl)    │                                │     GpsCollector     │
+                                     │ Delivery Sessions &  │                                │ (Background Worker)  │
+                                     │ Partitioned Route    │                                │ · Active-Standby HA  │
+                                     └──────────────────────┘                                │ · 60s Polling Loop   │
+                                                                                             │ · Dual-Write Mongo   │
+                                                                                             └──────────┬───────────┘
+                                                                                                        │
+                                                ┌───────────────────────────────────────────────────────┼────────────────────────────────────────┐
+                                                ▼                                                       ▼                                        ▼
+                                     ┌──────────────────────┐                                ┌──────────────────────┐                 ┌──────────────────────┐
+                                     │ PostgreSQL 16        │                                │ MongoDB 7 (TTL)      │                 │ RabbitMQ 3.13        │
+                                     │ Partitioned History  │                                │ · Error Log (90 hari)│                 │ · Topic Exchange     │
+                                     │ (Active Jobs Only)   │                                │ · Raw Resp (30 hari) │                 │ · DLX / DLQ Retry    │
+                                     └──────────────────────┘                                └──────────────────────┘                 └──────────────────────┘
 ```
 
 ---
@@ -100,7 +103,7 @@ Mendukung strategi autentikasi vendor pihak ketiga secara otonom:
   - `gps_raw_responses`: Payload JSON mentah dari vendor disimpan untuk keperluan audit dan replay jika mapping berubah (TTL 30 hari).
 
 ### 4. Redis High-Speed Position Caching & Distributed Leader Election
-- **Redis-First Read Engine**: Endpoint kueri armada pada `PositionQuery.Api` mengecek memori Redis terlebih dahulu (latensi < 1ms) sebelum melakukan *fallback* ke PostgreSQL.
+- **Redis-First Read Engine**: Endpoint kueri posisi armada pada `DeliveryTracking.Api` mengecek memori Redis terlebih dahulu (latensi < 1ms) sebelum melakukan *fallback* ke PostgreSQL.
 - **Worker Active-Standby Leader Election**: Worker `GpsCollector` menerapkan *distributed lock* (`SET NX EX`) melalui Redis. Hanya 1 instance yang aktif melakukan polling, sementara instance standby siap mengambil alih dalam < 90 detik jika terjadi kegagalan (*failover*).
 
 ### 5. Event-Driven Messaging (RabbitMQ with DLX/DLQ)
@@ -130,7 +133,7 @@ Mencegah mutasi ganda (*double-click* atau *network retry*) pada endpoint transa
 - **Instant Cached Replay**: Request ulang dengan payload yang sama langsung dikembalikan dari cache Redis (`X-Cache: HIT`, `X-Idempotent-Replayed: true`) tanpa query ulang ke database.
 
 ### 8. Full Observability (Prometheus & Grafana)
-Seluruh 5 microservice mengekspos endpoint metrik standar OpenTelemetry di `/metrics` yang di-scrape secara otomatis oleh **Prometheus** (Port 9090) dan divisualisasikan melalui **Grafana** (Port 3000) dengan metrik performa khusus seperti `edcl_gps_collector_records_inserted_total`, `edcl_gps_collector_cycle_duration_seconds`, dan `edcl_gps_collector_vendor_poll_status`.
+Seluruh microservice mengekspos endpoint metrik standar OpenTelemetry di `/metrics` yang di-scrape secara otomatis oleh **Prometheus** (Port 9090) dan divisualisasikan melalui **Grafana** (Port 3000) dengan metrik performa khusus seperti `edcl_gps_collector_records_inserted_total`, `edcl_gps_collector_cycle_duration_seconds`, dan `edcl_gps_collector_vendor_poll_status`.
 
 ---
 
@@ -142,9 +145,8 @@ EDCLGPSAPI/
 │   ├── Services/
 │   │   ├── ApiGateway/              # YARP Gateway, Rate Limiting, OpenTelemetry (Port 5000)
 │   │   ├── GpsCollector/            # Background Ingestion Worker, MongoDB/Redis/RabbitMQ
-│   │   ├── PositionQuery.Api/       # Fast Fleet Position Query API, Redis-first (Port 5002)
 │   │   ├── VendorMaster.Api/        # Vendor Profiles & Geofence Master CRUD (Port 5001)
-│   │   └── DeliveryTracking.Api/    # Delivery Progress & Route Replay API (Port 5003)
+│   │   └── DeliveryTracking.Api/    # Delivery Progress, Live Positions & Route Replay API (Port 5003)
 │   ├── Shared/
 │   │   ├── Shared/                  # Kernel, Idempotency, Telemetry, DbContext, Redis/Mongo
 │   │   ├── Shared.Contracts/        # Integration Events (GpsLastPositionHDto)
@@ -185,8 +187,7 @@ Seluruh layanan aplikasi, infrastruktur database, message broker, dan monitoring
 |---|---|---|
 | **YARP API Gateway** | **`5000`** | Pintu gerbang utama REST API: `http://localhost:5000/` |
 | **Vendor Master API** | **`5001`** | `http://localhost:5001/swagger` (Metrik: `/metrics`) |
-| **Position Query API** | **`5002`** | `http://localhost:5002/swagger` (Metrik: `/metrics`) |
-| **Delivery Tracking API** | **`5003`** | `http://localhost:5003/swagger` (Metrik: `/metrics`) |
+| **Delivery Tracking API** | **`5003`** | `http://localhost:5003/swagger` (Live Positions & Routes, Metrik: `/metrics`) |
 | **GPS Collector Worker** | — | Background ingestion daemon (Metrik internal: `/metrics`) |
 | **Prometheus Server** | **`9090`** | Dashboard scrape metrik: `http://localhost:9090/` |
 | **Grafana Dashboard** | **`3000`** | Visualisasi Telemetri: `http://localhost:3000/` *(User: `admin`, Pass: `admin`)* |
@@ -208,13 +209,10 @@ dotnet run --project src/Services/ApiGateway
 # 2. Jalankan Vendor & Geofence Master API
 dotnet run --project src/Services/VendorMaster.Api
 
-# 3. Jalankan Position Query API
-dotnet run --project src/Services/PositionQuery.Api
-
-# 4. Jalankan Delivery Tracking API
+# 3. Jalankan Delivery Tracking API (termasuk Live Position & Route Tracking)
 dotnet run --project src/Services/DeliveryTracking.Api
 
-# 5. Jalankan Background Collector Worker
+# 4. Jalankan Background Collector Worker
 dotnet run --project src/Services/GpsCollector
 ```
 

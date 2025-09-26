@@ -51,8 +51,8 @@ help:
 	@echo -e "  ${GREEN}make infra-down${RESET}            Stop infrastructure containers"
 	@echo -e "  ${GREEN}make infra-restart${RESET}         Restart infrastructure containers"
 	@echo -e ""
-	@echo -e "${BOLD}${YELLOW}💻 LOCAL PC MICROSERVICES (All 5 .NET Services):${RESET}"
-	@echo -e "  ${GREEN}make run-local-all${RESET}         Start infra in Docker + all 5 .NET services locally"
+	@echo -e "${BOLD}${YELLOW}💻 LOCAL PC MICROSERVICES (Lean Topology: 3 Core + 1 Gateway):${RESET}"
+	@echo -e "  ${GREEN}make run-local-all${RESET}         Start infra in Docker + all Lean .NET services locally"
 	@echo -e "  ${GREEN}make stop-local-all${RESET}        Stop all locally running .NET services"
 	@echo -e "  ${GREEN}make restart-local-all${RESET}     Restart all local .NET services"
 	@echo -e "  ${GREEN}make logs-local${RESET}            Tail live logs of all local services"
@@ -68,12 +68,7 @@ help:
 	@echo -e "  ${GREEN}make restart-vendor${RESET}        Restart VendorMaster.Api"
 	@echo -e "  ${GREEN}make logs-vendor${RESET}           Tail logs of VendorMaster.Api"
 	@echo -e ""
-	@echo -e "  ${GREEN}make run-position${RESET}          Start PositionQuery.Api (:5002)"
-	@echo -e "  ${GREEN}make stop-position${RESET}         Stop PositionQuery.Api"
-	@echo -e "  ${GREEN}make restart-position${RESET}      Restart PositionQuery.Api"
-	@echo -e "  ${GREEN}make logs-position${RESET}         Tail logs of PositionQuery.Api"
-	@echo -e ""
-	@echo -e "  ${GREEN}make run-delivery${RESET}          Start DeliveryTracking.Api (:5003)"
+	@echo -e "  ${GREEN}make run-delivery${RESET}          Start DeliveryTracking.Api (:5003 - includes Live Positions)"
 	@echo -e "  ${GREEN}make stop-delivery${RESET}         Stop DeliveryTracking.Api"
 	@echo -e "  ${GREEN}make restart-delivery${RESET}      Restart DeliveryTracking.Api"
 	@echo -e "  ${GREEN}make logs-delivery${RESET}         Tail logs of DeliveryTracking.Api"
@@ -83,10 +78,13 @@ help:
 	@echo -e "  ${GREEN}make restart-collector${RESET}     Restart GpsCollector Background Worker"
 	@echo -e "  ${GREEN}make logs-collector${RESET}        Tail logs of GpsCollector"
 	@echo -e ""
+	@echo -e "  ${GREEN}make run-position${RESET}          [Deprecated] PositionQuery.Api (Consolidated into DeliveryTracking.Api)"
+	@echo -e "  ${GREEN}make stop-position${RESET}         Stop PositionQuery.Api (if running)"
+	@echo -e ""
 	@echo -e "  ${CYAN}💡 Parameterized syntax: make run s=<svc> | make stop s=<svc> | make restart s=<svc>${RESET}"
 	@echo -e ""
 	@echo -e "${BOLD}${YELLOW}📦 DOCKER ALL-IN-ONE (Run Entire Platform inside Docker Compose):${RESET}"
-	@echo -e "  ${GREEN}make run-all${RESET}               Build & start everything (5 services + infra) in Docker"
+	@echo -e "  ${GREEN}make run-all${RESET}               Build & start everything (Lean services + infra) in Docker"
 	@echo -e "  ${GREEN}make stop-all${RESET}              Stop & teardown all Docker containers"
 	@echo -e "  ${GREEN}make restart-all${RESET}           Restart all Docker containers"
 	@echo -e "  ${GREEN}make logs-all${RESET}              Tail live logs of all Docker containers"
@@ -134,8 +132,7 @@ run-all:
 	@echo -e "${BOLD}${GREEN}✅ All microservices & infrastructure are running in Docker!${RESET}"
 	@echo -e "  • YARP API Gateway  : http://localhost:5000 (or :8080)"
 	@echo -e "  • VendorMaster API  : http://localhost:5001/swagger"
-	@echo -e "  • PositionQuery API : http://localhost:5002/swagger"
-	@echo -e "  • DeliveryTrack API : http://localhost:5003/swagger"
+	@echo -e "  • DeliveryTrack API : http://localhost:5003/swagger (Live Positions & Tracking)"
 	@echo -e "  • Prometheus        : http://localhost:9090"
 	@echo -e "  • Grafana           : http://localhost:3000"
 
@@ -447,20 +444,18 @@ logs:
 # 💻 Local PC Microservices — Orchestration All Targets
 # ------------------------------------------------------------------------------
 run-local-all: infra-up
-	@echo -e "${BOLD}${CYAN}🚀 Launching all 5 Microservices locally on Host PC...${RESET}"
-	@$(MAKE) run-position
+	@echo -e "${BOLD}${CYAN}🚀 Launching Lean Microservices locally on Host PC...${RESET}"
 	@$(MAKE) run-vendor
 	@$(MAKE) run-delivery
 	@$(MAKE) run-collector
 	@$(MAKE) run-gateway
 	@echo -e ""
 	@echo -e "${BOLD}${GREEN}========================================================================${RESET}"
-	@echo -e "${BOLD}${GREEN}🎉 ALL 5 MICROSERVICES ARE RUNNING LOCALLY ON HOST PC!${RESET}"
+	@echo -e "${BOLD}${GREEN}🎉 ALL LEAN MICROSERVICES ARE RUNNING LOCALLY ON HOST PC!${RESET}"
 	@echo -e "${BOLD}${GREEN}========================================================================${RESET}"
 	@echo -e "  • ${BOLD}YARP Gateway${RESET}        : ${CYAN}http://localhost:5000${RESET}"
 	@echo -e "  • ${BOLD}VendorMaster.Api${RESET}    : ${CYAN}http://localhost:5001/swagger${RESET} (Metrics: /metrics)"
-	@echo -e "  • ${BOLD}PositionQuery.Api${RESET}   : ${CYAN}http://localhost:5002/swagger${RESET} (Metrics: /metrics)"
-	@echo -e "  • ${BOLD}DeliveryTracking.Api${RESET}: ${CYAN}http://localhost:5003/swagger${RESET} (Metrics: /metrics)"
+	@echo -e "  • ${BOLD}DeliveryTracking.Api${RESET}: ${CYAN}http://localhost:5003/swagger${RESET} (Live Positions & Route Tracking)"
 	@echo -e "  • ${BOLD}GpsCollector Worker${RESET} : Background Ingestion Daemon active (:5004)"
 	@echo -e ""
 	@echo -e "💡 View live logs: ${YELLOW}make logs-local${RESET}"

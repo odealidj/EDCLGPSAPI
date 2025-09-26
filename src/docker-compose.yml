@@ -38,12 +38,7 @@ services:
       context: ..
       dockerfile: src/Services/GpsCollector/Dockerfile
 
-  position-query-svc:
-    image: ${DOCKER_REGISTRY-}positionquerysvc
-    build:
-      context: ..
-      dockerfile: src/Services/PositionQuery.Api/Dockerfile
-
+  # Note: position-query-svc consolidated into delivery-tracking-svc in Pure Delivery-Centric Architecture
   vendor-master-svc:
     image: ${DOCKER_REGISTRY-}vendormastersvc
     build:
