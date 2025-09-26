@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using Shared.Data.Mongo;
 
 namespace DeliveryTracking;
 
@@ -48,6 +49,9 @@ public static class DeliveryModule
 
         // 4. registrasi layanan kueri posisi armada (redis-first + db fallback)
         services.AddScoped<IPositionQueryService, DeliveryTracking.Infrastructure.Services.PositionQueryService>();
+
+        // 5. registrasi mongodb logging & raw response repository
+        services.AddMongoDbLogs(configuration);
 
         return services;
     }

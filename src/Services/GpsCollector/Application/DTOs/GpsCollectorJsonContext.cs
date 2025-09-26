@@ -21,6 +21,9 @@ namespace GpsCollector.Application.DTOs;
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(Dictionary<string, string?>))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(Shared.Data.Mongo.DTOs.RawResponseItemDto))]
+[JsonSerializable(typeof(List<Shared.Data.Mongo.DTOs.RawResponseItemDto>))]
+[JsonSerializable(typeof(Shared.Pagination.PaginatedResult<Shared.Data.Mongo.DTOs.RawResponseItemDto>))]
 public partial class GpsCollectorJsonContext : JsonSerializerContext
 {
 }

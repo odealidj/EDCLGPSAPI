@@ -16,7 +16,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.OpenApi.Models;
+using Shared.Data.Mongo.DTOs;
+using Shared.Data.Mongo.Repositories;
 using Shared.Infrastructure.Idempotency;
+using Shared.Pagination;
 
 namespace DeliveryTracking.Endpoints;
 
@@ -162,6 +165,52 @@ public class DeliveryTrackingEndpoints : ICarterModule
         .Produces<DeliveryLiveTrackingDto>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Ambil status realtime dan posisi live pelacakan delivery (Redis-first sub-milidetik dengan status TRACKING_ACTIVE, DATA_MISMATCH, VENDOR_CONNECTION_ERROR, atau WAITING_TELEMETRY)");
+
+        // 12. GET /api/v1/deliveries/raw-responses (Arsip JSON Asli MongoDB dengan Filter & Pagination)
+        group.MapGet("/raw-responses", async (
+            string? vendorId,
+            string? vendorName,
+            DateTime? fromDate,
+            DateTime? toDate,
+            string? search,
+            int? pageIndex,
+            int? pageSize,
+            IGpsRawResponseRepository rawRepo,
+            CancellationToken ct) =>
+        {
+            var filter = new RawResponseFilterRequest
+            {
+                VendorId = vendorId,
+                VendorName = vendorName,
+                FromDate = fromDate,
+                ToDate = toDate,
+                Search = search,
+                PageIndex = pageIndex ?? 1,
+                PageSize = pageSize ?? 20
+            };
+            var result = await rawRepo.QueryRawResponsesAsync(filter, ct);
+            return Results.Ok(result);
+        })
+        .WithName("QueryDeliveryRawResponses")
+        .Produces<PaginatedResult<RawResponseItemDto>>(StatusCodes.Status200OK)
+        .WithSummary("Lihat arsip data raw response JSON asli dari vendor di MongoDB dengan filter dan paginasi")
+        .WithDescription("Mendukung filter: vendorId, vendorName, fromDate, toDate, search (pencarian di URL/batch/nama), pageIndex, dan pageSize.");
+
+        // 13. GET /api/v1/deliveries/raw-responses/{id}
+        group.MapGet("/raw-responses/{id}", async (
+            string id,
+            IGpsRawResponseRepository rawRepo,
+            CancellationToken ct) =>
+        {
+            var result = await rawRepo.GetRawResponseByIdAsync(id, ct);
+            return result != null
+                ? Results.Ok(result)
+                : Results.NotFound(new { Message = $"Raw response dengan ID {id} tidak ditemukan di MongoDB." });
+        })
+        .WithName("GetDeliveryRawResponseById")
+        .Produces<RawResponseItemDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Ambil detail satu dokumen data raw response JSON asli berdasarkan ID MongoDB");
 
         // --- Alias Routes untuk kesesuaian spesifikasi /api/v1/delivery-session/* ---
         var sessionGroup = app.MapGroup("/api/v1/delivery-session")

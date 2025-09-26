@@ -2,8 +2,11 @@ using GpsCollector.Application.DTOs;
 using GpsCollector.Application.Ports;
 using GpsCollector.Extensions;
 using GpsCollector.Metrics;
+using Shared.Data.Mongo.DTOs;
+using Shared.Data.Mongo.Repositories;
 using Shared.Infrastructure.Telemetry;
 using Shared.Messaging.RabbitMqClient.Extension;
+using Shared.Pagination;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +57,47 @@ app.MapPost("/api/v1/collector/trigger/{vendorId:guid}", async (Guid vendorId, I
     var result = await orchestrator.CollectVendorAsync(vendorId, ct);
     return Results.Ok(result);
 });
+
+// Arsip Data Raw Response Asli di MongoDB (dengan filter & pagination)
+app.MapGet("/api/v1/collector/raw-responses", async (
+    string? vendorId,
+    string? vendorName,
+    DateTime? fromDate,
+    DateTime? toDate,
+    string? search,
+    int? pageIndex,
+    int? pageSize,
+    IGpsRawResponseRepository rawRepo,
+    CancellationToken ct) =>
+{
+    var filter = new RawResponseFilterRequest
+    {
+        VendorId = vendorId,
+        VendorName = vendorName,
+        FromDate = fromDate,
+        ToDate = toDate,
+        Search = search,
+        PageIndex = pageIndex ?? 1,
+        PageSize = pageSize ?? 20
+    };
+    var result = await rawRepo.QueryRawResponsesAsync(filter, ct);
+    return Results.Ok(result);
+})
+.WithName("QueryCollectorRawResponses")
+.WithSummary("Lihat arsip data raw response asli dari vendor di MongoDB dengan filter dan paginasi");
+
+app.MapGet("/api/v1/collector/raw-responses/{id}", async (
+    string id,
+    IGpsRawResponseRepository rawRepo,
+    CancellationToken ct) =>
+{
+    var result = await rawRepo.GetRawResponseByIdAsync(id, ct);
+    return result != null
+        ? Results.Ok(result)
+        : Results.NotFound(new { Message = $"Raw response dengan ID {id} tidak ditemukan di MongoDB." });
+})
+.WithName("GetCollectorRawResponseById")
+.WithSummary("Ambil detail satu dokumen data raw response asli berdasarkan ID MongoDB");
 
 app.Run();
 
