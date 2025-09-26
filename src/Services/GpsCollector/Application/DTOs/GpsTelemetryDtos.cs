@@ -74,5 +74,28 @@ public sealed record VendorAlertMessageDto(
     double? DowntimeSeconds = null
 );
 
+// DTO live snapshot posisi delivery aktif di Redis (key: delivery:live:{deliveryNo})
+public sealed record DeliveryLivePositionCacheDto(
+    string DeliveryNo,
+    string TrackingStatus,
+    string? PlateNumber,
+    string? DeviceId,
+    decimal? Latitude,
+    decimal? Longitude,
+    decimal? Speed,
+    decimal? Course,
+    string? StreetName,
+    DateTime Datetime,
+    DateTime UpdatedAt
+);
+
+// DTO status live tracking delivery di Redis (misal: DATA_MISMATCH atau VENDOR_CONNECTION_ERROR)
+public sealed record DeliveryLiveStatusCacheDto(
+    string DeliveryNo,
+    string TrackingStatus,
+    string? ErrorMessage,
+    DateTime UpdatedAt
+);
+
 
 

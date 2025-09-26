@@ -85,5 +85,15 @@ public interface IDeliveryTrackingRepository
     Task<IReadOnlyList<DeliveryTrackingSession>> GetActiveDeliverySessionsAsync(
         int limit = 100,
         CancellationToken cancellationToken = default);
+
+    // ambil snapshot posisi terkini armada delivery dari database edcl.t_delivery_latest_position
+    Task<DeliveryLatestPositionDto?> GetDeliveryLatestPositionAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default);
+
+    // ambil riwayat log correlation miss / data mismatch terkini dari edcl.m_gps_api_log
+    Task<GpsCorrelationMissLogDto?> GetLatestCorrelationMissLogAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default);
 }
 

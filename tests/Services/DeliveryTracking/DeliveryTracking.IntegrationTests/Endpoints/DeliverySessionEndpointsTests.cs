@@ -40,6 +40,7 @@ public class DeliverySessionEndpointsTests(DeliveryTrackingApiFactory factory) :
         result.Key.Should().Be("PlatNo");
         result.CleanValue.Should().Be("B9001FXR");
         result.VendorId.Should().NotBeNull();
+        result.VendorCode.Should().Be("AJL");
 
         // verifikasi data langsung di tabel edcl.t_delivery_tracking_session
         var ds = factory.GetDataSource();
@@ -74,6 +75,34 @@ public class DeliverySessionEndpointsTests(DeliveryTrackingApiFactory factory) :
         result.Should().NotBeNull();
         result!.DeliveryNo.Should().Be(deliveryNo);
         result.CleanValue.Should().Be("B1234XYZ");
+        result.VendorCode.Should().Be("AJL");
+    }
+
+    [Fact]
+    public async Task Post_StartJob_DenganMatchKeyDanMatchValue_HarusReturn200OKDanResolveVendorCodeOtomatis()
+    {
+        // arrange - Driver/EDCLAPI hanya kirim deliveryNo, lpcd, match_key, match_value (TANPA VendorCode)
+        var deliveryNo = $"DO-MATCH-{Guid.NewGuid():N}"[..15].ToUpperInvariant();
+        var request = new StartDeliveryJobRequestDto
+        {
+            DeliveryNo = deliveryNo,
+            Lpcd = "AJL",
+            MatchKey = "PlatNo",
+            MatchValue = "B 5678 GHI"
+        };
+
+        // act
+        var response = await _client.PostAsJsonAsync("/api/v1/deliveries/start-job", request);
+
+        // assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<StartDeliveryJobResultDto>();
+        result.Should().NotBeNull();
+        result!.DeliveryNo.Should().Be(deliveryNo);
+        result.Lpcd.Should().Be("AJL");
+        result.VendorCode.Should().Be("AJL");
+        result.Key.Should().Be("PlatNo");
+        result.CleanValue.Should().Be("B5678GHI");
     }
 
     [Fact]

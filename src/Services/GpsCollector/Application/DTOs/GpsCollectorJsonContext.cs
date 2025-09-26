@@ -16,6 +16,8 @@ namespace GpsCollector.Application.DTOs;
 [JsonSerializable(typeof(VendorPollingResultDto))]
 [JsonSerializable(typeof(List<VendorPollingResultDto>))]
 [JsonSerializable(typeof(VendorAlertMessageDto))]
+[JsonSerializable(typeof(DeliveryLivePositionCacheDto))]
+[JsonSerializable(typeof(DeliveryLiveStatusCacheDto))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(Dictionary<string, string?>))]
 [JsonSerializable(typeof(JsonElement))]

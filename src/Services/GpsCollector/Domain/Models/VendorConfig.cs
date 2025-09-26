@@ -4,7 +4,9 @@ namespace GpsCollector.Domain.Models;
 public sealed class VendorConfig
 {
     public Guid Id { get; init; }
+    public string VendorCode { get; init; } = string.Empty;
     public string VendorName { get; init; } = string.Empty;
+    public string? Lpcd { get; init; }
     public bool RequiredAuth { get; init; }
     public string? AuthType { get; init; }
     public string? Username { get; init; }

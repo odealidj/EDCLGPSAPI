@@ -26,11 +26,11 @@ public class StartDeliveryJobCommandValidator : AbstractValidator<StartDeliveryJ
             .NotEmpty().WithMessage("Kode LPCD transporter (lpcd) tidak boleh kosong.");
 
         RuleFor(x => x.Request.GetEffectiveValue())
-            .NotEmpty().WithMessage("Nilai pencocokan (val / value) tidak boleh kosong.");
+            .NotEmpty().WithMessage("Nilai pencocokan (val / value / match_value) tidak boleh kosong.");
 
-        RuleFor(x => x.Request.Key)
+        RuleFor(x => x.Request.GetEffectiveKey())
             .Must(DeliveryValidator.IsValidKey)
-            .WithMessage("Kunci pencocokan (key) tidak valid. Kunci yang diizinkan: PlatNo, VehicleId, Imei, DriverKtp, DeliveryNo.");
+            .WithMessage("Kunci pencocokan (key / match_key) tidak valid. Kunci yang diizinkan: PlatNo, VehicleId, Imei, DriverKtp, DeliveryNo.");
     }
 }
 
@@ -47,17 +47,19 @@ public class StartDeliveryJobCommandHandler(
     {
         var req = command.Request;
         var effectiveValue = req.GetEffectiveValue();
+        var effectiveKey = req.GetEffectiveKey();
         var cleanValue = DeliveryValidator.CleanKey(effectiveValue);
         var deliveryNo = req.DeliveryNo.Trim().ToUpperInvariant();
         var lpcd = req.Lpcd.Trim().ToUpperInvariant();
-        var key = string.IsNullOrWhiteSpace(req.Key) ? "PlatNo" : req.Key.Trim();
+        var key = string.IsNullOrWhiteSpace(effectiveKey) ? "PlatNo" : effectiveKey.Trim();
 
-        // 1. Resolve Vendor ID & Name dari tabel master edcl.m_gps_vendor_lpcd & edcl.m_gps_vendor
+        // 1. Resolve Vendor ID, Name & Code dari tabel master edcl.m_gps_vendor_lpcd & edcl.m_gps_vendor
         Guid? vendorId = null;
         string? vendorName = null;
+        string? vendorCode = null;
 
         const string sqlVendorByLpcd = @"
-            SELECT v.id, v.vendor_name
+            SELECT v.id, v.vendor_name, v.vendor_code
             FROM edcl.m_gps_vendor_lpcd vl
             INNER JOIN edcl.m_gps_vendor v ON vl.vendor_id = v.id
             WHERE UPPER(vl.lpcd) = $1 AND v.is_active = true AND v.is_deleted = false
@@ -69,12 +71,13 @@ public class StartDeliveryJobCommandHandler(
         {
             vendorId = readerLpcd.GetGuid(0);
             vendorName = readerLpcd.GetString(1);
+            vendorCode = readerLpcd.IsDBNull(2) ? null : readerLpcd.GetString(2);
         }
         else
         {
             // Fallback 1: cari langsung dari tabel m_gps_vendor berdasarkan vendor_code
             const string sqlVendor = @"
-                SELECT id, vendor_name
+                SELECT id, vendor_name, vendor_code
                 FROM edcl.m_gps_vendor
                 WHERE UPPER(vendor_code) = $1 AND is_active = true AND is_deleted = false
                 LIMIT 1;";
@@ -85,6 +88,7 @@ public class StartDeliveryJobCommandHandler(
             {
                 vendorId = readerVendor.GetGuid(0);
                 vendorName = readerVendor.GetString(1);
+                vendorCode = readerVendor.IsDBNull(2) ? null : readerVendor.GetString(2);
             }
         }
 
@@ -119,14 +123,24 @@ public class StartDeliveryJobCommandHandler(
             // Hash 2: lookup global aktif (delivery:active:lookup -> B9001FXR = DELIV-001)
             await db.HashSetAsync("delivery:active:lookup", cleanValue, deliveryNo);
 
-            // Set: daftar delivery aktif
+            // Set: daftar delivery aktif global
             await db.SetAddAsync("delivery:active:set", deliveryNo);
+
+            // Set: daftar delivery aktif per LPCD
+            await db.SetAddAsync($"delivery:active:lpcd:{lpcd}", deliveryNo);
+
+            // Set: daftar delivery aktif per Vendor Code
+            if (!string.IsNullOrWhiteSpace(vendorCode))
+            {
+                await db.SetAddAsync($"delivery:active:vendor:{vendorCode.ToUpperInvariant()}", deliveryNo);
+            }
 
             // String cache detail sesi aktif (TTL 24 jam)
             var sessionPayload = JsonSerializer.Serialize(new
             {
                 deliveryNo,
                 lpcd,
+                vendorCode,
                 key,
                 val = effectiveValue,
                 cleanValue,
@@ -134,27 +148,42 @@ public class StartDeliveryJobCommandHandler(
                 vendorName,
                 driverKtp = req.DriverKtp,
                 status = "STARTED",
+                trackingStatus = "WAITING_TELEMETRY",
                 startedAt = savedSession.StartedAt
             });
             await db.StringSetAsync($"delivery:session:{deliveryNo}", sessionPayload, TimeSpan.FromHours(24));
             await db.StringSetAsync($"delivery:active:{cleanValue}", sessionPayload, TimeSpan.FromHours(24));
 
-            logger.LogInformation("Hot index Redis berhasil didaftarkan: LPCD {Lpcd}, Value {CleanValue} -> Delivery {DeliveryNo}",
-                lpcd, cleanValue, deliveryNo);
+            // Inisialisasi status live snapshot di Redis
+            var initialLivePayload = JsonSerializer.Serialize(new
+            {
+                deliveryNo,
+                trackingStatus = "WAITING_TELEMETRY",
+                lpcd,
+                vendorCode,
+                key,
+                val = effectiveValue,
+                updatedAt = DateTime.UtcNow
+            });
+            await db.StringSetAsync($"delivery:live:{deliveryNo}", initialLivePayload, TimeSpan.FromHours(24));
+
+            logger.LogInformation("Hot index Redis berhasil didaftarkan: LPCD {Lpcd}, VendorCode {VendorCode}, Value {CleanValue} -> Delivery {DeliveryNo}",
+                lpcd, vendorCode, cleanValue, deliveryNo);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Gagal memperbarui cache/index Redis untuk delivery '{DeliveryNo}'. Database PostgreSQL tetap tersimpan.", deliveryNo);
         }
 
-        logger.LogInformation("Sesi Start Job berhasil dimulai: Delivery '{DeliveryNo}', LPCD '{Lpcd}', CleanVal '{CleanValue}', Vendor '{VendorName}'",
-            deliveryNo, lpcd, cleanValue, vendorName);
+        logger.LogInformation("Sesi Start Job berhasil dimulai: Delivery '{DeliveryNo}', LPCD '{Lpcd}', VendorCode '{VendorCode}', CleanVal '{CleanValue}', Vendor '{VendorName}'",
+            deliveryNo, lpcd, vendorCode, cleanValue, vendorName);
 
         return new StartDeliveryJobResultDto(
             Status: 200,
             Message: "Delivery tracking job started successfully",
             DeliveryNo: deliveryNo,
             Lpcd: lpcd,
+            VendorCode: vendorCode,
             Key: key,
             Val: effectiveValue,
             CleanValue: cleanValue,

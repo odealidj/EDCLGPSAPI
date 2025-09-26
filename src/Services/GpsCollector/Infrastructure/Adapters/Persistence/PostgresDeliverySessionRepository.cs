@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace GpsCollector.Infrastructure.Adapters.Persistence;
 
-// Repositori query sesi delivery aktif armada (tb_r_delivery_progress) via pure ADO.NET
+// Repositori query sesi delivery aktif armada dari edcl.t_delivery_tracking_session via pure ADO.NET
 public sealed class PostgresDeliverySessionRepository : IDeliverySessionRepository
 {
     private readonly NpgsqlDataSource _dataSource;
@@ -16,6 +16,52 @@ public sealed class PostgresDeliverySessionRepository : IDeliverySessionReposito
     {
         _dataSource = dataSource;
         _logger = logger;
+    }
+
+    public async Task<List<DeliveryProgressSession>> GetActiveSessionsForVendorAsync(
+        Guid vendorId,
+        string? lpcd,
+        CancellationToken ct)
+    {
+        var result = new List<DeliveryProgressSession>();
+
+        const string sql = @"
+            SELECT id, delivery_no, lpcd, vendor_id, match_key, match_value, clean_match_value, driver_ktp
+            FROM edcl.t_delivery_tracking_session
+            WHERE status IN ('STARTED', 'IN_TRANSIT')
+              AND is_deleted = false
+              AND (vendor_id = @vendorId OR (@lpcd IS NOT NULL AND UPPER(lpcd) = UPPER(@lpcd)));";
+
+        try
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync(ct);
+            await using var cmd = new NpgsqlCommand(sql, conn);
+
+            cmd.Parameters.Add(new NpgsqlParameter("vendorId", NpgsqlDbType.Uuid) { Value = vendorId });
+            cmd.Parameters.Add(new NpgsqlParameter("lpcd", NpgsqlDbType.Varchar) { Value = (object?)lpcd ?? DBNull.Value });
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                result.Add(new DeliveryProgressSession
+                {
+                    SessionId = reader.GetGuid(0),
+                    DeliveryNo = reader.GetString(1),
+                    Lpcd = reader.GetString(2),
+                    VendorId = reader.IsDBNull(3) ? null : reader.GetGuid(3),
+                    MatchKey = reader.IsDBNull(4) ? "PlatNo" : reader.GetString(4),
+                    MatchValue = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                    CleanMatchValue = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                    DriverKtp = reader.IsDBNull(7) ? null : reader.GetString(7)
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query active delivery tracking sessions for vendor {VendorId}, LPCD {Lpcd}", vendorId, lpcd);
+        }
+
+        return result;
     }
 
     public async Task<Dictionary<string, DeliveryProgressSession>> GetActiveSessionsByPlatNosAsync(
@@ -33,13 +79,14 @@ public sealed class PostgresDeliverySessionRepository : IDeliverySessionReposito
             return new Dictionary<string, DeliveryProgressSession>(StringComparer.OrdinalIgnoreCase);
         }
 
-        const string sql = @"
-            SELECT DISTINCT ON (""PlatNo"") ""PlatNo"", ""DeliveryNo"", ""Lpcd"", ""NoKtp""
-            FROM edcl.tb_r_delivery_progress
-            WHERE UPPER(""PlatNo"") = ANY(@platNos)
-            ORDER BY ""PlatNo"", ""CreatedAt"" DESC;";
-
         var result = new Dictionary<string, DeliveryProgressSession>(platArray.Length, StringComparer.OrdinalIgnoreCase);
+
+        const string sql = @"
+            SELECT id, delivery_no, lpcd, vendor_id, match_key, match_value, clean_match_value, driver_ktp
+            FROM edcl.t_delivery_tracking_session
+            WHERE status IN ('STARTED', 'IN_TRANSIT')
+              AND is_deleted = false
+              AND clean_match_value = ANY(@platNos);";
 
         try
         {
@@ -51,21 +98,25 @@ public sealed class PostgresDeliverySessionRepository : IDeliverySessionReposito
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                var platNo = reader.IsDBNull(0) ? string.Empty : reader.GetString(0).Trim().ToUpperInvariant();
-                if (string.IsNullOrEmpty(platNo)) continue;
+                var cleanVal = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
+                if (string.IsNullOrEmpty(cleanVal)) continue;
 
-                result[platNo] = new DeliveryProgressSession
+                result[cleanVal] = new DeliveryProgressSession
                 {
-                    PlatNo = platNo,
-                    DeliveryNo = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                    Lpcd = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    NoKtp = reader.IsDBNull(3) ? null : reader.GetString(3)
+                    SessionId = reader.GetGuid(0),
+                    DeliveryNo = reader.GetString(1),
+                    Lpcd = reader.GetString(2),
+                    VendorId = reader.IsDBNull(3) ? null : reader.GetGuid(3),
+                    MatchKey = reader.IsDBNull(4) ? "PlatNo" : reader.GetString(4),
+                    MatchValue = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                    CleanMatchValue = cleanVal,
+                    DriverKtp = reader.IsDBNull(7) ? null : reader.GetString(7)
                 };
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query active delivery progress sessions for plates: {PlatNos}", string.Join(", ", platArray));
+            _logger.LogError(ex, "Failed to query active delivery tracking sessions for plates: {PlatNos}", string.Join(", ", platArray));
         }
 
         return result;

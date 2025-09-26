@@ -245,9 +245,10 @@ public class DeliveryTrackingAdoRepository(
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
-            var vendorId = reader.HasColumn("gpsvendorid") ? reader.GetSafeGuid("gpsvendorid") : Guid.Empty;
-            var vendorName = reader.HasColumn("gpsvendorname") ? reader.GetSafeString("gpsvendorname") : string.Empty;
-            return new VendorByLpcdLookupResult(vendorId, vendorName, lpcd);
+            var vendorId = reader.HasColumn("VendorId") ? reader.GetSafeGuid("VendorId") : (reader.HasColumn("gpsvendorid") ? reader.GetSafeGuid("gpsvendorid") : Guid.Empty);
+            var vendorName = reader.HasColumn("VendorName") ? reader.GetSafeString("VendorName") : (reader.HasColumn("gpsvendorname") ? reader.GetSafeString("gpsvendorname") : string.Empty);
+            var vendorCode = reader.HasColumn("VendorCode") ? reader.GetSafeString("VendorCode") : (reader.HasColumn("gpsvendorcode") ? reader.GetSafeString("gpsvendorcode") : null);
+            return new VendorByLpcdLookupResult(vendorId, vendorName, lpcd, vendorCode);
         }
 
         return null;
@@ -512,6 +513,71 @@ public class DeliveryTrackingAdoRepository(
         }
 
         return sessions;
+    }
+
+    // 16. ambil snapshot posisi terkini armada delivery dari database edcl.t_delivery_latest_position
+    public async Task<DeliveryLatestPositionDto?> GetDeliveryLatestPositionAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT delivery_no, session_id, vendor_id, plate_number, vehicle_id,
+                   datetime, longitude, latitude, speed, course, street_name, updated_at
+            FROM edcl.t_delivery_latest_position
+            WHERE delivery_no = $1;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo.Trim().ToUpperInvariant());
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return new DeliveryLatestPositionDto(
+                DeliveryNo: reader.GetString(reader.GetOrdinal("delivery_no")),
+                SessionId: reader.GetGuid(reader.GetOrdinal("session_id")),
+                VendorId: reader.IsDBNull(reader.GetOrdinal("vendor_id")) ? null : reader.GetGuid(reader.GetOrdinal("vendor_id")),
+                PlateNumber: reader.GetString(reader.GetOrdinal("plate_number")),
+                VehicleId: reader.IsDBNull(reader.GetOrdinal("vehicle_id")) ? null : reader.GetString(reader.GetOrdinal("vehicle_id")),
+                Datetime: reader.GetDateTime(reader.GetOrdinal("datetime")),
+                Longitude: reader.GetDecimal(reader.GetOrdinal("longitude")),
+                Latitude: reader.GetDecimal(reader.GetOrdinal("latitude")),
+                Speed: reader.GetDecimal(reader.GetOrdinal("speed")),
+                Course: reader.GetDecimal(reader.GetOrdinal("course")),
+                StreetName: reader.IsDBNull(reader.GetOrdinal("street_name")) ? null : reader.GetString(reader.GetOrdinal("street_name")),
+                UpdatedAt: reader.GetDateTime(reader.GetOrdinal("updated_at"))
+            );
+        }
+
+        return null;
+    }
+
+    // 17. ambil riwayat log correlation miss / data mismatch terkini dari edcl.m_gps_api_log
+    public async Task<GpsCorrelationMissLogDto?> GetLatestCorrelationMissLogAsync(
+        string deliveryNo,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT status, error_message, error_response, created_at
+            FROM edcl.m_gps_api_log
+            WHERE function_name = 'DELIVERY_CORRELATION_MISS' AND parameter LIKE '%' || $1 || '%'
+            ORDER BY created_at DESC
+            LIMIT 1;";
+
+        await using var cmd = dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo.Trim().ToUpperInvariant());
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return new GpsCorrelationMissLogDto(
+                Status: reader.IsDBNull(reader.GetOrdinal("status")) ? "WARNING" : reader.GetString(reader.GetOrdinal("status")),
+                ErrorMessage: reader.IsDBNull(reader.GetOrdinal("error_message")) ? null : reader.GetString(reader.GetOrdinal("error_message")),
+                ErrorResponse: reader.IsDBNull(reader.GetOrdinal("error_response")) ? null : reader.GetString(reader.GetOrdinal("error_response")),
+                CreatedAt: reader.GetDateTime(reader.GetOrdinal("created_at"))
+            );
+        }
+
+        return null;
     }
 }
 

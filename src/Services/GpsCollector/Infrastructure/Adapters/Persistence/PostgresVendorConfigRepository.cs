@@ -23,13 +23,15 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
 
-        // 1. Ambil semua vendor
+        // 1. Ambil semua vendor aktif beserta LPCD-nya
         var vendorDict = new Dictionary<Guid, VendorConfigBuilder>();
 
         const string sqlVendors = @"
-            SELECT ""Id"", ""VendorName"", ""RequiredAuth"", ""AuthType"", ""Username"", ""Password"", 
-                   ""ProcessingStrategy"", ""ProcessingStrategyPathKey"", ""ProcessingStrategyPathData""
-            FROM edcl.tb_m_gps_vendor;";
+            SELECT v.id, v.vendor_name, v.vendor_code, vl.lpcd,
+                   v.processing_strategy, v.processing_strategy_path_key, v.processing_strategy_path_data
+            FROM edcl.m_gps_vendor v
+            LEFT JOIN edcl.m_gps_vendor_lpcd vl ON v.id = vl.vendor_id
+            WHERE v.is_active = true AND v.is_deleted = false;";
 
         await using (var cmd = new NpgsqlCommand(sqlVendors, conn))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
@@ -37,18 +39,24 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
             while (await reader.ReadAsync(ct))
             {
                 var id = reader.GetGuid(0);
-                vendorDict[id] = new VendorConfigBuilder
+                if (!vendorDict.TryGetValue(id, out var builder))
                 {
-                    Id = id,
-                    VendorName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                    RequiredAuth = !reader.IsDBNull(2) && reader.GetBoolean(2),
-                    AuthType = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Username = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    Password = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    ProcessingStrategy = reader.IsDBNull(6) ? "individual" : reader.GetString(6),
-                    ProcessingStrategyPathKey = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    ProcessingStrategyPathData = reader.IsDBNull(8) ? "data" : reader.GetString(8),
-                };
+                    builder = new VendorConfigBuilder
+                    {
+                        Id = id,
+                        VendorName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        VendorCode = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                        Lpcd = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        ProcessingStrategy = reader.IsDBNull(4) ? "individual" : reader.GetString(4),
+                        ProcessingStrategyPathKey = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        ProcessingStrategyPathData = reader.IsDBNull(6) ? "data" : reader.GetString(6),
+                    };
+                    vendorDict[id] = builder;
+                }
+                else if (string.IsNullOrEmpty(builder.Lpcd) && !reader.IsDBNull(3))
+                {
+                    builder.Lpcd = reader.GetString(3);
+                }
             }
         }
 
@@ -56,9 +64,9 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
 
         // 2. Ambil endpoints
         const string sqlEndpoints = @"
-            SELECT ""Id"", ""GpsVendorId"", ""EndpointName"", ""BaseUrl"", ""Method"", 
-                   ""Headers""::text, ""Params""::text, ""Bodies""::text, ""VarParams""::text, ""MaxPath""
-            FROM edcl.tb_m_gps_vendor_endpoint;";
+            SELECT id, vendor_id, endpoint_type, base_url, method, 
+                   headers::text, params::text, bodies::text, var_params::text, max_path
+            FROM edcl.m_gps_vendor_endpoint;";
 
         await using (var cmd = new NpgsqlCommand(sqlEndpoints, conn))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
@@ -87,9 +95,9 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
 
         // 3. Ambil auth
         const string sqlAuth = @"
-            SELECT ""Id"", ""GpsVendorId"", ""BaseUrl"", ""Method"", ""Authtype"", ""ContentType"", 
-                   ""Username"", ""Password"", ""Headers""::text, ""Params""::text, ""Bodies""::text, ""TokenPath""
-            FROM edcl.tb_m_gps_vendor_auth;";
+            SELECT id, vendor_id, base_url, method, auth_type, content_type, 
+                   username, password, headers::text, params::text, bodies::text, token_path
+            FROM edcl.m_gps_vendor_auth;";
 
         await using (var cmd = new NpgsqlCommand(sqlAuth, conn))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
@@ -114,14 +122,18 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
                         BodiesJson = reader.IsDBNull(10) ? null : reader.GetString(10),
                         TokenPath = reader.IsDBNull(11) ? null : reader.GetString(11),
                     };
+                    builder.RequiredAuth = true;
+                    builder.AuthType = builder.Auth.AuthType;
+                    builder.Username = builder.Auth.Username;
+                    builder.Password = builder.Auth.Password;
                 }
             }
         }
 
         // 4. Ambil mappings
         const string sqlMappings = @"
-            SELECT ""GpsVendorId"", ""ResponseField"", ""MappedField""
-            FROM edcl.tb_m_mapping;";
+            SELECT vendor_id, response_field, mapped_field
+            FROM edcl.m_gps_vendor_mapping;";
 
         await using (var cmd = new NpgsqlCommand(sqlMappings, conn))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
@@ -153,8 +165,8 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     public async Task<int> GetPollingDelayMinutesAsync(CancellationToken ct)
     {
         const string sql = @"
-            SELECT ""SysValue"" FROM edcl.tb_m_system
-            WHERE ""SysCat"" = 'Delay' AND ""SysSubCat"" = 'EDCL_GPS_WORKER_SERVICE' AND ""SysCd"" = '1'
+            SELECT sys_value FROM edcl.m_system
+            WHERE sys_cat = 'Delay' AND sys_sub_cat = 'EDCL_GPS_WORKER_SERVICE' AND sys_cd = '1'
             LIMIT 1;";
 
         try
@@ -170,7 +182,7 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read delay config from tb_m_system, falling back to 1 minute");
+            _logger.LogWarning(ex, "Failed to read delay config from edcl.m_system, falling back to 1 minute");
         }
 
         return 1;
@@ -179,11 +191,11 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     public async Task UpdateVarParamsMaxIdAsync(Guid endpointId, string propertyName, int maxId, CancellationToken ct)
     {
         const string sql = @"
-            UPDATE edcl.tb_m_gps_vendor_endpoint
-            SET ""VarParams"" = jsonb_set(COALESCE(""VarParams"", '{}'::jsonb), @path, @val::jsonb),
-                ""LastModified"" = @modifiedAt,
-                ""LastModifiedBy"" = 'System'
-            WHERE ""Id"" = @endpointId;";
+            UPDATE edcl.m_gps_vendor_endpoint
+            SET var_params = jsonb_set(COALESCE(var_params, '{}'::jsonb), @path, @val::jsonb),
+                last_modified = @modifiedAt,
+                last_modified_by = 'System'
+            WHERE id = @endpointId;";
 
         try
         {
@@ -206,7 +218,9 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     private sealed class VendorConfigBuilder
     {
         public Guid Id { get; set; }
+        public string VendorCode { get; set; } = string.Empty;
         public string VendorName { get; set; } = string.Empty;
+        public string? Lpcd { get; set; }
         public bool RequiredAuth { get; set; }
         public string? AuthType { get; set; }
         public string? Username { get; set; }
@@ -221,7 +235,9 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
         public VendorConfig Build() => new()
         {
             Id = Id,
+            VendorCode = VendorCode,
             VendorName = VendorName,
+            Lpcd = Lpcd,
             RequiredAuth = RequiredAuth,
             AuthType = AuthType,
             Username = Username,

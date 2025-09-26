@@ -5,6 +5,7 @@ using DeliveryTracking.Application.UseCases.BulkInsertGpsDelivery;
 using DeliveryTracking.Application.UseCases.CompleteDeliveryJob;
 using DeliveryTracking.Application.UseCases.DeleteDeliveryProgress;
 using DeliveryTracking.Application.UseCases.GetActiveDeliverySessions;
+using DeliveryTracking.Application.UseCases.GetDeliveryLiveTracking;
 using DeliveryTracking.Application.UseCases.GetDeliveryProgress;
 using DeliveryTracking.Application.UseCases.GetDeliverySession;
 using DeliveryTracking.Application.UseCases.StartDeliveryJob;
@@ -151,6 +152,17 @@ public class DeliveryTrackingEndpoints : ICarterModule
         .Produces<IReadOnlyList<DeliveryTrackingSessionDto>>(StatusCodes.Status200OK)
         .WithSummary("Ambil daftar seluruh sesi pelacakan pengiriman yang sedang aktif (STARTED / IN_TRANSIT)");
 
+        // 11. GET /api/v1/deliveries/live/{deliveryNo}
+        group.MapGet("/live/{deliveryNo}", async (string deliveryNo, ISender sender) =>
+        {
+            var result = await sender.Send(new GetDeliveryLiveTrackingQuery(deliveryNo));
+            return Results.Ok(result);
+        })
+        .WithName("GetDeliveryLiveTracking")
+        .Produces<DeliveryLiveTrackingDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Ambil status realtime dan posisi live pelacakan delivery (Redis-first sub-milidetik dengan status TRACKING_ACTIVE, DATA_MISMATCH, VENDOR_CONNECTION_ERROR, atau WAITING_TELEMETRY)");
+
         // --- Alias Routes untuk kesesuaian spesifikasi /api/v1/delivery-session/* ---
         var sessionGroup = app.MapGroup("/api/v1/delivery-session")
             .WithTags("Delivery Sessions");
@@ -184,5 +196,15 @@ public class DeliveryTrackingEndpoints : ICarterModule
         .Produces<DeliveryTrackingSessionDto>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Alias: Ambil status sesi pelacakan pengiriman berdasarkan nomor DO");
+
+        sessionGroup.MapGet("/live/{deliveryNo}", async (string deliveryNo, ISender sender) =>
+        {
+            var result = await sender.Send(new GetDeliveryLiveTrackingQuery(deliveryNo));
+            return Results.Ok(result);
+        })
+        .WithName("GetDeliveryLiveTrackingAlias")
+        .Produces<DeliveryLiveTrackingDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .WithSummary("Alias: Ambil status realtime dan posisi live pelacakan delivery");
     }
 }

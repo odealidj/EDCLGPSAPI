@@ -86,6 +86,8 @@ public class GpsCollectorOrchestratorTests
             ["B 1234 CD"] = new() { PlatNo = "B 1234 CD", DeliveryNo = "DELIV-001", Lpcd = "LP01", NoKtp = "12345678" }
         };
 
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(activeSessions.Values.ToList());
         _deliverySessionRepo.Setup(s => s.GetActiveSessionsByPlatNosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(activeSessions);
 
@@ -152,5 +154,194 @@ public class GpsCollectorOrchestratorTests
 
         _ingestionRepo.Verify(i => i.IngestTelemetryBatchAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<IReadOnlyList<TelemetryPoint>>(), It.IsAny<IReadOnlyDictionary<string, DeliveryProgressSession>>(), It.IsAny<CancellationToken>()), Times.Never);
         _healthTracker.Verify(h => h.RecordFailureAsync(vendor, vendor.Endpoints[0], 503, It.Is<string>(s => s.Contains("503")), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenNoActiveDeliveries_ShouldArchiveToMongo_AndSkipDeliveryIngestion()
+    {
+        // arrange - Opsi A: raw response tetap diarsipkan ke MongoDB, tapi tidak dinormalisasi/disimpan ke PostgreSQL delivery
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorCode = "HINO",
+            VendorName = "HINO-CONNECT",
+            Lpcd = "AJL",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "LastPos",
+                    BaseUrl = "https://api.hino.co.id/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        var rawJson = "{\"data\":[{\"plat\":\"B 9001 FXR\",\"lat\":-6.2,\"lng\":106.8}]}";
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(true, 200, "OK", rawJson, "https://api.hino.co.id/pos"));
+
+        // Tidak ada sesi delivery aktif untuk vendor ini
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, "AJL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        // act
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        // assert
+        result.Success.Should().BeTrue();
+        result.DeliveryPointsCount.Should().Be(0);
+
+        // Raw response selalu tersimpan di MongoDB
+        _archiver.Verify(a => a.ArchiveRawResponseAsync(vendorId, vendor.VendorName, vendor.Endpoints[0].BaseUrl, rawJson, 0, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Tidak ada penyimpanan ke tabel delivery PostgreSQL
+        _ingestionRepo.Verify(i => i.IngestDeliveryPositionsAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<(TelemetryPoint, DeliveryProgressSession)>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenHttpFailsWithActiveSession_Kategori1_ShouldUpdateLiveStatusToVendorConnectionError()
+    {
+        // arrange - Kategori 1: Gagal koneksi ke API vendor saat ada delivery aktif
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorCode = "HINO",
+            VendorName = "HINO-CONNECT",
+            Lpcd = "AJL",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "LastPos",
+                    BaseUrl = "https://api.hino.co.id/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        var activeSessions = new List<DeliveryProgressSession>
+        {
+            new() { DeliveryNo = "DO-001", Lpcd = "AJL", VendorId = vendorId, MatchKey = "PlatNo", MatchValue = "B 9001 FXR", CleanMatchValue = "B9001FXR" }
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(false, 504, "Gateway Timeout", "Timed out", "https://api.hino.co.id/pos"));
+
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, "AJL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(activeSessions);
+
+        // act
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        // assert
+        result.Success.Should().BeTrue();
+
+        // Log dicatat ke edcl.m_gps_api_log
+        _apiLogRepo.Verify(l => l.LogApiCallAsync(It.Is<GpsApiLogRecord>(r =>
+            r.FunctionName == "https://api.hino.co.id/pos" &&
+            r.Status == "0" &&
+            r.ErrorMessage!.Contains("504")
+        ), It.IsAny<CancellationToken>()), Times.Once);
+
+        // Live cache di Redis ditandai VENDOR_CONNECTION_ERROR
+        _cache.Verify(c => c.UpdateDeliveryLiveStatusAsync(
+            "DO-001",
+            "VENDOR_CONNECTION_ERROR",
+            It.Is<string>(msg => msg.Contains("504")),
+            It.IsAny<CancellationToken>()
+        ), Times.Once);
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenDataMismatch_Kategori2_ShouldCancelIngestion_LogWarning_AndUpdateLiveStatus()
+    {
+        // arrange - Kategori 2: HTTP 200 OK dari vendor, tapi armada tidak ditemukan
+        // (bisa karena GPS mati, salah input plat/identitas saat Start Job, atau respons JSON vendor berubah)
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorCode = "HINO",
+            VendorName = "HINO-CONNECT",
+            Lpcd = "AJL",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "LastPos",
+                    BaseUrl = "https://api.hino.co.id/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        // Vendor mengirim data truk lain (misal plat B 1111 AAA), bukan B 9001 FXR
+        var rawJson = "{\"data\":[{\"plat\":\"B 1111 AAA\",\"lat\":-6.2,\"lng\":106.8}]}";
+        var normalizedPoints = new List<TelemetryPoint>
+        {
+            new() { PlatNo = "B 1111 AAA", Datetime = DateTime.UtcNow, X = 106.8m, Y = -6.2m }
+        };
+
+        var activeSessions = new List<DeliveryProgressSession>
+        {
+            new() { DeliveryNo = "DO-001", Lpcd = "AJL", VendorId = vendorId, MatchKey = "PlatNo", MatchValue = "B 9001 FXR", CleanMatchValue = "B9001FXR" }
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(true, 200, "OK", rawJson, "https://api.hino.co.id/pos"));
+
+        _normalizer.Setup(n => n.Normalize(vendorId, rawJson, "data", vendor.Mappings, vendor.Endpoints[0].BaseUrl))
+            .Returns(normalizedPoints);
+
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, "AJL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(activeSessions);
+
+        // act
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        // assert
+        result.Success.Should().BeTrue();
+        result.DeliveryPointsCount.Should().Be(0);
+
+        // Raw response tetap aman di MongoDB
+        _archiver.Verify(a => a.ArchiveRawResponseAsync(vendorId, vendor.VendorName, vendor.Endpoints[0].BaseUrl, rawJson, 0, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Batal simpan ke tabel delivery
+        _ingestionRepo.Verify(i => i.IngestDeliveryPositionsAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<(TelemetryPoint, DeliveryProgressSession)>>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Laporkan Kategori 2 ke edcl.m_gps_api_log sebagai WARNING
+        _apiLogRepo.Verify(l => l.LogApiCallAsync(It.Is<GpsApiLogRecord>(r =>
+            r.FunctionName == "DELIVERY_CORRELATION_MISS" &&
+            r.Status == "WARNING" &&
+            r.ErrorMessage!.Contains("DO-001") &&
+            r.ErrorMessage!.Contains("B 9001 FXR")
+        ), It.IsAny<CancellationToken>()), Times.Once);
+
+        // Update live status di Redis ke DATA_MISMATCH
+        _cache.Verify(c => c.UpdateDeliveryLiveStatusAsync(
+            "DO-001",
+            "DATA_MISMATCH",
+            It.Is<string>(msg => msg.Contains("Armada tidak ditemukan")),
+            It.IsAny<CancellationToken>()
+        ), Times.Once);
     }
 }

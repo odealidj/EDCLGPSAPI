@@ -59,10 +59,12 @@ public class CompleteDeliveryJobCommandHandler(
                 await db.HashDeleteAsync(lpcdHashKey, completedSession.CleanMatchValue);
                 await db.HashDeleteAsync("delivery:active:lookup", completedSession.CleanMatchValue);
                 await db.KeyDeleteAsync($"delivery:active:{completedSession.CleanMatchValue}");
+                await db.SetRemoveAsync($"delivery:active:lpcd:{completedSession.Lpcd.ToUpperInvariant()}", deliveryNo);
             }
 
             await db.SetRemoveAsync("delivery:active:set", deliveryNo);
             await db.KeyDeleteAsync($"delivery:session:{deliveryNo}");
+            await db.KeyDeleteAsync($"delivery:live:{deliveryNo}");
 
             logger.LogInformation("Hot index Redis berhasil dibersihkan untuk delivery '{DeliveryNo}'", deliveryNo);
         }

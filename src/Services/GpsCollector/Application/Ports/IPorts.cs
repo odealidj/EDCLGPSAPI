@@ -22,6 +22,7 @@ public interface IVendorConfigRepository
 // Port Outbound: Akses sesi delivery progress aktif armada
 public interface IDeliverySessionRepository
 {
+    Task<List<DeliveryProgressSession>> GetActiveSessionsForVendorAsync(Guid vendorId, string? lpcd, CancellationToken ct);
     Task<Dictionary<string, DeliveryProgressSession>> GetActiveSessionsByPlatNosAsync(IEnumerable<string> platNos, CancellationToken ct);
 }
 
@@ -51,6 +52,12 @@ public interface ITelemetryNormalizer
 // Port Outbound: Bulk ingestion PostgreSQL via Binary COPY stream
 public interface ITelemetryIngestionRepository
 {
+    Task<int> IngestDeliveryPositionsAsync(
+        Guid vendorId,
+        string vendorName,
+        IReadOnlyList<(TelemetryPoint Point, DeliveryProgressSession Session)> matchedDeliveries,
+        CancellationToken ct);
+
     Task<(int TotalInserted, int DeliveryInserted)> IngestTelemetryBatchAsync(
         Guid vendorId,
         string vendorName,
@@ -63,6 +70,8 @@ public interface ITelemetryIngestionRepository
 // Port Outbound: Cache snapshot posisi terkini di Redis
 public interface ITelemetryCache
 {
+    Task UpdateDeliveryLivePositionAsync(string deliveryNo, TelemetryPoint point, string trackingStatus, CancellationToken ct);
+    Task UpdateDeliveryLiveStatusAsync(string deliveryNo, string trackingStatus, string? errorMessage, CancellationToken ct);
     Task SetLastPositionsAsync(string vendorName, IReadOnlyList<TelemetryPoint> points, CancellationToken ct);
 }
 

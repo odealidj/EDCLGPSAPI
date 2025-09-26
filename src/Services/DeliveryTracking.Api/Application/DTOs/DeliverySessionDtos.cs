@@ -16,20 +16,31 @@ public class StartDeliveryJobRequestDto
     public string Lpcd { get; set; } = string.Empty;
 
     [JsonPropertyName("key")]
-    public string Key { get; set; } = "PlatNo";
+    public string? Key { get; set; }
+
+    [JsonPropertyName("match_key")]
+    public string? MatchKey { get; set; }
 
     [JsonPropertyName("val")]
-    public string Val { get; set; } = string.Empty;
+    public string? Val { get; set; }
 
     // Alias pendukung jika EDCL_API mengirim "value" alih-alih "val"
     [JsonPropertyName("value")]
     public string? Value { get; set; }
 
+    [JsonPropertyName("match_value")]
+    public string? MatchValue { get; set; }
+
     [JsonPropertyName("driverKtp")]
     public string? DriverKtp { get; set; }
 
     [JsonIgnore]
-    public string EffectiveValue => !string.IsNullOrWhiteSpace(Val) ? Val : (Value ?? string.Empty);
+    public string EffectiveKey => !string.IsNullOrWhiteSpace(MatchKey) ? MatchKey : (!string.IsNullOrWhiteSpace(Key) ? Key : "PlatNo");
+
+    [JsonIgnore]
+    public string EffectiveValue => !string.IsNullOrWhiteSpace(MatchValue) ? MatchValue : (!string.IsNullOrWhiteSpace(Val) ? Val : (Value ?? string.Empty));
+
+    public string GetEffectiveKey() => EffectiveKey;
 
     public string GetEffectiveValue() => EffectiveValue;
 }
@@ -40,6 +51,7 @@ public record StartDeliveryJobResultDto(
     string Message,
     string DeliveryNo,
     string Lpcd,
+    string? VendorCode,
     string Key,
     string Val,
     string CleanValue,
@@ -91,6 +103,52 @@ public record DeliveryTrackingSessionDto(
     DateTime StartedAt,
     DateTime? ArrivedAt,
     DateTime? CompletedAt
+);
+
+// snapshot posisi terkini armada pengiriman dari database edcl.t_delivery_latest_position
+public record DeliveryLatestPositionDto(
+    string DeliveryNo,
+    Guid SessionId,
+    Guid? VendorId,
+    string PlateNumber,
+    string? VehicleId,
+    DateTime Datetime,
+    decimal Longitude,
+    decimal Latitude,
+    decimal Speed,
+    decimal Course,
+    string? StreetName,
+    DateTime UpdatedAt
+);
+
+// catatan audit log jika terjadi correlation miss / mismatch dari edcl.m_gps_api_log
+public record GpsCorrelationMissLogDto(
+    string Status,
+    string? ErrorMessage,
+    string? ErrorResponse,
+    DateTime CreatedAt
+);
+
+// DTO lengkap status live tracking untuk Web Portal Operation EDCL
+public record DeliveryLiveTrackingDto(
+    string DeliveryNo,
+    string TrackingStatus, // TRACKING_ACTIVE, DATA_MISMATCH, VENDOR_CONNECTION_ERROR, WAITING_TELEMETRY, COMPLETED
+    string? StatusMessage,
+    string? Lpcd,
+    string? VendorCode,
+    string? VendorName,
+    string? PlatNo,
+    string? DeviceId,
+    string? MatchKey,
+    string? MatchValue,
+    decimal? Latitude,
+    decimal? Longitude,
+    decimal? Speed,
+    decimal? Course,
+    string? StreetName,
+    DateTime? GpsDatetime,
+    DateTime? UpdatedAt,
+    string DataSource // "Redis" atau "PostgreSQL"
 );
 
 // helper utilitas validasi dan pembersihan key matching
