@@ -21,6 +21,7 @@ public class GetVendorByIdHandler(IVendorMasterRepository repository)
             Id = v.Id,
             VendorCode = v.VendorCode,
             VendorName = v.VendorName,
+            Lpcd = v.Lpcds.FirstOrDefault()?.Lpcd ?? string.Empty,
             ProtocolType = v.ProtocolType,
             Timezone = v.Timezone,
             IsActive = v.IsActive,

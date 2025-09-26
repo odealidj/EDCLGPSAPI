@@ -200,6 +200,8 @@ public class GpsVendor : Aggregate<Guid>
 
     // bersihkan child collections saat replace update
     public void ClearEndpoints() => _endpoints.Clear();
+    public void RemoveEndpoint(GpsVendorEndpoint endpoint) => _endpoints.Remove(endpoint);
     public void ClearMappings() => _mappings.Clear();
+    public void RemoveMapping(GpsVendorMapping mapping) => _mappings.Remove(mapping);
     public void ClearLpcds() => _lpcds.Clear();
 }

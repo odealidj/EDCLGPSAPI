@@ -2,7 +2,7 @@ namespace VendorMaster.Application.UseCases.Vendors.Commands.CreateVendor;
 
 // request & result create vendor
 public record CreateVendorCommand(VendorDto Vendor) : ICommand<CreateVendorResult>;
-public record CreateVendorResult(Guid Id);
+public record CreateVendorResult(Guid Id, string VendorCode = "", string Lpcd = "");
 
 // validasi input create vendor
 public class CreateVendorValidator : AbstractValidator<CreateVendorCommand>
@@ -62,6 +62,10 @@ public class CreateVendorHandler(
         if (!string.IsNullOrWhiteSpace(dto.Lpcd) && !dto.Lpcds.Any(x => x.Lpcd.Equals(dto.Lpcd.Trim(), StringComparison.OrdinalIgnoreCase)))
         {
             dto.Lpcds.Add(new VendorLpcdDto { Lpcd = dto.Lpcd.Trim().ToUpperInvariant() });
+        }
+        else if (string.IsNullOrWhiteSpace(dto.Lpcd) && dto.Lpcds.Count > 0)
+        {
+            dto.Lpcd = dto.Lpcds[0].Lpcd.Trim().ToUpperInvariant();
         }
 
         if (dto.LpcdCodes is { Count: > 0 })
@@ -175,13 +179,15 @@ public class CreateVendorHandler(
         }
 
         // pasang unit armada toyota (lpcd) - 1 vendor, 1 lpcd
-        var primaryLpcd = dto.Lpcd ?? dto.Lpcds.FirstOrDefault()?.Lpcd ?? string.Empty;
+        var primaryLpcd = !string.IsNullOrWhiteSpace(dto.Lpcd)
+            ? dto.Lpcd.Trim().ToUpperInvariant()
+            : (dto.Lpcds.FirstOrDefault()?.Lpcd?.Trim().ToUpperInvariant() ?? string.Empty);
         vendor.SetLpcd(primaryLpcd);
 
         // simpan ke database
         await repository.CreateVendorAsync(vendor, cancellationToken);
         logger.LogInformation("Berhasil mendaftarkan vendor baru: {VendorCode} ({Id})", vendor.VendorCode, vendor.Id);
 
-        return new CreateVendorResult(vendor.Id);
+        return new CreateVendorResult(vendor.Id, vendor.VendorCode, primaryLpcd);
     }
 }

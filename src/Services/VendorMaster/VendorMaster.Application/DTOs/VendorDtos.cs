@@ -8,6 +8,7 @@ public class VendorDto
     public Guid Id { get; set; }
     public string VendorCode { get; set; } = string.Empty;
     public string VendorName { get; set; } = string.Empty;
+    public string Lpcd { get; set; } = string.Empty;
     public string ProtocolType { get; set; } = VendorDefaults.DefaultProtocolType;
     public string Timezone { get; set; } = VendorDefaults.DefaultTimezone;
     public bool IsActive { get; set; } = true;
@@ -22,48 +23,46 @@ public class VendorDto
     public List<VendorMappingDto> Mappings { get; set; } = [];
     public List<VendorLpcdDto> Lpcds { get; set; } = [];
 
-    // convenience shortcut single lpcd dan array string
-    private string? _lpcd;
-    public string? Lpcd
-    {
-        get => _lpcd ?? Lpcds.FirstOrDefault()?.Lpcd;
-        set => _lpcd = value;
-    }
-
-    private List<string>? _lpcdCodes;
-    public List<string> LpcdCodes
-    {
-        get => _lpcdCodes ?? Lpcds.Select(x => x.Lpcd).ToList();
-        set => _lpcdCodes = value;
-    }
-
-    // kompatibilitas buat request legacy geofencemaster (diabaikan saat serialisasi response)
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    // legacy geofencemaster & array alias (diabaikan dari swagger schema)
+    [JsonIgnore]
     public List<VendorEndpointDto>? GeofenceMasterEndpoints
     {
         get => null;
         set => Endpoints = (Endpoints.Count == 0 && value != null) ? value : Endpoints;
     }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public VendorAuthDto? GeofenceMasterAuth
     {
         get => null;
         set => Auth ??= value;
     }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public List<VendorMappingDto>? GeofenceMasterMappings
     {
         get => null;
         set => Mappings = (Mappings.Count == 0 && value != null) ? value : Mappings;
     }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public List<VendorLpcdDto>? GeofenceMasterLpcds
     {
         get => null;
         set => Lpcds = (Lpcds.Count == 0 && value != null) ? value : Lpcds;
+    }
+
+    [JsonIgnore]
+    public List<string>? LpcdCodes
+    {
+        get => string.IsNullOrWhiteSpace(Lpcd) ? [] : [Lpcd];
+        set
+        {
+            if (value is { Count: > 0 } && string.IsNullOrWhiteSpace(Lpcd))
+            {
+                Lpcd = value[0];
+            }
+        }
     }
 
     public bool? RequiredAuth { get; set; }
@@ -90,13 +89,15 @@ public class VendorDto
         List<VendorLpcdDto>? lpcds,
         string? vendorCode = null,
         string? protocolType = VendorDefaults.DefaultProtocolType,
-        bool isActive = true)
+        bool isActive = true,
+        string? lpcd = null)
     {
         Id = id;
         VendorName = vendorName;
         VendorCode = string.IsNullOrWhiteSpace(vendorCode)
             ? vendorName.Replace(" ", "_").ToUpperInvariant()
             : vendorCode;
+        Lpcd = lpcd ?? lpcds?.FirstOrDefault()?.Lpcd ?? string.Empty;
         ProtocolType = protocolType ?? VendorDefaults.DefaultProtocolType;
         Timezone = timezone ?? VendorDefaults.DefaultTimezone;
         IsActive = isActive;
