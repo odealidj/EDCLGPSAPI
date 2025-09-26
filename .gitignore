@@ -406,11 +406,13 @@ FodyWeavers.xsd
 **/appsettings*.json
 !**/appsettings.template.json
 
-# Exclude local database scripts & dump files (allow database/ folder)
+# Exclude local database scripts, database directory & sensitive plan documentation
 *.sql
 src/*.sql
-!database/
-!database/**
+database/
+ARCHITECTURE.md
+DECOMMISSIONING_PLAN.md
+MICROSERVICES_PLAN.md
 
 # Local Process Runner PIDs & Logs
 .local-pids/
