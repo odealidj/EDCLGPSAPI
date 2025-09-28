@@ -337,58 +337,6 @@ Berikut adalah daftar lengkap URL akses layanan, dashboard operasional, observab
 
 ---
 
-## 📡 Katalog REST API Terpadu (Gateway Port 5000)
-
-Seluruh request dari aplikasi eksternal (Web Admin, Mobile Driver, atau EDCLWEBAPI) diarahkan melalui **YARP API Gateway (`http://localhost:5000`)**:
-
-### 1. 🏢 Vendor Master & Dynamic Configuration Service
-| Method | Endpoint | Summary & Deskripsi |
-|:---:|---|---|
-| `GET` | `/api/v1/vendors` | Mengambil daftar seluruh konfigurasi vendor terpaginasi. |
-| `GET` | `/api/v1/vendors/{id}` | Mengambil detail spesifik satu konfigurasi vendor by UUID. |
-| `POST` | `/api/v1/vendors` | Mendaftarkan konfigurasi vendor baru (*Wajib menyertakan header `X-Idempotency-Key`*). |
-| `PUT` | `/api/v1/vendors` | Memperbarui profil, endpoint, atau mapping field vendor. |
-| `DELETE` | `/api/v1/vendors/{id}` | Soft delete vendor dan membatalkan aktivasi polling. |
-| `GET` | `/api/v1/vendors/active` | Mengambil seluruh vendor aktif langsung dari cache permanen Redis (atau fallback PostgreSQL). |
-| `POST` | `/api/v1/vendors/cache/refresh` | Memaksa sinkronisasi ulang data vendor aktif ke Redis cache (hapus & isi ulang). |
-| `GET` | `/api/v1/geofence-destinations` | Mengambil daftar master polygon / geofence pabrik Toyota TMMIN & supplier. |
-| `POST` | `/api/v1/geofence-destinations` | Mendaftarkan master geofence destination baru. |
-
-### 2. 🚚 Delivery Tracking & Live Positions Service
-| Method | Endpoint | Summary & Deskripsi |
-|:---:|---|---|
-| `POST` | `/api/v1/deliveries/start-job` | **Start Job**: Dipanggil saat supir klik Start Job di Mobile App. Menyimpan sesi ke `edcl.t_delivery_tracking_session` dan mendaftarkan pemetaan ke Redis RAM. Mendukung alias `/api/v1/delivery-session/start`. |
-| `POST` | `/api/v1/deliveries/complete-job` | **Complete Job**: Menyelesaikan sesi tracking delivery. Mendukung alias `/api/v1/delivery-session/complete`. |
-| `GET` | `/api/v1/deliveries/session/{deliveryNo}` | Mengambil data sesi pengiriman aktif berdasarkan nomor DO. Alias: `/api/v1/delivery-session/{deliveryNo}`. |
-| `GET` | `/api/v1/deliveries/sessions/active` | Mengambil daftar seluruh sesi delivery yang sedang berjalan (`STARTED` / `IN_TRANSIT`). |
-| `GET` | `/api/v1/deliveries/live/{deliveryNo}` | **Live Tracking Real-time**: Mengambil status posisi terkini secara instan via Redis (< 1ms). Mengembalikan status `TRACKING_ACTIVE`, `DATA_MISMATCH`, `VENDOR_CONNECTION_ERROR`, atau `WAITING_TELEMETRY`. |
-| `GET` | `/api/v1/deliveries/track` | **Route Replay**: Mengambil jejak koordinat GPS pengiriman armada via Stored Procedure PostgreSQL `edcl.sp_edclgps_get_track_delivery` (mendukung query parameter `density`). |
-| `GET` | `/api/v1/deliveries/raw-responses` | **MongoDB Raw Inspection**: Mengambil arsip respons JSON asli vendor di MongoDB dengan filter `vendorId`, `vendorName`, `fromDate`, `toDate`, `search`, serta paginasi `pageIndex` & `pageSize`. |
-| `GET` | `/api/v1/deliveries/raw-responses/{id}` | Mengambil detail 1 dokumen raw response JSON asli dari vendor berdasarkan ID MongoDB. |
-| `GET` | `/api/v1/positions/{platNo}` | Mengambil posisi terkini armada berdasarkan nomor plat kendaraan (Redis-first < 1ms dengan fallback PostgreSQL ADO.NET). |
-| `GET` | `/api/v1/positions` | Kueri multi-filter dan paginasi posisi armada. |
-| `GET` | `/gps-lastposition` | Endpoint kompatibilitas legacy untuk format `{ LastPosition: { ... } }`. |
-| `GET` | `/api/v1/deliveries/progress/{deliveryNo}` | Mengambil status progres pengiriman armada. |
-| `POST` | `/api/v1/deliveries/progress` | Upsert status progres pengiriman armada (*Idempotent*). |
-| `POST` | `/api/v1/deliveries/progress/bulk` | Bulk insert data progres delivery secara massal (PostgreSQL Binary COPY stream). |
-| `POST` | `/api/v1/deliveries/telemetry/bulk` | Bulk insert koordinat titik GPS telemetri armada secara massal (Binary COPY stream). |
-
----
-
-## 🚛 Konfigurasi Integrasi Vendor Telematika Nyata
-
-Tabel berikut merangkum 5 konfigurasi vendor telematika yang telah terkonfigurasi dan terverifikasi pada sistem:
-
-| Vendor | Kode Vendor | Kode LPCD | Method | Endpoint URL & Parameter | Polling & Throttling Rules |
-|---|:---:|:---:|:---:|---|---|
-| **INOVATRACK** | `INOVATRACK` | `TMMIN2` (AJL) | `GET` | `https://api.inovatrack.com/api/VehicleSummary/GetAll?memberCode=TMMIN2&password=IMJh2TOn13asvYs4` | Wajib interval **> 30 detik** (38–75s di dev, 60s di prod). |
-| **MULIATRACK** | `MULIATRACK` | `MLT` | `GET` | `https://app1.muliatrack.com/wspubtoyota/service.asmx/GetPositions?memberCode=sgltmmin&password=sgltmmin&maxCount=150` | Stateful cursor `lastPositionId` dinamis di `var_params`. |
-| **PUNINAR** | `PUNINAR` | `PNR` | `POST` | `https://tnt-micro.puninarlogistics.com/api/tracking-tmmin`<br/>Header: `token: 180f0d0b5f255b58b950a3090fd19f2fe13afcb1` | HTTP POST dengan autentikasi custom header token. |
-| **DUNEX** | `DUNEX` | `DNX` | `GET` | `https://mock-telematics.tmmin.co.id/api/v1/dunex/tracking?company=DUNEX` | Static API key / company query parameter. |
-| **HINO CONNECT**| `HINO` | `AJL` | `GET` | `https://mock-telematics.tmmin.co.id/api/v1/hino/vehicles/latest` | Multi-stream combined strategy (`vehicles` + `positions` via `vin`). |
-
----
-
 ## 📚 Struktur Direktori Solusi
 
 ```
