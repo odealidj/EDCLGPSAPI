@@ -160,18 +160,18 @@ graph TD
   - Cache key `vendor:configs:active` disimpan selamanya di Redis (`expiry: null`) agar worker tidak membebani PostgreSQL setiap kali siklus polling.
   - Jika Redis kosong/cold start, sistem melakukan fallback instan ke PostgreSQL dan secara otomatis mengisi ulang (*rehydrate*) Redis.
   - Setiap operasi penambahan, perubahan, atau penghapusan vendor di `VendorMaster.Api` secara otomatis memicu invalidasi dan rehidrasi cache Redis secara sinkron.
-  - Menyediakan endpoint audit `GET /api/v1/vendors/active` dan endpoint manual refresh `POST /api/v1/vendors/cache/refresh`.
+
 
 - **High-Speed Bulk Ingestion via PostgreSQL Binary COPY Stream**:
   Proses penyimpanan titik koordinat armada yang membawa delivery aktif (`edcl.t_delivery_latest_position` dan partisi bulanan `edcl.t_delivery_position_history`) menggunakan **`NpgsqlBinaryImporter` (PostgreSQL Binary COPY Protocol)** langsung ke soket database.
   - Menghindari overhead alokasi memori, tracking context, dan refleksi SQL `INSERT` per-baris dari ORM (EF Core/Dapper).
   - Mampu menyerap puluhan ribu koordinat armada per siklus dalam hitungan milidetik dengan *throughput* stabil.
-  - Endpoint kompatibilitas legacy (`/api/v1/deliveries/progress/bulk` dan `/api/v1/deliveries/telemetry/bulk`) juga dioptimalkan menggunakan protokol Binary COPY.
+
 
 - **Raw Response Inspection & Replay Engine (MongoDB)**:
   - Seluruh payload mentah asli dari vendor disimpan secara utuh ke koleksi MongoDB `gps_raw_responses` dengan TTL otomatis 30 hari.
   - Menyediakan endpoint `GET /api/v1/deliveries/raw-responses` untuk menginspeksi respons asli vendor dengan fitur **multi-filter** (`vendorId`, `vendorName`, `fromDate`, `toDate`, `search`) dan **paginasi** (`pageIndex`, `pageSize`).
-  - Endpoint `GET /api/v1/deliveries/raw-responses/{id}` untuk melihat dokumen mentah spesifik.
+
 
 - **Redis-First Fleet Location Query (< 1ms Latency)**:
   Endpoint pelacakan posisi live armada pada `DeliveryTracking.Api` mengecek memori Redis (`delivery:live:{deliveryNo}` dan `gps:last:{platNo}`) terlebih dahulu sebelum melakukan *fallback* ke database PostgreSQL. Menghasilkan respons latensi sub-milidetik untuk kebutuhan dashboard monitoring logistik real-time.
@@ -205,29 +205,6 @@ graph TD
   - **Grafana Live Dashboard**: Menampilkan visualisasi kesehatan vendor telematika, tren latensi respons, throughput penyerapan koordinat, dan resource container.
   - **Seq Centralized Structured Logging**: Log terpusat berbasis JSON terstruktur yang mempercepat investigasi insiden logistik melalui korelasi `TraceId`, `DeliveryNo`, `PlateNo`, dan `VendorId`.
 
-- **Observabilitas Telemetri: Katalog Skema Database Riil & Endpoint Transaksional**:
-  Sistem memetakan seluruh operasi data secara transparan ke dalam tabel relasional, dokumen NoSQL, dan REST API resmi:
-  - **Tabel Relasional PostgreSQL (Skema `edcl`)**:
-    * `edcl.m_gps_api_log`: Catatan audit trail histori panggilan HTTP vendor (status kode, latensi, dan klasifikasi error Kategori 1/2).
-    * `edcl.m_gps_vendor`, `edcl.m_gps_vendor_endpoint`, `edcl.m_gps_vendor_auth`, `edcl.m_gps_vendor_mapping`: Konfigurasi dinamis dan kamus pemetaan respons vendor.
-    * `edcl.t_delivery_tracking_session`: Sesi aktif perjalanan armada truk (`STARTED`, `IN_TRANSIT`, `COMPLETED`).
-    * `edcl.t_delivery_latest_position`: Snapshot koordinat terkini per pengiriman armada untuk kueri cepat.
-    * `edcl.t_delivery_position_history`: Tabel partisi bulanan rekam jejak koordinat historis (misal: `t_delivery_position_history_y2025m09`).
-    * `edcl.t_delivery_geofence_log`: Log event deteksi keluar-masuk radius geofence area logistik/plant.
-  - **Koleksi Dokumen NoSQL MongoDB**:
-    * `gps_raw_responses`: Arsip payload JSON mentah asli vendor dengan indeks TTL otomatis 30 hari.
-    * `gps_audit_logs`: Log insiden dan peringatan sistem dengan indeks TTL otomatis 90 hari.
-  - **Endpoint REST API Riil**:
-    * `GET /api/v1/deliveries/raw-responses`: Kueri inspeksi payload mentah asli vendor di MongoDB dengan filter dan paginasi.
-    * `GET /api/v1/deliveries/raw-responses/{id}`: Detail dokumen JSON mentah spesifik.
-    * `GET /api/v1/deliveries/{deliveryNo}/track`: Tracking posisi live armada terkini (< 1ms via Redis, fallback PostgreSQL).
-    * `GET /api/v1/deliveries/{deliveryNo}/positions`: Riwayat koordinat rute perjalanan armada.
-    * `POST /api/v1/deliveries/start-job` & `POST /api/v1/deliveries/complete-job`: Manajemen siklus hidup sesi delivery.
-    * `GET /api/v1/vendors`: Daftar master seluruh vendor telematika yang terdaftar.
-    * `GET /api/v1/vendors/active`: Daftar vendor aktif yang disimpan permanen di cache Redis.
-    * `POST /api/v1/vendors/cache/refresh`: Pemicu manual rehidrasi cache vendor Redis dari PostgreSQL.
-    * `GET /metrics`: Endpoint scraping metrik Prometheus.
-    * `GET /hc`: Health check status gateway dan keterhubungan upstream services.
 
 - **Optimasi Skalabilitas Database: Strategi Partisi Bulanan & Advanced Indexing (PostgreSQL 16)**:
   Untuk menangani jutaan titik koordinat telemetri armada setiap bulan tanpa penurunan performa kueri (*zero performance degradation*), sistem menerapkan arsitektur database relasional tingkat lanjut:
