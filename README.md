@@ -230,6 +230,13 @@ graph TD
      - `idx_latest_pos_datetime`: Mengindeks `(datetime DESC)` pada tabel posisi terkini, mempercepat kueri *dashboard overview* armada yang mencari status pembaruan sinyal terbaru.
      - `idx_api_log_created_at`: Mengindeks `(created_at DESC)` pada tabel log API vendor, mengoptimalkan analisis telemetri dan deteksi anomali kegagalan koneksi.
 
+- **Cloud-Native Deployment Readiness (Kubernetes / Amazon EKS)**:
+  Seluruh microservice dirancang sebagai *stateless workload* yang sepenuhnya siap dijalankan di atas Kubernetes tanpa modifikasi kode aplikasi. Pilihan teknologi deployment mengikuti arsitektur aplikasinya — bukan sebaliknya:
+  - **Zero-Trust NetworkPolicy**: Pod internal (`vendor-master-svc`, `delivery-tracking-svc`, `gps-collector-svc`) dilindungi oleh manifest `NetworkPolicy` yang hanya mengizinkan trafik dari `edcl-api-gateway` dan namespace monitoring. Seluruh akses lateral antar-pod diblokir secara default — menjamin isolasi *blast radius* jika salah satu service mengalami kompromi.
+  - **Horizontal Pod Autoscaler (HPA)**: Service API (`VendorMaster`, `DeliveryTracking`) dapat diskalakan secara horizontal secara otomatis berdasarkan metrik CPU dan Memory melalui Prometheus Adapter — tanpa intervensi manual saat lonjakan trafik logistik.
+  - **KEDA Event-Driven Autoscaling**: Worker `GpsCollector` diskalakan berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`). Saat jumlah armada aktif melonjak, instance worker bertambah otomatis; saat periode idle malam hari, kembali ke 1 replika — mengoptimalkan biaya komputasi secara adaptif.
+  - **Portabilitas Penuh (ECS ↔ EKS ↔ k3d/Minikube)**: Manifest Kubernetes tersedia lengkap di direktori `deploy/k8s/` — mencakup `Deployment`, `Service`, `Ingress`, `HPA`, dan `NetworkPolicy` — untuk deployment di lokal (`k3d`/Minikube), staging, maupun produksi AWS EKS tanpa ketergantungan pada satu vendor platform.
+
 ---
 
 ## 🧪 Strategi Pengujian Menyeluruh (Testing Pyramid)
@@ -493,6 +500,8 @@ flowchart TD
   - `vendor-master-svc`: 0.5 vCPU, 1.0 GB RAM (Core master data & geofence).
   - `delivery-tracking-svc`: 0.5 vCPU, 1.0 GB RAM (Kueri armada sub-millisecond).
   - `gps-collector-svc`: 0.5 vCPU, 1.0 GB RAM (Background ingestion worker dengan *Distributed Leader Election*).
+* **Jalur Migrasi ke Amazon EKS (Kubernetes)**:
+  Seluruh microservice dirancang sebagai *stateless container* yang dapat berpindah dari ECS Fargate ke **Amazon EKS** tanpa perubahan kode. Manifest Kubernetes di `deploy/k8s/` mencakup `Deployment`, `Service`, `Ingress`, `HPA`, dan `Zero-Trust NetworkPolicy` — menjamin tidak ada *vendor lock-in* terhadap platform komputasi dan memberikan fleksibilitas penuh dalam evolusi infrastruktur ke depan.
 
 ### 2. 🐘 Database Relasional: Amazon RDS PostgreSQL 16 (Multi-AZ)
 * **Ketersediaan Tinggi**: Menerapkan konfigurasi *Multi-AZ Deployment* dengan replikasi sinkron ke *standby instance* di Availability Zone berbeda untuk mencegah *single point of failure*.
