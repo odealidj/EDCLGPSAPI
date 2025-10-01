@@ -418,4 +418,9 @@ MICROSERVICES_PLAN.md
 .local-pids/
 .local-logs/
 
+# Backup files
+*.bak
+README.md.bak
+
+
 

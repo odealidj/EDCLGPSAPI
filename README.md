@@ -136,42 +136,19 @@ graph TD
   - **W3C Distributed Tracing**: Menyematkan header terstandarisasi `X-Trace-Id` dan `X-Correlation-Id` pada setiap request masuk.
 
 - **Arsitektur Hexagonal (Ports & Adapters) pada GpsCollector**:
-  Modul penyerapan telemetri `GpsCollector` dirancang ulang secara menyeluruh dengan memisahkan domain inti dari dependensi I/O:
-  - **Domain Core**: Entitas murni `TelemetryPoint`, `VendorConfig`, dan `VendorAlertEvent`. Normalisasi field menggunakan *pattern-matching switch* statis tanpa refleksi runtime (100% AOT-safe).
-  - **Application Ports**: Kontrak *inbound* (`IGpsCollectorOrchestrator`) dan *outbound* (`IVendorConfigRepository`, `IDeliverySessionRepository`, `ITelemetryIngestionRepository`, `IVendorHttpFetcher`, `ITelemetryCache`, `ITelemetryArchiver`, `ITelemetryEventPublisher`, `IGpsApiLogRepository`, `IVendorHealthTracker`).
-  - **Infrastructure Adapters**: Implementasi terisolasi untuk ADO.NET PostgreSQL, MongoDB Driver, StackExchange.Redis, RabbitMQ Client, dan Polly v8 HTTP resilience.
-
-- **Proteksi Anti-Bot, Smart Throttling & On-Demand Polling**:
-  Mencegah server pemanggil dianggap sebagai bot liar atau terkena *rate limit IP blacklisting* oleh firewall/WAF vendor GPS:
-  - **On-Demand Zero-Poll**: Jika tidak ada trip delivery berstatus `STARTED` atau `IN_TRANSIT` untuk vendor/LPCD tertentu, HTTP request ke vendor **dilewati 100% (0 calls)**.
-  - **Development Mode Jitter**: Pada tahap development, jeda polling diacak non-periodik antara **35 hingga 75 detik** (`Random.Shared.Next(35, 76)`) agar pola akses tidak terdeteksi mesin heuristik WAF.
-  - **Production Mode Interval**: Pada tahap production, polling berjalan teratur setiap **60 detik (1 menit)**.
-  - **Vendor Cooldown Khusus**: Vendor INOVATRACK diwajibkan jeda pemanggilan minimal di atas 30 detik (38–75 detik).
-  - **Inter-Vendor Jitter**: Iterasi antar-vendor diberikan jeda acak **300ms s/d 800ms** untuk mencegah lonjakan konkurensi koneksi keluar (*burst outbound spike*).
-  - **Automatic Anti-Blacklist Backoff**: Menerima respons **HTTP 429** (*Too Many Requests*) memicu penalti pendinginan otomatis selama **3 menit**; respons **HTTP 403** (*WAF Challenge*) memicu penalti **5 menit**.
-  - **Browser Fingerprint Emulation**: Header HTTP menyertakan identitas peramban modern Google Chrome (`User-Agent`, `sec-ch-ua`, `sec-ch-ua-mobile: ?0`, `sec-ch-ua-platform: "Linux"`, `Accept-Language: id,en-US;q=0.9`).
+  `GpsCollector` dipisah tegas antara **Domain Core** (entitas `TelemetryPoint`, `VendorConfig`, `VendorAlertEvent` — normalisasi AOT-safe via *pattern-matching switch*), **Application Ports** (kontrak *inbound/outbound*: `IGpsCollectorOrchestrator`, `IVendorHttpFetcher`, `ITelemetryIngestionRepository`, `IVendorHealthTracker`, dll.), dan **Infrastructure Adapters** (ADO.NET PostgreSQL, MongoDB Driver, StackExchange.Redis, RabbitMQ Client, Polly v8).
 
 - **Observabilitas Dua Kategori (Two-Tier Error Handling)**:
-  Sistem membedakan secara tegas dua jenis kegagalan telematika untuk mempercepat investigasi insiden:
-  1. **Kategori 1: Vendor Connection Error**: Terjadi saat endpoint vendor offline, DNS gagal, timeout, atau HTTP 5xx/4xx. Dicatat ke `edcl.m_gps_api_log` (status: `"0"`) dan status live view Redis diperbarui menjadi `VENDOR_CONNECTION_ERROR`.
-  2. **Kategori 2: Data Mismatch / Correlation Miss**: Terjadi saat HTTP vendor sukses 200 OK, namun armada truk pengiriman tidak ditemukan di dalam payload (karena GPS unit mati, supir salah input nomor plat/identitas saat Start Job, atau skema JSON berubah). Sistem membatalkan insert delivery, mencatat audit log peringatan level `WARNING` ke `edcl.m_gps_api_log`, dan mengupdate status live view Redis menjadi `DATA_MISMATCH`.
+  Sistem membedakan dua jenis kegagalan: **Kategori 1 — Vendor Connection Error** (vendor offline, timeout, HTTP 5xx/4xx → status Redis `VENDOR_CONNECTION_ERROR`) dan **Kategori 2 — Data Mismatch** (HTTP 200 OK namun armada tidak ditemukan di payload → status Redis `DATA_MISMATCH`, log `WARNING`). Keduanya diaudit ke `edcl.m_gps_api_log` untuk keperluan investigasi insiden.
 
 - **Dual-Layer Vendor Configuration Caching (Redis + PostgreSQL)**:
-  - Cache key `vendor:configs:active` disimpan selamanya di Redis (`expiry: null`) agar worker tidak membebani PostgreSQL setiap kali siklus polling.
-  - Jika Redis kosong/cold start, sistem melakukan fallback instan ke PostgreSQL dan secara otomatis mengisi ulang (*rehydrate*) Redis.
-  - Setiap operasi penambahan, perubahan, atau penghapusan vendor di `VendorMaster.Api` secara otomatis memicu invalidasi dan rehidrasi cache Redis secara sinkron.
-
+  Cache key `vendor:configs:active` disimpan permanen di Redis (`expiry: null`) — *cold start* atau Redis kosong otomatis *fallback* ke PostgreSQL dan *rehydrate* cache. Setiap mutasi vendor di `VendorMaster.Api` langsung memicu invalidasi dan rehidrasi Redis secara sinkron.
 
 - **High-Speed Bulk Ingestion via PostgreSQL Binary COPY Stream**:
-  Proses penyimpanan titik koordinat armada yang membawa delivery aktif (`edcl.t_delivery_latest_position` dan partisi bulanan `edcl.t_delivery_position_history`) menggunakan **`NpgsqlBinaryImporter` (PostgreSQL Binary COPY Protocol)** langsung ke soket database.
-  - Menghindari overhead alokasi memori, tracking context, dan refleksi SQL `INSERT` per-baris dari ORM (EF Core/Dapper).
-  - Mampu menyerap puluhan ribu koordinat armada per siklus dalam hitungan milidetik dengan *throughput* stabil.
-
+  Koordinat armada disimpan menggunakan **`NpgsqlBinaryImporter`** (Binary COPY Protocol) langsung ke soket database — menghindari overhead ORM per-baris, mampu menyerap puluhan ribu koordinat per siklus dalam hitungan milidetik.
 
 - **Raw Response Inspection & Replay Engine (MongoDB)**:
-  - Seluruh payload mentah asli dari vendor disimpan secara utuh ke koleksi MongoDB `gps_raw_responses` dengan TTL otomatis 30 hari.
-  - Menyediakan endpoint `GET /api/v1/deliveries/raw-responses` untuk menginspeksi respons asli vendor dengan fitur **multi-filter** (`vendorId`, `vendorName`, `fromDate`, `toDate`, `search`) dan **paginasi** (`pageIndex`, `pageSize`).
-
+  Seluruh payload JSON mentah vendor diarsipkan ke koleksi `gps_raw_responses` dengan TTL otomatis 30 hari, dan dapat diinspeksi melalui endpoint dengan fitur **multi-filter** (`vendorId`, `fromDate`, `toDate`, `search`) dan paginasi.
 
 - **Redis-First Fleet Location Query (< 1ms Latency)**:
   Endpoint pelacakan posisi live armada pada `DeliveryTracking.Api` mengecek memori Redis (`delivery:live:{deliveryNo}` dan `gps:last:{platNo}`) terlebih dahulu sebelum melakukan *fallback* ke database PostgreSQL. Menghasilkan respons latensi sub-milidetik untuk kebutuhan dashboard monitoring logistik real-time.
@@ -180,62 +157,32 @@ graph TD
   Worker `GpsCollector` menerapkan *distributed lock* (`SET NX EX`) melalui Redis. Hanya 1 worker instance yang aktif melakukan polling vendor, sementara instance lainnya berada dalam mode standby dan siap mengambil alih secara instan (*failover*) jika instance utama mengalami kendala.
 
 - **Enterprise Idempotency Protection (`X-Idempotency-Key`)**:
-  Mencegah mutasi ganda (*double-click* atau *network retry*) pada endpoint transaksi penting:
-  - **Wajib (*Required*)**: Client wajib menyertakan header `X-Idempotency-Key: <UUID>`.
-  - **Anti-Double Request Simultan**: Jika request sedang diproses, request paralel kedua langsung mendapat status `409 Conflict`.
-  - **Payload Hash Guard**: Memverifikasi SHA-256 payload body. Jika key dipakai ulang untuk isi yang berbeda, sistem mengembalikan status `422 Unprocessable Entity`.
-  - **Instant Cached Replay**: Request ulang dengan payload yang sama langsung dikembalikan dari cache Redis (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
+  Mencegah mutasi ganda (*double-click* atau *network retry*) pada endpoint transaksi kritis. Client wajib menyertakan header `X-Idempotency-Key: <UUID>` — request paralel kedua yang identik langsung mendapat `409 Conflict`. Sistem memverifikasi **SHA-256 hash payload**: key yang dipakai ulang dengan isi berbeda dikembalikan `422 Unprocessable Entity`. Request ulang dengan payload sama dikembalikan instan dari cache Redis (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
 
 - **Event-Driven Messaging & Resilient Queuing (RabbitMQ / Amazon MQ)**:
-  Arsitektur perpesanan telemetri armada mengandalkan **RabbitMQ 3.13 / Amazon MQ** untuk menjamin isolasi beban kerja (*decoupled workload*) dan keandalan tinggi:
-  - **AMQP Topic Exchange (`gps.vendor.*`)**: Seluruh sinyal telemetri yang berhasil di-fetch dialirkan ke topic exchange untuk dikonsumsi secara paralel oleh layanan analitik, geofencing, dan downstream listener.
-  - **Penyangga Lonjakan Beban (*Queue Buffering*)**: Mampu meredam lonjakan ribuan koordinat per detik saat jam sibuk pengiriman logistik tanpa membebani thread pool pemroses.
-  - **Dead-Letter Exchange (DLX) & Retry Strategy**: Pesan yang gagal diproses diarahkan ke dead-letter exchange dan antrean `gps.dlq` dengan kebijakan *exponential backoff retry* guna memastikan **zero message loss**.
-  - **Event-Driven Autoscaling (KEDA / ECS Scaling)**: Consumer worker dapat diskalakan secara otomatis berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`).
+  Sinyal telemetri armada dialirkan melalui **AMQP Topic Exchange `gps.vendor.*`** pada RabbitMQ 3.13 / Amazon MQ, memisahkan beban ingestion dari pemrosesan downstream secara penuh (*decoupled workload*). Pesan yang gagal otomatis diarahkan ke `gps.dlq` (*Dead-Letter Queue*) dengan *exponential backoff retry* — menjamin **zero message loss**. Consumer worker dapat diskalakan otomatis berdasarkan kedalaman antrean via **KEDA** (`rabbitmq-queue-length`).
 
 - **Distributed Tracing & Metrik Real-Time (OpenTelemetry, Prometheus & Grafana)**:
-  Platform dilengkapi observabilitas penuh dari hulu ke hilir untuk mendeteksi *bottleneck* performa secara dini:
-  - **W3C Distributed Tracing**: Menggunakan **OpenTelemetry .NET SDK** yang meneruskan header `traceparent`, `X-Trace-Id`, dan `X-Correlation-Id` melintasi `ApiGateway` -> `VendorMaster` / `DeliveryTracking` -> `GpsCollector` -> RabbitMQ. Jejak eksekusi terdistribusi dapat diinspeksi secara visual melalui Jaeger atau AWS X-Ray.
-  - **Prometheus Metrics Scraper (`/metrics`)**: Mengekspos metrik standar Prometheus yang siap di-scrape secara berkala:
-    * `gps_collector_poll_duration_seconds`: Histogram durasi waktu eksekusi polling per vendor.
-    * `gps_collector_records_ingested_total`: Counter total koordinat telemetri yang berhasil di-ingest ke database.
-    * `gps_vendor_http_requests_total` & `gps_vendor_failures_total`: Rasio keberhasilan dan kegagalan pemanggilan HTTP vendor.
-    * `delivery_tracking_positions_read_total`: Volume kueri pelacakan posisi live armada.
-    * `process_cpu_usage`, `dotnet_gc_allocated_bytes_total`: Kesehatan runtime .NET.
-  - **Grafana Live Dashboard**: Menampilkan visualisasi kesehatan vendor telematika, tren latensi respons, throughput penyerapan koordinat, dan resource container.
-  - **Seq Centralized Structured Logging**: Log terpusat berbasis JSON terstruktur yang mempercepat investigasi insiden logistik melalui korelasi `TraceId`, `DeliveryNo`, `PlateNo`, dan `VendorId`.
+  **OpenTelemetry .NET SDK** meneruskan header `traceparent`, `X-Trace-Id`, dan `X-Correlation-Id` lintas seluruh microservice — jejak terdistribusi dapat diinspeksi via Jaeger atau AWS X-Ray. Endpoint `/metrics` mengekspos metrik domain khusus (poll duration, ingestion rate, vendor HTTP ratio) yang di-scrape Prometheus dan divisualisasikan di **Grafana Live Dashboard**. Log terstruktur JSON terpusat di **Seq** dengan korelasi `TraceId`, `DeliveryNo`, dan `VendorId`.
 
+- **Optimasi Skalabilitas Database: Partisi Bulanan & Advanced Indexing (PostgreSQL 16)**:
+  Tabel `edcl.t_delivery_position_history` dipartisi secara *declarative* per bulan — saat kueri *route replay* dijalankan, PostgreSQL Query Planner otomatis melakukan *partition pruning* dan hanya membaca partisi bulan terkait, mengabaikan 95% data lainnya. Penghapusan data lawas cukup dengan `DETACH PARTITION` + `DROP TABLE` tanpa *table lock* atau downtime. Sistem juga menerapkan strategi indeks lanjutan untuk memastikan nol overhead *filesort* maupun *full-table scan*:
 
-- **Optimasi Skalabilitas Database: Strategi Partisi Bulanan & Advanced Indexing (PostgreSQL 16)**:
-  Untuk menangani jutaan titik koordinat telemetri armada setiap bulan tanpa penurunan performa kueri (*zero performance degradation*), sistem menerapkan arsitektur database relasional tingkat lanjut:
-  1. **Declarative Monthly Range Partitioning (`edcl.t_delivery_position_history`)**:
-     - **Partition Pruning Otomatis**: Tabel riwayat posisi dipartisi per bulan (`t_delivery_pos_hist_y2025m01` s/d `t_delivery_pos_hist_y2026m12`). Saat kueri *route replay* atau investigasi perjalanan armada dijalankan berdasarkan filter `datetime`, PostgreSQL Query Planner secara otomatis melakukan *pruning*—hanya membaca partisi bulan bersangkutan dan mengabaikan 95% data lainnya, memangkas I/O disk secara drastis.
-     - **Pemeliharaan Data & Retensi Tanpa Downtime (*Zero-Lock Data Archival*)**: Penghapusan data lawas (misal retensi 1 tahun) tidak memerlukan perintah `DELETE FROM ...` yang memicu *table bloat* dan *exclusive locking* berkepanjangan. Cukup dengan mengeksekusi `ALTER TABLE ... DETACH PARTITION` lalu `DROP TABLE`, jutaan baris data terbuang dalam hitungan milidetik tanpa mengganggu transaksi berjalan.
-     - **Catch-All Default Partition**: Dilengkapi partisi `t_delivery_pos_hist_default` untuk menjamin tidak ada koordinat armada yang ditolak database (*zero write rejection*) jika terjadi anomali jam perangkat vendor di luar rentang kalender aktif.
-  2. **High-Performance Partial Indexing (Indeks Sebagian)**:
-     - `idx_session_clean_match_active`:
-       ```sql
-       CREATE INDEX idx_session_clean_match_active 
-           ON edcl.t_delivery_tracking_session (clean_match_value, status)
-           WHERE status IN ('STARTED', 'IN_TRANSIT');
-       ```
-       *Manfaat Optimasi*: Background worker `GpsCollector` hanya perlu mencocokkan plat nomor armada dengan trip yang sedang berjalan. Indeks ini hanya mengindeks baris berstatus aktif, mengabaikan jutaan histori delivery yang sudah `COMPLETED`. Ukuran indeks tetap sangat kecil (beberapa Kilobyte), 100% menetap di RAM/CPU L3 cache, dan menghasilkan pencarian instan bernotasi $O(1)$.
-     - `idx_geofence_dest_active`: Indeks hanya dibangun untuk destinasi plant/warehouse yang aktif (`WHERE is_active = true`), mempercepat kalkulasi deteksi geofence.
-  3. **Composite Ordering Indexing (Bebas Filesort)**:
-     - `idx_pos_hist_delivery_dt`: Indeks komposit `(delivery_no, datetime ASC)` pada partisi riwayat memastikan pembacaan koordinat *polyline* untuk peta navigasi sudah terurut kronologis secara fisik di disk, sepenuhnya meniadakan operasi *in-memory sorting* atau *spill-to-disk* pada PostgreSQL.
-     - `idx_vendor_token_expired`: Indeks komposit `(vendor_id, expired_at DESC)` mempercepat pengambilan Bearer Token OAuth2 vendor yang masih valid.
-  4. **Functional / Expression Indexing**:
-     - `idx_lpcd_code_lower`: Mengindeks ekspresi fungsi `LOWER(lpcd)` pada master vendor, memungkinkan operasi *case-insensitive join* antara kode logistik vendor dan sesi pengiriman berjalan dalam hitungan sub-milidetik.
-  5. **Reverse Chronological Indexing**:
-     - `idx_latest_pos_datetime`: Mengindeks `(datetime DESC)` pada tabel posisi terkini, mempercepat kueri *dashboard overview* armada yang mencari status pembaruan sinyal terbaru.
-     - `idx_api_log_created_at`: Mengindeks `(created_at DESC)` pada tabel log API vendor, mengoptimalkan analisis telemetri dan deteksi anomali kegagalan koneksi.
+  | Indeks | Strategi | Manfaat |
+  |---|---|---|
+  | `idx_session_clean_match_active` | Partial (`WHERE status IN ('STARTED','IN_TRANSIT')`) | Worker hanya scan baris aktif, abaikan jutaan histori `COMPLETED` — ukuran indeks tetap di L3 cache |
+  | `idx_geofence_dest_active` | Partial (`WHERE is_active = true`) | Kalkulasi deteksi geofence hanya membaca polygon aktif |
+  | `idx_pos_hist_delivery_dt` | Composite `(delivery_no, datetime ASC)` | Polyline *route replay* sudah terurut fisik di disk — nol *in-memory sort* |
+  | `idx_lpcd_code_lower` | Functional `LOWER(lpcd)` | *Case-insensitive join* kode logistik vendor dalam sub-milidetik |
+  | `idx_latest_pos_datetime` | Reverse `(datetime DESC)` | Dashboard armada selalu baca sinyal terbaru tanpa *filesort* |
 
 - **Cloud-Native Deployment Readiness (Kubernetes / Amazon EKS)**:
-  Seluruh microservice dirancang sebagai *stateless workload* yang sepenuhnya siap dijalankan di atas Kubernetes tanpa modifikasi kode aplikasi. Pilihan teknologi deployment mengikuti arsitektur aplikasinya — bukan sebaliknya:
-  - **Zero-Trust NetworkPolicy**: Pod internal (`vendor-master-svc`, `delivery-tracking-svc`, `gps-collector-svc`) dilindungi oleh manifest `NetworkPolicy` yang hanya mengizinkan trafik dari `edcl-api-gateway` dan namespace monitoring. Seluruh akses lateral antar-pod diblokir secara default — menjamin isolasi *blast radius* jika salah satu service mengalami kompromi.
-  - **Horizontal Pod Autoscaler (HPA)**: Service API (`VendorMaster`, `DeliveryTracking`) dapat diskalakan secara horizontal secara otomatis berdasarkan metrik CPU dan Memory melalui Prometheus Adapter — tanpa intervensi manual saat lonjakan trafik logistik.
-  - **KEDA Event-Driven Autoscaling**: Worker `GpsCollector` diskalakan berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`). Saat jumlah armada aktif melonjak, instance worker bertambah otomatis; saat periode idle malam hari, kembali ke 1 replika — mengoptimalkan biaya komputasi secara adaptif.
-  - **Portabilitas Penuh (ECS ↔ EKS ↔ k3d/Minikube)**: Manifest Kubernetes tersedia lengkap di direktori `deploy/k8s/` — mencakup `Deployment`, `Service`, `Ingress`, `HPA`, dan `NetworkPolicy` — untuk deployment di lokal (`k3d`/Minikube), staging, maupun produksi AWS EKS tanpa ketergantungan pada satu vendor platform.
+  Seluruh microservice dirancang sebagai *stateless workload* yang siap dijalankan di atas Kubernetes tanpa modifikasi kode aplikasi:
+  - **Zero-Trust NetworkPolicy**: Pod internal hanya menerima trafik dari `edcl-api-gateway` dan namespace monitoring — akses lateral antar-pod diblokir secara default.
+  - **Horizontal Pod Autoscaler (HPA)**: Service API diskalakan otomatis berdasarkan metrik CPU/Memory via Prometheus Adapter.
+  - **KEDA Event-Driven Autoscaling**: Worker `GpsCollector` diskalakan berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`) — adaptif terhadap beban armada aktif.
+  - **Portabilitas Penuh (ECS ↔ EKS ↔ k3d)**: Manifest lengkap tersedia di `deploy/k8s/` (`Deployment`, `Ingress`, `HPA`, `NetworkPolicy`) — tanpa vendor lock-in.
+
 
 ---
 
