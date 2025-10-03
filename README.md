@@ -395,37 +395,6 @@ Pengujian performa penyerapan data (*ingestion benchmark*) membuktikan efisiensi
 
 ---
 
-## 🛠️ Tech Stack Lengkap
-
-| Kategori | Teknologi | Versi | Peran & Rationale |
-|---|---|:---:|---|
-| **Language & Runtime** | C# / .NET | **10.0** | Runtime performa tinggi generasi terbaru dengan optimasi JIT ReadyToRun & Native AOT |
-| **API Architecture** | Clean & Hexagonal Architecture | — | Ports & Adapters pada GpsCollector dan Clean Architecture pada VendorMaster & DeliveryTracking |
-| **API Gateway** | Microsoft YARP | **2.3.0** | Reverse proxy berkecepatan tinggi, kompilasi Native AOT, rate limiter, & W3C tracing |
-| **Relational Database** | PostgreSQL 16.x / Amazon RDS | **16.x** | Database telemetri terpartisi bulanan (monthly range partitioning) dengan indeks B-Tree & BRIN |
-| **High-Speed Ingestion** | Npgsql Binary COPY Stream | **9.0.3** | `NpgsqlBinaryImporter` untuk penyerapan bulk stream langsung tanpa overhead ORM |
-| **In-Memory Cache & Lock**| Redis 7.2 / Amazon ElastiCache | **7.2** | Cache snapshot posisi armada (<1ms), vendor cache permanen, dan distributed leader election lock |
-| **Document Store (Audit)**| MongoDB 7.0 / DocumentDB / Atlas | **7.0** | NoSQL TTL storage untuk raw JSON response (30 hari) dan API error logs (90 hari) via DocumentDB / Atlas |
-| **Message Broker** | RabbitMQ 3.13 / Amazon MQ | **3.13** | Event-driven AMQP topic exchange (`gps.vendor.*`), dead-letter exchange (DLX), & retry queue |
-| **Resilience & Fault Tolerance** | Polly | **8.x** | Circuit-breaker, retry with exponential backoff, timeout, dan in-memory Bearer token rotation |
-| **Containerization** | Docker & Distroless Chiseled | **10.0** | Base image `runtime-deps:10.0-noble-chiseled` (33 MB distroless container) di Amazon ECR |
-| **Orchestration & Deploy** | Amazon ECS (AWS Fargate) & EKS | — | Serverless container execution via AWS Fargate, K8s manifests, Zero-Trust NetworkPolicy, & KEDA |
-| **Observability & Tracing**| OpenTelemetry, Prometheus, Grafana, CloudWatch | — | W3C distributed tracing, PromQL metrics scraping, AWS X-Ray, CloudWatch Logs, & Grafana dashboard |
-| **Testing Suite** | xUnit, Moq, FluentAssertions, WebApplicationFactory | — | Full testing pyramid: 83 Unit Tests & 38 Integration Tests (121 Tests, 100% Passed) |
-
----
-
-## 🔒 Tata Kelola Keamanan & Kepatuhan Industri (Zero-Trust Enterprise)
-
-- **Distroless Non-Root Container**: Container Native AOT `ApiGateway` berjalan menggunakan user `$APP_UID` tanpa akses *root*, tanpa *shell* (`/bin/sh`), dan tanpa *package manager*, meminimalkan vektor serangan siber secara drastis.
-- **Zero-Trust Kubernetes NetworkPolicy**: Pod internal microservices (`vendor-master-svc`, `delivery-tracking-svc`) dilindungi oleh `12-network-policies.yaml` yang memblokir akses langsung dari luar cluster. Hanya `edcl-api-gateway` dan `edcl-monitoring` yang diizinkan berkomunikasi.
-- **Enkripsi Kredensial**: Seluruh kata sandi vendor dan token API disimpan dalam bentuk terenkripsi atau dikelola via AWS Secrets Manager saat berjalan di Kubernetes / Fargate.
-- **TLS/SSL Encryption in Transit**: Pertukaran pesan antara AWS Cloud dan TMMIN Private Network diwajibkan menggunakan protokol `AMQPS` (TLS 1.3) dan saluran VPN terisolasi.
-- **Audit Kemampuan Telusur (*Traceability*)**: Pelacakan end-to-end terhubung melalui W3C `X-Trace-Id` dan `X-Correlation-Id` pada setiap log dan respons API.
-- **Anti-Duplikasi Data**: Perlindungan `X-Idempotency-Key` menjamin tidak terjadi mutasi ganda data logistik penting pada kondisi jaringan seluler terputus-putus.
-
----
-
 ## ⚡ Panduan Memulai Cepat (Quick Start)
 
 ### 1. Prasyarat Sistem
@@ -453,6 +422,6 @@ dotnet test src/edcl-gps-api.sln
 
 <div align="center">
 
-**EDCL GPS Telematics Platform** — *Sub-system of EDCL-Web-API, Toyota Motor Manufacturing Indonesia (TMMIN) Logistics Ecosystem.*
+**EDCL GPS Telematics Platform** — *Sub-system of EDCL-Web-API, TMMIN Logistics Ecosystem.*
 
 </div>
