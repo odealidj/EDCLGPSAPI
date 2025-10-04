@@ -2,7 +2,7 @@
 
 # 🛰️ EDCL GPS API — Fleet GPS Telematics & Ingestion Platform
 
-**Platform Microservices Penyerapan & Observabilitas Telemetri GPS Armada Truk Real-Time Berstandar *Enterprise* untuk Ekosistem Logistik Toyota Motor Manufacturing Indonesia (TMMIN).**
+**Enterprise-Grade Real-Time Truck Fleet GPS Telematics Ingestion & Observability Microservices Platform for the Toyota Motor Manufacturing Indonesia (TMMIN) Logistics Ecosystem.**
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com)
 [![Native AOT](https://img.shields.io/badge/Native_AOT-33MB_Chiseled-00C7B7?style=for-the-badge&logo=webassembly&logoColor=white)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
@@ -20,24 +20,24 @@
 
 ---
 
-## 📖 Ringkasan Eksekutif
+## 📖 Executive Summary
 
-**EDCL GPS API** (`EDCLGPSAPI`) adalah platform microservices terdistribusi (*cloud-native telemetry ingestion platform*) berstandar enterprise yang dirancang khusus untuk mengelola penyerapan (*high-throughput ingestion*), normalisasi struktur data heterogen, penyimpanan terpartisi (*partitioned polyglot storage*), dan pengaliran (*real-time event streaming*) data koordinat pelacakan GPS armada truk logistik pemasok komponen suku cadang pabrik TMMIN secara *real-time*.
+**EDCL GPS API** (`EDCLGPSAPI`) is an enterprise-grade cloud-native telemetry ingestion microservices platform designed specifically to handle high-throughput ingestion, heterogeneous data normalization, partitioned polyglot storage, and real-time event streaming of GPS tracking coordinates from parts supplier logistics fleets for TMMIN in real time.
 
-Platform ini beroperasi di garda terdepan (*Public Edge Ingress*) untuk mengonsumsi data telemetri dari beragam vendor GPS pihak ketiga (*Inovatrack, Muliatrack, Puninar, Dunex, Hino Connect, dll.*) melalui internet publik, menormalkan struktur data yang heterogen secara dinamis via *mapping engine*, lalu mengalirkannya secara andal ke **`EDCL-Web-API`** yang berada di dalam **Jaringan Privat / Intranet TMMIN (On-Premises Plant Core)**.
+The platform operates at the public edge ingress to consume telematics data from various third-party GPS vendors (*Inovatrack, Muliatrack, Puninar, Dunex, Hino Connect, etc.*) over the public internet, normalizes heterogeneous data structures dynamically via a database-driven mapping engine, and reliably streams them to **`EDCL-Web-API`** located inside the **TMMIN Private Intranet Network (On-Premises Plant Core)**.
 
-### Nilai Strategis Pemisahan Service:
-1. **Isolasi Beban Write-Heavy Berkecepatan Tinggi**: Ratusan armada truk logistik memancarkan koordinat secara berkala (akumulasi jutaan rekam jejak GPS harian). Menggunakan **PostgreSQL Binary COPY Streaming (`NpgsqlBinaryImporter`)** pada skema murni delivery (`edcl.t_delivery_latest_position` & `edcl.t_delivery_position_history`), platform ini menjamin server database transaksional inti di pabrik TMMIN (*SQL Server*) terbebas 100% dari beban *I/O disk* koordinat mentah.
-2. **Keamanan Korporat (Zero-Trust Isolation)**: Server pabrik TMMIN tidak membuka port inbound publik ke internet untuk vendor GPS. Seluruh penyerapan data berlangsung di lingkungan terisolasi dengan container distroless *chiseled* Native AOT, kemudian dialirkan melalui jalur privat terenkripsi (*TLS/VPN/AMQPS*).
-3. **Agilitas Integrasi Vendor (Zero-Downtime Deployment)**: Struktur data vendor pihak ketiga bervariasi dan dapat berubah sewaktu-waktu. Mesin *dynamic mapping* berbasis database (`edcl.m_gps_vendor_mapping`) memungkinkan penambahan dan penyesuaian vendor baru tanpa memerlukan *re-compilation* maupun *deployment downtime*.
-4. **Ketahanan Konektivitas Vendor Otonom**: Dilengkapi dengan **Automated Vendor Health Tracker** yang memonitor kegagalan endpoint vendor secara real-time dan secara otomatis memicu notifikasi peringatan (*Alert Triggered*) jika vendor tidak merespons berulang kali berturut-turut, serta mencatat pemulihan (*Alert Resolved*) saat koneksi kembali normal.
-5. **Anti-Bot Throttling, Anti-Blacklist & On-Demand Telematics**: Sistem tidak melakukan polling secara membabi buta. Jika tidak ada job pengiriman aktif untuk LPCD vendor terkait, HTTP request ke vendor dilewati (zero calls). Polling vendor diatur secara acak non-periodik di development (35-75 detik) dan 60 detik di production dengan Chrome header emulation dan automatic backoff penalty (3 menit saat HTTP 429, 5 menit saat HTTP 403) untuk melindungi IP server dari pemblokiran WAF vendor pihak ketiga.
+### Strategic Value of Service Separation:
+1. **High-Speed Write-Heavy Workload Isolation**: Hundreds of logistics trucks transmit coordinates periodically (accumulating millions of GPS records daily). By using **PostgreSQL Binary COPY Streaming (`NpgsqlBinaryImporter`)** on dedicated delivery tables (`edcl.t_delivery_latest_position` & `edcl.t_delivery_position_history`), this platform ensures the core transactional database in the TMMIN plant (*SQL Server*) is 100% free from raw coordinate disk I/O load.
+2. **Corporate Security (Zero-Trust Isolation)**: The TMMIN plant server does not open public inbound ports to the internet for GPS vendors. All data ingestion runs in an isolated environment using distroless chiseled Native AOT containers, and data is then securely streamed via private encrypted channels (*TLS/VPN/AMQPS*).
+3. **Vendor Integration Agility (Zero-Downtime Deployment)**: Third-party vendor data formats vary and may change at any time. A database-driven dynamic mapping engine (`edcl.m_gps_vendor_mapping`) allows adding and adjusting vendor configurations without application recompilation or deployment downtime.
+4. **Autonomous Vendor Connectivity Resilience**: Equipped with an **Automated Vendor Health Tracker** that monitors vendor endpoint failures in real time. It automatically triggers alert notifications (*Alert Triggered*) when a vendor repeatedly fails to respond, and logs recoveries (*Alert Resolved*) once connectivity returns to normal.
+5. **Anti-Bot Throttling, Anti-Blacklist & On-Demand Telematics**: The system does not poll blindly. If there are no active delivery jobs for a vendor's logistics code (LPCD), vendor HTTP requests are skipped (0 calls). Polling intervals are randomized in development (35–75 seconds) and set to 60 seconds in production, complete with Chrome browser header emulation and automatic backoff penalties (3 minutes on HTTP 429, 5 minutes on HTTP 403) to protect the server IP from vendor WAF blocks.
 
 ---
 
-## 🏛️ Arsitektur Sistem Terdistribusi
+## 🏛️ Distributed System Architecture
 
-Berikut adalah visualisasi arsitektur sistem holistik **EDCL GPS Telematics Platform**:
+Here is the holistic system architecture of the **EDCL GPS Telematics Platform**:
 
 ```mermaid
 graph TD
@@ -71,7 +71,7 @@ graph TD
     subgraph "Data & Messaging Infrastructure"
         PG[("🐘 PostgreSQL 16 (edcl)<br/>(Vendor Master · Delivery Sessions · Partitioned Routes)")]:::db
         Redis[("🔴 Redis 7.2 Cache<br/>(Live Positions Snapshot · Permanent Vendor Cache · Leader Lock)")]:::cache
-        Mongo[("🍃 MongoDB 7.0<br/>(Raw Payloads TTL 30 Hari · Audit Logs TTL 90 Hari)")]:::db
+        Mongo[("🍃 MongoDB 7.0<br/>(Raw Payloads TTL 30 Days · Audit Logs TTL 90 Days)")]:::db
         RabbitMQ[("🐰 RabbitMQ 3.13<br/>(Topic Exchange gps.vendor.* · DLX / DLQ Retry)")]:::mq
     end
 
@@ -104,7 +104,7 @@ graph TD
     DeliveryTracking -->|"2. Fallback & Route Replay SP"| PG
     DeliveryTracking -->|"3. Query Raw JSON Responses"| Mongo
 
-    Collector -->|"Cek Sesi Aktif"| PG
+    Collector -->|"Check Active Sessions"| PG
     Collector -->|"On-Demand / Anti-Bot Jitter"| Inovatrack & Muliatrack & Puninar & Dunex & Hino
 
     Collector --> HealthTracker
@@ -124,71 +124,70 @@ graph TD
 
 ---
 
-## 🚀 Keunggulan Arsitektur & Rekayasa Sistem
+## 🚀 System Engineering & Architectural Highlights
 
 ### ⚙️ Backend (.NET 10, PostgreSQL 16, Redis, MongoDB, RabbitMQ)
 
-- **ApiGateway Berbasis Native AOT & Distroless Ubuntu Noble Chiseled**:
-  Pintu gerbang API Gateway dibangun menggunakan **.NET 10 Native AOT (`PublishAot=true`)** dengan image basis `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled`.
-  - **Cold Start Instan**: Waktu startup terpangkas menjadi **< 15 milidetik** (vs ~800–1.500 ms pada JIT standar).
-  - **Efisiensi Memori Ekstrem**: Konsumsi memori hanya **~27 MiB RAM** saat beroperasi penuh.
-  - **Keamanan Distroless**: Ukuran image akhir hanya **33 MB**, tanpa *shell* (`/bin/sh`) atau *package manager*, meminimalisir celah eksploitasi keamanan (*attack surface*).
-  - **W3C Distributed Tracing**: Menyematkan header terstandarisasi `X-Trace-Id` dan `X-Correlation-Id` pada setiap request masuk.
+- **Native AOT & Distroless Ubuntu Noble Chiseled ApiGateway**:
+  The API Gateway is built with **.NET 10 Native AOT (`PublishAot=true`)** using the `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled` base image.
+  - **Instant Cold Start**: Startup time reduced to **< 15 milliseconds** (vs ~800–1,500 ms in standard JIT).
+  - **Extreme Memory Efficiency**: Consumes only **~27 MiB RAM** under full operation.
+  - **Distroless Security**: Final image size is only **33 MB**, free of shell (`/bin/sh`) or package managers, minimizing the attack surface.
+  - **W3C Distributed Tracing**: Attaches standardized `X-Trace-Id` and `X-Correlation-Id` headers to every incoming request.
 
-- **Arsitektur Hexagonal (Ports & Adapters) pada GpsCollector**:
-  `GpsCollector` dipisah tegas antara **Domain Core** (entitas `TelemetryPoint`, `VendorConfig`, `VendorAlertEvent` — normalisasi AOT-safe via *pattern-matching switch*), **Application Ports** (kontrak *inbound/outbound*: `IGpsCollectorOrchestrator`, `IVendorHttpFetcher`, `ITelemetryIngestionRepository`, `IVendorHealthTracker`, dll.), dan **Infrastructure Adapters** (ADO.NET PostgreSQL, MongoDB Driver, StackExchange.Redis, RabbitMQ Client, Polly v8).
+- **Hexagonal Architecture (Ports & Adapters) in GpsCollector**:
+  `GpsCollector` cleanly separates the **Domain Core** (`TelemetryPoint`, `VendorConfig`, `VendorAlertEvent` entities — AOT-safe normalization via pattern-matching switches), **Application Ports** (inbound/outbound contracts: `IGpsCollectorOrchestrator`, `IVendorHttpFetcher`, `ITelemetryIngestionRepository`, `IVendorHealthTracker`, etc.), and **Infrastructure Adapters** (ADO.NET PostgreSQL, MongoDB Driver, StackExchange.Redis, RabbitMQ Client, Polly v8).
 
-- **Observabilitas Dua Kategori (Two-Tier Error Handling)**:
-  Sistem membedakan dua jenis kegagalan: **Kategori 1 — Vendor Connection Error** (vendor offline, timeout, HTTP 5xx/4xx → status Redis `VENDOR_CONNECTION_ERROR`) dan **Kategori 2 — Data Mismatch** (HTTP 200 OK namun armada tidak ditemukan di payload → status Redis `DATA_MISMATCH`, log `WARNING`). Keduanya diaudit ke `edcl.m_gps_api_log` untuk keperluan investigasi insiden.
+- **Two-Tier Error Handling Observability**:
+  The system distinguishes two failure types: **Tier 1 — Vendor Connection Error** (vendor offline, timeout, HTTP 5xx/4xx → Redis status `VENDOR_CONNECTION_ERROR`) and **Tier 2 — Data Mismatch** (HTTP 200 OK but truck not found in payload → Redis status `DATA_MISMATCH`, `WARNING` log). Both are audited to `edcl.m_gps_api_log` for incident investigation.
 
 - **Dual-Layer Vendor Configuration Caching (Redis + PostgreSQL)**:
-  Cache key `vendor:configs:active` disimpan permanen di Redis (`expiry: null`) — *cold start* atau Redis kosong otomatis *fallback* ke PostgreSQL dan *rehydrate* cache. Setiap mutasi vendor di `VendorMaster.Api` langsung memicu invalidasi dan rehidrasi Redis secara sinkron.
+  The cache key `vendor:configs:active` is stored permanently in Redis (`expiry: null`) — cold starts or empty Redis instances automatically fall back to PostgreSQL and rehydrate the cache. Every vendor mutation in `VendorMaster.Api` triggers synchronous Redis invalidation and rehydration.
 
 - **High-Speed Bulk Ingestion via PostgreSQL Binary COPY Stream**:
-  Koordinat armada disimpan menggunakan **`NpgsqlBinaryImporter`** (Binary COPY Protocol) langsung ke soket database — menghindari overhead ORM per-baris, mampu menyerap puluhan ribu koordinat per siklus dalam hitungan milidetik.
+  Fleet coordinates are ingested using **`NpgsqlBinaryImporter`** (Binary COPY Protocol) directly into the database socket — avoiding per-row ORM overhead, absorbing tens of thousands of coordinates per cycle in milliseconds.
 
 - **Raw Response Inspection & Replay Engine (MongoDB)**:
-  Seluruh payload JSON mentah vendor diarsipkan ke koleksi `gps_raw_responses` dengan TTL otomatis 30 hari, dan dapat diinspeksi melalui endpoint dengan fitur **multi-filter** (`vendorId`, `fromDate`, `toDate`, `search`) dan paginasi.
+  All raw vendor JSON payloads are archived into the `gps_raw_responses` collection with an automatic 30-day TTL, accessible via an inspection endpoint with **multi-filter** capabilities (`vendorId`, `fromDate`, `toDate`, `search`) and pagination.
 
 - **Redis-First Fleet Location Query (< 1ms Latency)**:
-  Endpoint pelacakan posisi live armada pada `DeliveryTracking.Api` mengecek memori Redis (`delivery:live:{deliveryNo}` dan `gps:last:{platNo}`) terlebih dahulu sebelum melakukan *fallback* ke database PostgreSQL. Menghasilkan respons latensi sub-milidetik untuk kebutuhan dashboard monitoring logistik real-time.
+  The live fleet tracking endpoint in `DeliveryTracking.Api` checks Redis memory (`delivery:live:{deliveryNo}` and `gps:last:{platNo}`) first before falling back to PostgreSQL, delivering sub-millisecond response times for real-time logistics dashboards.
 
 - **Active-Standby HA via Distributed Leader Election**:
-  Worker `GpsCollector` menerapkan *distributed lock* (`SET NX EX`) melalui Redis. Hanya 1 worker instance yang aktif melakukan polling vendor, sementara instance lainnya berada dalam mode standby dan siap mengambil alih secara instan (*failover*) jika instance utama mengalami kendala.
+  The `GpsCollector` worker uses a Redis distributed lock (`SET NX EX`). Only one worker instance actively polls vendors, while standby instances are ready for instant failover if the primary worker encounters issues.
 
 - **Enterprise Idempotency Protection (`X-Idempotency-Key`)**:
-  Mencegah mutasi ganda (*double-click* atau *network retry*) pada endpoint transaksi kritis. Client wajib menyertakan header `X-Idempotency-Key: <UUID>` — request paralel kedua yang identik langsung mendapat `409 Conflict`. Sistem memverifikasi **SHA-256 hash payload**: key yang dipakai ulang dengan isi berbeda dikembalikan `422 Unprocessable Entity`. Request ulang dengan payload sama dikembalikan instan dari cache Redis (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
+  Prevents duplicate mutations (double-clicks or network retries) on critical transaction endpoints. Clients must send the `X-Idempotency-Key: <UUID>` header — identical parallel requests receive `409 Conflict`. The system verifies the **SHA-256 payload hash**: reused keys with different payloads return `422 Unprocessable Entity`. Replays with identical payloads return instantly from Redis cache (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
 
 - **Event-Driven Messaging & Resilient Queuing (RabbitMQ / Amazon MQ)**:
-  Sinyal telemetri armada dialirkan melalui **AMQP Topic Exchange `gps.vendor.*`** pada RabbitMQ 3.13 / Amazon MQ, memisahkan beban ingestion dari pemrosesan downstream secara penuh (*decoupled workload*). Pesan yang gagal otomatis diarahkan ke `gps.dlq` (*Dead-Letter Queue*) dengan *exponential backoff retry* — menjamin **zero message loss**. Consumer worker dapat diskalakan otomatis berdasarkan kedalaman antrean via **KEDA** (`rabbitmq-queue-length`).
+  Fleet telematics signals flow through the **AMQP Topic Exchange `gps.vendor.*`** on RabbitMQ 3.13 / Amazon MQ, decoupling ingestion from downstream processing. Failed messages route to `gps.dlq` (Dead-Letter Queue) with exponential backoff retry — ensuring **zero message loss**. Consumer workers can auto-scale based on queue depth via **KEDA** (`rabbitmq-queue-length`).
 
-- **Distributed Tracing & Metrik Real-Time (OpenTelemetry, Prometheus & Grafana)**:
-  **OpenTelemetry .NET SDK** meneruskan header `traceparent`, `X-Trace-Id`, dan `X-Correlation-Id` lintas seluruh microservice — jejak terdistribusi dapat diinspeksi via Jaeger atau AWS X-Ray. Endpoint `/metrics` mengekspos metrik domain khusus (poll duration, ingestion rate, vendor HTTP ratio) yang di-scrape Prometheus dan divisualisasikan di **Grafana Live Dashboard**. Log terstruktur JSON terpusat di **Seq** dengan korelasi `TraceId`, `DeliveryNo`, dan `VendorId`.
+- **Distributed Tracing & Real-Time Metrics (OpenTelemetry, Prometheus & Grafana)**:
+  The **OpenTelemetry .NET SDK** propagates `traceparent`, `X-Trace-Id`, and `X-Correlation-Id` across all microservices — traces can be inspected in Jaeger or AWS X-Ray. The `/metrics` endpoint exposes domain-specific metrics (poll duration, ingestion rate, vendor HTTP ratio) scraped by Prometheus and displayed on a live **Grafana Dashboard**. Structured JSON logs are centralized in **Seq** correlated with `TraceId`, `DeliveryNo`, and `VendorId`.
 
-- **Optimasi Skalabilitas Database: Partisi Bulanan & Advanced Indexing (PostgreSQL 16)**:
-  Tabel `edcl.t_delivery_position_history` dipartisi secara *declarative* per bulan — saat kueri *route replay* dijalankan, PostgreSQL Query Planner otomatis melakukan *partition pruning* dan hanya membaca partisi bulan terkait, mengabaikan 95% data lainnya. Penghapusan data lawas cukup dengan `DETACH PARTITION` + `DROP TABLE` tanpa *table lock* atau downtime. Sistem juga menerapkan strategi indeks lanjutan untuk memastikan nol overhead *filesort* maupun *full-table scan*:
+- **Database Scalability: Monthly Partitioning & Advanced Indexing (PostgreSQL 16)**:
+  The `edcl.t_delivery_position_history` table uses declarative monthly range partitioning — during route replay queries, the PostgreSQL Query Planner automatically prunes partitions and reads only the target month, skipping 95% of unrelated data. Purging old data is as simple as `DETACH PARTITION` + `DROP TABLE` with zero lock and zero downtime. Advanced indexing eliminates filesort and full-table scans:
 
-  | Indeks | Strategi | Manfaat |
+  | Index | Strategy | Benefit |
   |---|---|---|
-  | `idx_session_clean_match_active` | Partial (`WHERE status IN ('STARTED','IN_TRANSIT')`) | Worker hanya scan baris aktif, abaikan jutaan histori `COMPLETED` — ukuran indeks tetap di L3 cache |
-  | `idx_geofence_dest_active` | Partial (`WHERE is_active = true`) | Kalkulasi deteksi geofence hanya membaca polygon aktif |
-  | `idx_pos_hist_delivery_dt` | Composite `(delivery_no, datetime ASC)` | Polyline *route replay* sudah terurut fisik di disk — nol *in-memory sort* |
-  | `idx_lpcd_code_lower` | Functional `LOWER(lpcd)` | *Case-insensitive join* kode logistik vendor dalam sub-milidetik |
-  | `idx_latest_pos_datetime` | Reverse `(datetime DESC)` | Dashboard armada selalu baca sinyal terbaru tanpa *filesort* |
+  | `idx_session_clean_match_active` | Partial (`WHERE status IN ('STARTED','IN_TRANSIT')`) | Worker only scans active rows, ignoring millions of `COMPLETED` records — index fits in CPU L3 cache |
+  | `idx_geofence_dest_active` | Partial (`WHERE is_active = true`) | Geofence detection calculation only scans active polygon destinations |
+  | `idx_pos_hist_delivery_dt` | Composite `(delivery_no, datetime ASC)` | Route replay coordinates are physically sorted on disk — zero in-memory sorting |
+  | `idx_lpcd_code_lower` | Functional `LOWER(lpcd)` | Sub-millisecond case-insensitive joins on vendor logistics codes |
+  | `idx_latest_pos_datetime` | Reverse `(datetime DESC)` | Fleet dashboard reads latest signals without filesort |
 
 - **Cloud-Native Deployment Readiness (Kubernetes / Amazon EKS)**:
-  Seluruh microservice dirancang sebagai *stateless workload* yang siap dijalankan di atas Kubernetes tanpa modifikasi kode aplikasi:
-  - **Zero-Trust NetworkPolicy**: Pod internal hanya menerima trafik dari `edcl-api-gateway` dan namespace monitoring — akses lateral antar-pod diblokir secara default.
-  - **Horizontal Pod Autoscaler (HPA)**: Service API diskalakan otomatis berdasarkan metrik CPU/Memory via Prometheus Adapter.
-  - **KEDA Event-Driven Autoscaling**: Worker `GpsCollector` diskalakan berdasarkan kedalaman antrean RabbitMQ (`rabbitmq-queue-length`) — adaptif terhadap beban armada aktif.
-  - **Portabilitas Penuh (ECS ↔ EKS ↔ k3d)**: Manifest lengkap tersedia di `deploy/k8s/` (`Deployment`, `Ingress`, `HPA`, `NetworkPolicy`) — tanpa vendor lock-in.
-
+  All microservices are designed as stateless workloads ready for Kubernetes without code modifications:
+  - **Zero-Trust NetworkPolicy**: Internal pods only accept traffic from `edcl-api-gateway` and monitoring namespaces — lateral pod-to-pod communication is blocked by default.
+  - **Horizontal Pod Autoscaler (HPA)**: API services scale horizontally based on CPU/Memory metrics via Prometheus Adapter.
+  - **KEDA Event-Driven Autoscaling**: The `GpsCollector` worker scales based on RabbitMQ queue depth (`rabbitmq-queue-length`) — adapting dynamically to active fleet loads.
+  - **Full Portability (ECS ↔ EKS ↔ k3d)**: Complete manifests in `deploy/k8s/` (`Deployment`, `Ingress`, `HPA`, `NetworkPolicy`) — zero vendor lock-in.
 
 ---
 
-## 🧪 Strategi Pengujian Menyeluruh (Testing Pyramid)
+## 🧪 Comprehensive Testing Strategy (Testing Pyramid)
 
-Platform **EDCL GPS API** menerapkan standar piramida pengujian lengkap (*Full Testing Pyramid*) untuk memastikan keandalan kode di setiap tingkatan arsitektur:
+The **EDCL GPS API** platform implements a full testing pyramid standard to ensure code reliability across every layer of the architecture:
 
 ```text
                        / \
@@ -203,74 +202,74 @@ Platform **EDCL GPS API** menerapkan standar piramida pengujian lengkap (*Full T
 
 ### 1. 🔬 Unit Tests (`tests/Services/...`)
 * **Framework**: `xUnit`, `FluentAssertions`, `Moq`
-* **Cakupan**: **83 Unit Tests (100% Passed)**:
+* **Coverage**: **83 Unit Tests (100% Passed)**:
   - `VendorMaster.UnitTests`: **31 Tests** (Domain validation, Vendor CRUD CQRS Handlers, Geofence calculation, DTO serialization).
-  - `GpsCollector.UnitTests`: **17 Tests** (Normalisasi JSON vendor tanpa refleksi, Polly retry policy, throttling logic, vendor health tracker, AOT serialization context).
+  - `GpsCollector.UnitTests`: **17 Tests** (Reflection-free vendor JSON normalization, Polly retry policy, throttling logic, vendor health tracker, AOT serialization context).
   - `DeliveryTracking.UnitTests`: **35 Tests** (Delivery tracking lifecycle, Start/Complete Job, Live tracking Redis fallback, binary COPY DTO validation, Carter routing).
-* **Kecepatan**: Eksekusi instan ($\approx 1.5\text{ detik}$).
+* **Speed**: Instant execution ($\approx 1.5\text{ seconds}$).
 
 ### 2. 🐳 Integration Tests (`tests/Services/...`)
 * **Framework**: `Microsoft.AspNetCore.Mvc.Testing` (`WebApplicationFactory<Program>`)
-* **Cakupan**: **38 Integration Tests (100% Passed)**:
+* **Coverage**: **38 Integration Tests (100% Passed)**:
   - `VendorMaster.IntegrationTests`: **13 Tests** (REST contracts, Redis active vendor sync, idempotency validation, error problem details).
   - `DeliveryTracking.IntegrationTests`: **25 Tests** (Start Job / Complete Job lifecycle, live tracking query, binary COPY bulk ingestion, MongoDB raw responses pagination, error status handling).
-* **Total Keseluruhan Suite**: **121 Automated Tests (100% Passed, 0 Failures)**.
+* **Overall Suite Total**: **121 Automated Tests (100% Passed, 0 Failures)**.
 
 ### 3. ⚡ Ingestion Throughput & Benchmark
-* **Binary COPY Protocol**: Mengalirkan data koordinat telemetri secara *direct binary stream*, mencapai *throughput* hingga **> 54.000 records/detik** dengan latensi penulisan ke database **< 15 ms**.
+* **Binary COPY Protocol**: Streams telematics coordinate data via direct binary stream, reaching throughput up to **> 54,000 records/second** with database write latency **< 15 ms**.
 
 ---
 
-## 🌐 Portal Akses, Dashboard & Dokumentasi Interaktif
+## 🌐 Access Portals, Dashboards & Interactive Documentation
 
-Berikut adalah daftar lengkap URL akses layanan, dashboard operasional, observabilitas, dan dokumentasi interaktif pada environment lokal:
+Below is the complete list of access URLs for services, operational dashboards, observability, and interactive documentation in the local environment:
 
-### 1. 🖥️ Antarmuka Layanan & API Gateway
-| Layanan | URL Akses | Port Host | Keterangan |
+### 1. 🖥️ Service Interfaces & API Gateway
+| Service | Access URL | Host Port | Description |
 |---|---|:---:|---|
-| **YARP API Gateway** | [`http://localhost:5000`](http://localhost:5000) | **`5000 / 8080`** | Pintu gerbang utama REST API (.NET 10 Native AOT) |
-| **Vendor Master API** | [`http://localhost:5001`](http://localhost:5001) | **`5001`** | Layanan manajemen master vendor & mapping respons |
-| **Delivery Tracking API** | [`http://localhost:5003`](http://localhost:5003) | **`5003`** | Layanan kueri posisi armada, sesi job, & arsip raw response |
-| **GPS Collector Worker** | — | — | Background ingestion daemon (Metrik internal: `/metrics`) |
+| **YARP API Gateway** | [`http://localhost:5000`](http://localhost:5000) | **`5000 / 8080`** | Main entry gate for REST APIs (.NET 10 Native AOT) |
+| **Vendor Master API** | [`http://localhost:5001`](http://localhost:5001) | **`5001`** | Vendor master management & response mapping service |
+| **Delivery Tracking API** | [`http://localhost:5003`](http://localhost:5003) | **`5003`** | Fleet position query, delivery sessions, & raw response archives |
+| **GPS Collector Worker** | — | — | Background ingestion daemon (Internal metrics: `/metrics`) |
 
 ---
 
-### 2. 📖 Dokumentasi API Interaktif (Internal Services)
-| Layanan | URL Akses | Format | Keterangan |
+### 2. 📖 Interactive API Documentation (Internal Services)
+| Service | Access URL | Format | Description |
 |---|---|:---:|---|
-| **Vendor Master Swagger UI** | [`http://localhost:5001/swagger`](http://localhost:5001/swagger) | *OpenAPI 3.0* | Dokumentasi interaktif endpoint vendor & geofence |
-| **Delivery Tracking Swagger UI**| [`http://localhost:5003/swagger`](http://localhost:5003/swagger) | *OpenAPI 3.0* | Dokumentasi interaktif pelacakan rute, delivery, & raw logs |
-| **Vendor Master OpenAPI JSON** | [`http://localhost:5001/swagger/v1/swagger.json`](http://localhost:5001/swagger/v1/swagger.json) | *Raw JSON* | Skema OpenAPI untuk integrasi klien eksternal |
-| **Delivery Tracking OpenAPI JSON**| [`http://localhost:5003/swagger/v1/swagger.json`](http://localhost:5003/swagger/v1/swagger.json) | *Raw JSON* | Skema OpenAPI untuk modul pelacakan |
+| **Vendor Master Swagger UI** | [`http://localhost:5001/swagger`](http://localhost:5001/swagger) | *OpenAPI 3.0* | Interactive documentation for vendor & geofence endpoints |
+| **Delivery Tracking Swagger UI**| [`http://localhost:5003/swagger`](http://localhost:5003/swagger) | *OpenAPI 3.0* | Interactive documentation for route tracking, delivery, & raw logs |
+| **Vendor Master OpenAPI JSON** | [`http://localhost:5001/swagger/v1/swagger.json`](http://localhost:5001/swagger/v1/swagger.json) | *Raw JSON* | OpenAPI schema for external client integrations |
+| **Delivery Tracking OpenAPI JSON**| [`http://localhost:5003/swagger/v1/swagger.json`](http://localhost:5003/swagger/v1/swagger.json) | *Raw JSON* | OpenAPI schema for delivery tracking modules |
 
-> *Catatan Keamanan: Sesuai prinsip Zero-Trust Enterprise, Swagger UI diisolasi pada port internal masing-masing service dan tidak diekspos melalui Gateway publik.*
-
----
-
-### 3. 📊 Observabilitas & Monitoring
-| Layanan | URL Akses | Port Host | Kredensial Default | Keterangan |
-|---|---|:---:|:---:|---|
-| **Grafana Dashboard** | [`http://localhost:3000`](http://localhost:3000) | **`3000`** | `admin` / `admin` | Visualisasi metrik live telemetri, CPU/RAM, & laju polling |
-| **Prometheus Web UI** | [`http://localhost:9090`](http://localhost:9090) | **`9090`** | *N/A* | Dashboard PromQL TSDB & status target scraper |
-| **Seq Centralized Logs** | [`http://localhost:5341`](http://localhost:5341) | **`5341`** | *N/A* | Explorer log terstruktur dan pelacakan W3C trace waterfall |
-| **Health Checks Gateway** | [`http://localhost:5000/hc`](http://localhost:5000/hc) | **`5000`** | *N/A* | Status kesiapan Gateway (`Healthy 200 OK`) |
+> *Security Note: In line with Zero-Trust Enterprise principles, Swagger UI is isolated on the internal port of each service and is not exposed through the public Gateway.*
 
 ---
 
-### 4. ⚙️ Infrastruktur Data & Message Broker
-| Layanan | URL Akses | Port Host | Kredensial Default | Keterangan |
+### 3. 📊 Observability & Monitoring
+| Service | Access URL | Host Port | Default Credentials | Description |
 |---|---|:---:|:---:|---|
-| **PostgreSQL Database** | `localhost:5436` | **`5436`** | `postgres` / `edcl_gps_user` | Database telemetri utama (`AE031_EDCL_GPS_DB`) |
-| **RabbitMQ Management UI**| [`http://localhost:15672`](http://localhost:15672) | **`15672`** | `guest` / `guest` | Manajemen message broker, *exchange*, antrean & DLQ |
-| **MongoDB Database** | `localhost:27017` | **`27017`** | *N/A* | NoSQL storage raw payload JSON & error logs |
-| **Mongo-Express UI** | [`http://localhost:8081`](http://localhost:8081) | **`8081`** | *N/A* | Web viewer database MongoDB |
+| **Grafana Dashboard** | [`http://localhost:3000`](http://localhost:3000) | **`3000`** | `admin` / `admin` | Real-time telematics metrics, CPU/RAM, & polling rate visualization |
+| **Prometheus Web UI** | [`http://localhost:9090`](http://localhost:9090) | **`9090`** | *N/A* | PromQL TSDB dashboard & target scraper status |
+| **Seq Centralized Logs** | [`http://localhost:5341`](http://localhost:5341) | **`5341`** | *N/A* | Structured log explorer and W3C trace waterfall tracking |
+| **Health Checks Gateway** | [`http://localhost:5000/hc`](http://localhost:5000/hc) | **`5000`** | *N/A* | Gateway readiness status (`Healthy 200 OK`) |
+
+---
+
+### 4. ⚙️ Data Infrastructure & Message Broker
+| Service | Access URL | Host Port | Default Credentials | Description |
+|---|---|:---:|:---:|---|
+| **PostgreSQL Database** | `localhost:5436` | **`5436`** | `postgres` / `edcl_gps_user` | Primary telematics database (`AE031_EDCL_GPS_DB`) |
+| **RabbitMQ Management UI**| [`http://localhost:15672`](http://localhost:15672) | **`15672`** | `guest` / `guest` | Message broker management, exchanges, queues & DLQ |
+| **MongoDB Database** | `localhost:27017` | **`27017`** | *N/A* | NoSQL storage for raw JSON payloads & error logs |
+| **Mongo-Express UI** | [`http://localhost:8081`](http://localhost:8081) | **`8081`** | *N/A* | MongoDB database web viewer |
 | **Redis Cache** | `localhost:6379` | **`6379`** | *N/A* | In-memory live position cache & permanent vendor cache |
 
 ---
 
-## ☁️ Arsitektur Penerapan di Produksi AWS (AWS Cloud Native Architecture)
+## ☁️ AWS Cloud Native Production Architecture
 
-Pada tingkatan *enterprise production*, seluruh platform **EDCL GPS API** diimplementasikan di atas ekosistem **Amazon Web Services (AWS)** dengan mengedepankan model arsitektur *serverless container*, isolasi VPC multi-tier, dan managed database berstandar SLA tinggi:
+At the enterprise production level, the entire **EDCL GPS API** platform is deployed on the **Amazon Web Services (AWS)** ecosystem, leveraging a serverless container architecture, multi-tier VPC isolation, and managed database services with high SLAs:
 
 ```mermaid
 flowchart TD
@@ -280,7 +279,7 @@ flowchart TD
     classDef db fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
     classDef mq fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff;
 
-    Clients["📱 Driver Mobile Apps / 🖥️ Web Admin TMMIN"]:::client
+    Clients["📱 Driver Mobile Apps / 🖥️ TMMIN Web Admin"]:::client
     ALB["⚖️ AWS Application Load Balancer (ALB)<br/>(ACM TLS 1.3 · WAF · Target Group IP Routing)"]:::ingress
 
     subgraph "AWS ECS on AWS Fargate (Serverless Container Tier - Private Subnet)"
@@ -294,7 +293,7 @@ flowchart TD
     subgraph "AWS Managed Data & Messaging Tier (Private Isolated Subnet)"
         RDS[("🐘 Amazon RDS for PostgreSQL 16<br/>(Multi-AZ · Monthly Partitions · Binary COPY)")]:::db
         ElastiCache[("🔴 Amazon ElastiCache for Redis 7.2<br/>(Cluster Multi-AZ · Auto-Failover · Sub-ms Cache)")]:::db
-        DocDB[("🍃 Amazon DocumentDB / MongoDB Atlas<br/>(TTL 30 Hari Raw Payloads · AWS PrivateLink)")]:::db
+        DocDB[("🍃 Amazon DocumentDB / MongoDB Atlas<br/>(TTL 30 Days Raw Payloads · AWS PrivateLink)")]:::db
         AmazonMQ[("🐰 Amazon MQ for RabbitMQ<br/>(Clustered Multi-AZ · AMQP 5671 TLS · DLX/DLQ)")]:::mq
     end
 
@@ -320,101 +319,101 @@ flowchart TD
 
 ### 1. 📦 Container Registry & Serverless Compute
 * **Amazon ECR (Elastic Container Registry)**:
-  Menyimpan image container OCI berbasis **.NET 10 Native AOT Chiseled** dengan ukuran ultra-ringan (**33 MB**), bebas kerentanan sistem operasi (*zero CVE attack surface*).
+  Stores OCI container images based on **.NET 10 Native AOT Chiseled** with an ultra-lightweight size (**33 MB**), free of operating system vulnerabilities (*zero CVE attack surface*).
 * **Amazon ECS (Elastic Container Service) with AWS Fargate**:
-  Menjalankan container microservices secara *serverless* tanpa beban pengelolaan, *patching*, atau *provisioning* server EC2 fisik:
-  - `edcl-api-gateway`: 0.25 vCPU, 0.5 GB RAM (Target Group ALB, auto-scaling horizontal).
+  Runs microservice containers serverlessly without the overhead of physical EC2 server management, patching, or provisioning:
+  - `edcl-api-gateway`: 0.25 vCPU, 0.5 GB RAM (Target Group ALB, horizontal auto-scaling).
   - `vendor-master-svc`: 0.5 vCPU, 1.0 GB RAM (Core master data & geofence).
-  - `delivery-tracking-svc`: 0.5 vCPU, 1.0 GB RAM (Kueri armada sub-millisecond).
-  - `gps-collector-svc`: 0.5 vCPU, 1.0 GB RAM (Background ingestion worker dengan *Distributed Leader Election*).
-* **Jalur Migrasi ke Amazon EKS (Kubernetes)**:
-  Seluruh microservice dirancang sebagai *stateless container* yang dapat berpindah dari ECS Fargate ke **Amazon EKS** tanpa perubahan kode. Manifest Kubernetes di `deploy/k8s/` mencakup `Deployment`, `Service`, `Ingress`, `HPA`, dan `Zero-Trust NetworkPolicy` — menjamin tidak ada *vendor lock-in* terhadap platform komputasi dan memberikan fleksibilitas penuh dalam evolusi infrastruktur ke depan.
+  - `delivery-tracking-svc`: 0.5 vCPU, 1.0 GB RAM (Sub-millisecond fleet queries).
+  - `gps-collector-svc`: 0.5 vCPU, 1.0 GB RAM (Background ingestion worker with Distributed Leader Election).
+* **Migration Path to Amazon EKS (Kubernetes)**:
+  All microservices are designed as stateless containers that can migrate from ECS Fargate to **Amazon EKS** without code changes. Kubernetes manifests in `deploy/k8s/` include `Deployment`, `Service`, `Ingress`, `HPA`, and `Zero-Trust NetworkPolicy` — guaranteeing no vendor lock-in to the compute platform and providing full flexibility for future infrastructure evolution.
 
-### 2. 🐘 Database Relasional: Amazon RDS PostgreSQL 16 (Multi-AZ)
-* **Ketersediaan Tinggi**: Menerapkan konfigurasi *Multi-AZ Deployment* dengan replikasi sinkron ke *standby instance* di Availability Zone berbeda untuk mencegah *single point of failure*.
-* **Partisi Bulanan (*Monthly Range Partitioning*)**: Tabel `edcl.t_delivery_position_history` terpartisi otomatis per bulan (misal `t_delivery_position_history_y2025m09`), menjaga performa indeks B-Tree dan BRIN tetap stabil meski menampung ratusan juta titik koordinat.
-* **Protokol Binary COPY**: Ingestion dari ECS Fargate worker menggunakan soket biner langsung (`NpgsqlBinaryImporter`) dengan *throughput* > 54.000 records/detik.
+### 2. 🐘 Relational Database: Amazon RDS PostgreSQL 16 (Multi-AZ)
+* **High Availability**: Employs a *Multi-AZ Deployment* configuration with synchronous replication to a standby instance in a different Availability Zone to prevent single points of failure.
+* **Monthly Range Partitioning**: The `edcl.t_delivery_position_history` table is automatically partitioned by month (e.g., `t_delivery_position_history_y2025m09`), maintaining stable B-Tree and BRIN index performance even with hundreds of millions of coordinates.
+* **Binary COPY Protocol**: Ingestion from the ECS Fargate worker uses direct binary sockets (`NpgsqlBinaryImporter`) with throughput > 54,000 records/second.
 
-### 3. 🍃 Database NoSQL: MongoDB di Lingkungan AWS
-Banyak pengembang menanyakan: **"Bagaimana implementasi MongoDB di AWS pada skala enterprise?"**
+### 3. 🍃 NoSQL Database: MongoDB in AWS Environments
+A common architectural question: **"How is MongoDB implemented on AWS at enterprise scale?"**
 
 ```text
-  [Fase Awal / PoC]                               [Fase Produksi Enterprise]
-Self-Hosted di Amazon EC2   ====== Migrasi =====>   Opsi 1: Amazon DocumentDB (Native AWS Managed)
-(EBS gp3 Storage, Single VM)                         Opsi 2: MongoDB Atlas on AWS (via AWS PrivateLink)
+    [Early Stage / PoC]                           [Enterprise Production Phase]
+Self-Hosted on Amazon EC2   ====== Migration =====>   Option 1: Amazon DocumentDB (Native AWS Managed)
+(EBS gp3 Storage, Single VM)                          Option 2: MongoDB Atlas on AWS (via AWS PrivateLink)
 ```
 
-1. **Fase Awal (Development / PoC / Data Kecil)**:
-   - Dijalankan secara *self-hosted* pada instance **Amazon EC2** tunggal dengan volume **Amazon EBS gp3**.
-   - Cukup hemat untuk kebutuhan awal, namun memiliki keterbatasan operasional: *failover* manual, *backup* manual, dan risiko *downtime* saat volume data membesar.
-2. **Fase Produksi Enterprise (2 Opsi Layanan Managed AWS)**:
-   * **Opsi 1 (Native AWS Fully-Managed): Amazon DocumentDB (with MongoDB compatibility)**:
-     - **Keunggulan**: Layanan resmi buatan AWS yang 100% kompatibel dengan MongoDB API.
-     - **Arsitektur Penyimpanan Terdistribusi**: Data direplikasi secara otomatis sebanyak 6 arah (6-way replication) melintasi 3 Availability Zones (AZ).
-     - **Penskalaan Otomatis**: Storage bertambah dinamis hingga 128 TiB tanpa *downtime* dan tanpa perlu memprediksi kapasitas di awal (*zero capacity planning*).
-     - **Integrasi Penuh Ekosistem AWS**: Terhubung langsung dengan AWS KMS (enkripsi at-rest), AWS IAM, CloudWatch metrics, dan VPC Security Groups.
-     - **Kesesuaian Fitur**: Sangat ideal untuk kebutuhan koleksi `gps_raw_responses` dengan indeks TTL 30 hari dan `gps_audit_logs` TTL 90 hari.
-   * **Opsi 2 (100% Native MongoDB 7.0/8.0 Feature Parity): MongoDB Atlas on AWS via AWS PrivateLink**:
-     - **Keunggulan**: Layanan resmi dari pembuat MongoDB (MongoDB Inc.) yang di-host di region AWS terdekat (misal: Region Jakarta `ap-southeast-3` atau Singapore `ap-southeast-1`).
-     - **Koneksi Privat Aman**: Terhubung ke AWS VPC privat melalui **AWS PrivateLink** (lalu lintas data tidak pernah keluar ke internet publik).
-     - **Fitur Penuh**: Memberikan 100% paritas fitur MongoDB versi 7.0+, termasuk *native Time-Series collections*, *TTL indexes*, dan *Change Streams*.
-     - **Konsolidasi Billing**: Dapat dilanggan melalui **AWS Marketplace**, sehingga biaya tagihan tetap masuk ke dalam satu tagihan resmi AWS bulanan.
+1. **Early Stage (Development / PoC / Small Data)**:
+   - Hosted on a single **Amazon EC2** instance with an **Amazon EBS gp3** volume.
+   - Cost-effective for early stages, but carries operational trade-offs: manual failover, manual backups, and downtime risks as data volume grows.
+2. **Enterprise Production Phase (2 AWS Managed Service Options)**:
+   * **Option 1 (Native AWS Fully-Managed): Amazon DocumentDB (with MongoDB compatibility)**:
+     - **Advantage**: Official AWS service 100% compatible with the MongoDB API.
+     - **Distributed Storage Architecture**: Data is automatically replicated 6 ways across 3 Availability Zones (AZ).
+     - **Auto-Scaling**: Storage expands dynamically up to 128 TiB without downtime or upfront capacity planning.
+     - **Full AWS Ecosystem Integration**: Seamlessly integrates with AWS KMS (encryption at rest), AWS IAM, CloudWatch metrics, and VPC Security Groups.
+     - **Feature Fit**: Ideal for the `gps_raw_responses` collection (30-day TTL index) and `gps_audit_logs` (90-day TTL).
+   * **Option 2 (100% Native MongoDB 7.0/8.0 Feature Parity): MongoDB Atlas on AWS via AWS PrivateLink**:
+     - **Advantage**: Official service by the creators of MongoDB (MongoDB Inc.) hosted in the nearest AWS region (e.g., Jakarta `ap-southeast-3` or Singapore `ap-southeast-1`).
+     - **Secure Private Connection**: Connects to the private AWS VPC via **AWS PrivateLink** (traffic never leaves to the public internet).
+     - **Full Feature Set**: Provides 100% feature parity with MongoDB 7.0+, including native Time-Series collections, TTL indexes, and Change Streams.
+     - **Consolidated Billing**: Available via **AWS Marketplace**, keeping billing consolidated into a single monthly AWS invoice.
 
 ### 4. 🐰 Message Broker: Amazon MQ for RabbitMQ
-* **Clustered Broker Multi-AZ**: Menggunakan Amazon MQ dengan engine RabbitMQ 3.13 terkelola untuk pertukaran pesan telemetri melalui Topic Exchange `gps.vendor.*`.
-* **Resiliensi Pengiriman**: Pesan yang gagal diproses secara otomatis diarahkan ke antrean `gps.dlq` (*Dead-Letter Queue*) dengan saluran aman AMQP 5671 (TLS 1.3).
+* **Clustered Broker Multi-AZ**: Uses Amazon MQ with a managed RabbitMQ 3.13 engine for telematics message exchange via Topic Exchange `gps.vendor.*`.
+* **Delivery Resilience**: Failed messages are automatically routed to `gps.dlq` (Dead-Letter Queue) over secure AMQP 5671 (TLS 1.3) channels.
 
 ### 5. 🔴 In-Memory Cache: Amazon ElastiCache for Redis 7.2
-* **Multi-AZ with Auto-Failover**: Klaster Redis in-memory terkelola untuk menyediakan latensi baca posisi armada terkini `< 1 ms`.
-* **Dual-Role Caching**: Menyimpan cache konfigurasi vendor aktif secara permanen (`vendor:configs:active`) serta mengelola *Distributed Leader Election Lock* antar-worker Fargate.
+* **Multi-AZ with Auto-Failover**: Managed in-memory Redis cluster providing live fleet location read latency of `< 1 ms`.
+* **Dual-Role Caching**: Permanently stores active vendor configurations (`vendor:configs:active`) and manages Distributed Leader Election Locks between Fargate workers.
 
-### 6. ⚖️ Traffic Routing & Zero-Trust Security di AWS
-* **AWS Application Load Balancer (ALB)**: Mengakhiri enkripsi SSL/TLS publik menggunakan sertifikat AWS Certificate Manager (ACM) dan meneruskan trafik ke task container di subnet privat.
-* **AWS Secrets Manager & SSM Parameter Store**: Seluruh kata sandi database, API keys vendor (Inovatrack, Muliatrack, Puninar), dan kredensial RabbitMQ disimpan terenkripsi via AWS KMS tanpa hardcode di repositori.
-* **Observabilitas Cloud**: Seluruh container ECS Fargate mengalirkan log terstruktur ke **Amazon CloudWatch Logs** dan distributed tracing ke **AWS X-Ray** / OpenTelemetry Collector.
+### 6. ⚖️ Traffic Routing & Zero-Trust Security on AWS
+* **AWS Application Load Balancer (ALB)**: Terminates public SSL/TLS encryption using AWS Certificate Manager (ACM) certificates and forwards traffic to container tasks in private subnets.
+* **AWS Secrets Manager & SSM Parameter Store**: All database passwords, vendor API keys (Inovatrack, Muliatrack, Puninar), and RabbitMQ credentials are encrypted via AWS KMS without being hardcoded in repositories.
+* **Cloud Observability**: All ECS Fargate containers stream structured logs to **Amazon CloudWatch Logs** and distributed traces to **AWS X-Ray** / OpenTelemetry Collector.
 
 ---
 
-## 📈 Laporan Pengujian Kinerja (Performance & Ingestion Benchmark Report)
+## 📈 Performance & Ingestion Benchmark Report
 
-Pengujian performa penyerapan data (*ingestion benchmark*) membuktikan efisiensi protokol Binary COPY dibandingkan metode konvensional:
+Telemetry ingestion benchmark tests demonstrate the efficiency of the Binary COPY protocol compared to conventional methods:
 
-### 1. Perbandingan Metode Ingestion Telemetri (10.000 Titik Koordinat)
+### 1. Ingestion Method Comparison (10,000 Coordinate Points)
 
-| Metode Ingestion | Waktu Eksekusi | Alokasi Memori (GC) | Throughput (Records/Detik) |
+| Ingestion Method | Execution Time | Memory Allocation (GC) | Throughput (Records/Sec) |
 |---|:---:|:---:|:---:|
-| **Single Row INSERT (Loop)** | 14.850 ms | 128.4 MB | ~670 records/s |
-| **EF Core AddRange + SaveChanges** | 3.420 ms | 64.2 MB | ~2.920 records/s |
-| **Dapper Bulk Unnest** | 820 ms | 18.5 MB | ~12.190 records/s |
-| 🚀 **PostgreSQL Binary COPY (`NpgsqlBinaryImporter`)** | **185 ms** | **2.8 MB** | **~54.000 records/s** |
+| **Single Row INSERT (Loop)** | 14,850 ms | 128.4 MB | ~670 records/s |
+| **EF Core AddRange + SaveChanges** | 3,420 ms | 64.2 MB | ~2,920 records/s |
+| **Dapper Bulk Unnest** | 820 ms | 18.5 MB | ~12,190 records/s |
+| 🚀 **PostgreSQL Binary COPY (`NpgsqlBinaryImporter`)** | **185 ms** | **2.8 MB** | **~54,000 records/s** |
 
-### 2. Kesimpulan Pengujian Kinerja
-1. **Peningkatan Kecepatan Ingestion ~18x Lipat**: Protokol Binary COPY memangkas waktu penulisan database dari 3,4 detik (EF Core) menjadi hanya **185 milidetik**.
-2. **Efisiensi Memori Ekstrem**: Alokasi memori GC berkurang hingga **95%** karena data dialirkan langsung dalam format biner murni PostgreSQL tanpa instansiasi model ORM per-baris.
-3. **Sub-Millisecond Read Latency**: Kueri posisi armada terkini (`GET /api/v1/positions/{platNo}` dan `/api/v1/deliveries/live/{deliveryNo}`) via Redis menghasilkan latensi rata-rata **0.78 ms**.
+### 2. Benchmark Conclusions
+1. **~18x Ingestion Speed Improvement**: The Binary COPY protocol reduces database write time from 3.4 seconds (EF Core) to just **185 milliseconds**.
+2. **Extreme Memory Efficiency**: GC memory allocation is reduced by **95%** because data streams directly in PostgreSQL pure binary format without per-row ORM model instantiations.
+3. **Sub-Millisecond Read Latency**: Live fleet position queries (`GET /api/v1/positions/{platNo}` and `/api/v1/deliveries/live/{deliveryNo}`) via Redis yield an average latency of **0.78 ms**.
 
 ---
 
-## ⚡ Panduan Memulai Cepat (Quick Start)
+## ⚡ Quick Start Guide
 
-### 1. Prasyarat Sistem
-- **Docker Desktop** atau **Docker Engine** (v24.0+)
-- **.NET 10 SDK** (jika menjalankan langsung via CLI / IDE)
-- **Make** utility (opsional, untuk otomasi CLI)
+### 1. Prerequisites
+- **Docker Desktop** or **Docker Engine** (v24.0+)
+- **.NET 10 SDK** (if running directly via CLI / IDE)
+- **Make** utility (optional, for CLI automation)
 
-### 2. Menjalankan Seluruh Stack via Docker Compose
+### 2. Running the Full Stack via Docker Compose
 ```bash
-# 1. Clone repositori
+# 1. Clone the repository
 git clone git@github.com:odealidj/EDCLGPSAPI.git
 cd EDCLGPSAPI
 
-# 2. Jalankan seluruh layanan backend, database, broker, dan monitoring
+# 2. Start all backend services, databases, brokers, and monitoring
 docker compose -f src/docker-compose.yml up -d --build
 ```
 
-### 3. Menjalankan Test Otomatis
+### 3. Running Automated Tests
 ```bash
-# Jalankan seluruh 121 unit & integration test
+# Run all 121 unit & integration tests
 dotnet test src/edcl-gps-api.sln
 ```
 
