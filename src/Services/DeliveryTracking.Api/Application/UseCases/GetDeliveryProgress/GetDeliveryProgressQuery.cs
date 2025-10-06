@@ -17,6 +17,7 @@ public class GetDeliveryProgressQueryValidator : AbstractValidator<GetDeliveryPr
 
 public class GetDeliveryProgressQueryHandler(
     IDeliveryTrackingRepository repository,
+    IMapper mapper,
     ILogger<GetDeliveryProgressQueryHandler> logger) : IQueryHandler<GetDeliveryProgressQuery, DeliveryProgressDto>
 {
     public async Task<DeliveryProgressDto> Handle(
@@ -30,14 +31,6 @@ public class GetDeliveryProgressQueryHandler(
             throw new DeliveryProgressNotFoundException(request.DeliveryNo);
         }
 
-        return new DeliveryProgressDto
-        {
-            Id = entity.Id,
-            DeliveryNo = entity.DeliveryNo,
-            PlatNo = entity.PlatNo,
-            NoKtp = entity.NoKtp,
-            VendorName = entity.VendorName,
-            Lpcd = entity.Lpcd
-        };
+        return mapper.Map<DeliveryProgressDto>(entity);
     }
 }

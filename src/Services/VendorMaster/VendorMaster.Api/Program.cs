@@ -10,9 +10,10 @@ builder.Services.AddEdclIdempotency(builder.Configuration);
 var apiAssembly = typeof(Program).Assembly;
 var applicationAssembly = typeof(IVendorMasterRepository).Assembly;
 
-// 1. scan carter endpoints & mediatR handlers + validators
+// 1. scan carter endpoints & mediatR handlers + validators & application services (AutoMapper)
 builder.Services.AddCarterWithAssemblies(apiAssembly);
 builder.Services.AddMediatRWithAssemblies(applicationAssembly, apiAssembly);
+builder.Services.AddApplicationServices();
 
 // 2. registrasi module & ef core postgres
 builder.Services.AddVendorMasterModule(builder.Configuration);

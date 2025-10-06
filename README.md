@@ -11,7 +11,10 @@
 [![Redis](https://img.shields.io/badge/Redis-7.2_Sub_Millisecond-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0_TTL_Logs-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.13_Topic_DLX-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com)
-[![Tests](https://img.shields.io/badge/Tests-121_Passed-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI)
+[![AutoMapper](https://img.shields.io/badge/AutoMapper-15.1_CQRS_DTOs-red?style=for-the-badge&logo=nuget&logoColor=white)](https://automapper.org)
+[![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI/actions/workflows/ci.yaml)
+[![CD](https://img.shields.io/badge/CD-GHCR_Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI/actions/workflows/cd-services.yaml)
+[![Tests](https://img.shields.io/badge/Tests-133_Passed-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing_&_Metrics-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white)](https://opentelemetry.io)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics_Scraping-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Grafana-Monitoring_Dashboard-F46800?style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com)
@@ -27,7 +30,7 @@
 The platform operates at the public edge ingress to consume telematics data from various third-party GPS vendors (*Inovatrack, Muliatrack, Puninar, Dunex, Hino Connect, etc.*) over the public internet, normalizes heterogeneous data structures dynamically via a database-driven mapping engine, and reliably streams them to **`EDCL-Web-API`** located inside the **TMMIN Private Intranet Network (On-Premises Plant Core)**.
 
 ### Strategic Value of Service Separation:
-1. **High-Speed Write-Heavy Workload Isolation**: Hundreds of logistics trucks transmit coordinates periodically (accumulating millions of GPS records daily). By using **PostgreSQL Binary COPY Streaming (`NpgsqlBinaryImporter`)** on dedicated delivery tables (`edcl.t_delivery_latest_position` & `edcl.t_delivery_position_history`), this platform ensures the core transactional database in the TMMIN plant (*SQL Server*) is 100% free from raw coordinate disk I/O load.
+1. **High-Speed Write-Heavy Workload Isolation**: Hundreds of logistics trucks transmit coordinates periodically (accumulating millions of GPS records daily). By using **PostgreSQL Binary COPY Streaming (`NpgsqlBinaryImporter`)** on dedicated delivery position tables, this platform ensures the core transactional database in the TMMIN plant (*SQL Server*) is 100% free from raw coordinate disk I/O load.
 2. **Corporate Security (Zero-Trust Isolation)**: The TMMIN plant server does not open public inbound ports to the internet for GPS vendors. All data ingestion runs in an isolated environment using distroless chiseled Native AOT containers, and data is then securely streamed via private encrypted channels (*TLS/VPN/AMQPS*).
 3. **Vendor Integration Agility (Zero-Downtime Deployment)**: Third-party vendor data formats vary and may change at any time. A database-driven dynamic mapping engine (`edcl.m_gps_vendor_mapping`) allows adding and adjusting vendor configurations without application recompilation or deployment downtime.
 4. **Autonomous Vendor Connectivity Resilience**: Equipped with an **Automated Vendor Health Tracker** that monitors vendor endpoint failures in real time. It automatically triggers alert notifications (*Alert Triggered*) when a vendor repeatedly fails to respond, and logs recoveries (*Alert Resolved*) once connectivity returns to normal.
@@ -138,6 +141,9 @@ graph TD
 - **Hexagonal Architecture (Ports & Adapters) in GpsCollector**:
   `GpsCollector` cleanly separates the **Domain Core** (`TelemetryPoint`, `VendorConfig`, `VendorAlertEvent` entities — AOT-safe normalization via pattern-matching switches), **Application Ports** (inbound/outbound contracts: `IGpsCollectorOrchestrator`, `IVendorHttpFetcher`, `ITelemetryIngestionRepository`, `IVendorHealthTracker`, etc.), and **Infrastructure Adapters** (ADO.NET PostgreSQL, MongoDB Driver, StackExchange.Redis, RabbitMQ Client, Polly v8).
 
+- **Decoupled CQRS DTO Mapping (AutoMapper 15.1)**:
+  Domain entity-to-DTO transformations in `VendorMaster.Api` and `DeliveryTracking.Api` are handled by dedicated AutoMapper profiles (`AssertConfigurationIsValid()` validated), eliminating boilerplate in query handlers. *`GpsCollector` deliberately uses zero-reflection pattern matching for Native AOT performance.*
+
 - **Two-Tier Error Handling Observability**:
   The system distinguishes two failure types: **Tier 1 — Vendor Connection Error** (vendor offline, timeout, HTTP 5xx/4xx → Redis status `VENDOR_CONNECTION_ERROR`) and **Tier 2 — Data Mismatch** (HTTP 200 OK but truck not found in payload → Redis status `DATA_MISMATCH`, `WARNING` log). Both are audited to `edcl.m_gps_api_log` for incident investigation.
 
@@ -166,7 +172,7 @@ graph TD
   The **OpenTelemetry .NET SDK** propagates `traceparent`, `X-Trace-Id`, and `X-Correlation-Id` across all microservices — traces can be inspected in Jaeger or AWS X-Ray. The `/metrics` endpoint exposes domain-specific metrics (poll duration, ingestion rate, vendor HTTP ratio) scraped by Prometheus and displayed on a live **Grafana Dashboard**. Structured JSON logs are centralized in **Seq** correlated with `TraceId`, `DeliveryNo`, and `VendorId`.
 
 - **Database Scalability: Monthly Partitioning & Advanced Indexing (PostgreSQL 16)**:
-  The `edcl.t_delivery_position_history` table uses declarative monthly range partitioning — during route replay queries, the PostgreSQL Query Planner automatically prunes partitions and reads only the target month, skipping 95% of unrelated data. Purging old data is as simple as `DETACH PARTITION` + `DROP TABLE` with zero lock and zero downtime. Advanced indexing eliminates filesort and full-table scans:
+  Historical telemetry coordinate tables use declarative monthly range partitioning — during route replay queries, the PostgreSQL Query Planner automatically prunes partitions and reads only the target month, skipping 95% of unrelated data. Purging old data is as simple as `DETACH PARTITION` + `DROP TABLE` with zero lock and zero downtime. Advanced indexing eliminates filesort and full-table scans:
 
   | Index | Strategy | Benefit |
   |---|---|---|
@@ -196,16 +202,16 @@ The **EDCL GPS API** platform implements a full testing pyramid standard to ensu
                     /-------\
                    / Integr. \      <-- 2. WebApplicationFactory Integration (38 Tests)
                   /-----------\
-                 /  Unit Tests \    <-- 1. Domain, Mappings, Auth & Health Logic (83 Tests)
+                 /  Unit Tests \    <-- 1. Domain, AutoMapper, Auth & Health Logic (95 Tests)
                 /---------------\
 ```
 
 ### 1. 🔬 Unit Tests (`tests/Services/...`)
 * **Framework**: `xUnit`, `FluentAssertions`, `Moq`
-* **Coverage**: **83 Unit Tests (100% Passed)**:
-  - `VendorMaster.UnitTests`: **31 Tests** (Domain validation, Vendor CRUD CQRS Handlers, Geofence calculation, DTO serialization).
+* **Coverage**: **95 Unit Tests (100% Passed)**:
+  - `VendorMaster.UnitTests`: **34 Tests** (Domain validation, Vendor CRUD CQRS Handlers, Geofence calculation, AutoMapper profile configuration validation).
   - `GpsCollector.UnitTests`: **17 Tests** (Reflection-free vendor JSON normalization, Polly retry policy, throttling logic, vendor health tracker, AOT serialization context).
-  - `DeliveryTracking.UnitTests`: **35 Tests** (Delivery tracking lifecycle, Start/Complete Job, Live tracking Redis fallback, binary COPY DTO validation, Carter routing).
+  - `DeliveryTracking.UnitTests`: **44 Tests** (Delivery tracking lifecycle, Start/Complete Job, Live tracking Redis fallback, AutoMapper profile & query handler mapping verification, binary COPY DTO validation, Carter routing).
 * **Speed**: Instant execution ($\approx 1.5\text{ seconds}$).
 
 ### 2. 🐳 Integration Tests (`tests/Services/...`)
@@ -213,7 +219,7 @@ The **EDCL GPS API** platform implements a full testing pyramid standard to ensu
 * **Coverage**: **38 Integration Tests (100% Passed)**:
   - `VendorMaster.IntegrationTests`: **13 Tests** (REST contracts, Redis active vendor sync, idempotency validation, error problem details).
   - `DeliveryTracking.IntegrationTests`: **25 Tests** (Start Job / Complete Job lifecycle, live tracking query, binary COPY bulk ingestion, MongoDB raw responses pagination, error status handling).
-* **Overall Suite Total**: **121 Automated Tests (100% Passed, 0 Failures)**.
+* **Overall Suite Total**: **133 Automated Tests (100% Passed, 0 Failures)**.
 
 ### 3. ⚡ Ingestion Throughput & Benchmark
 * **Binary COPY Protocol**: Streams telematics coordinate data via direct binary stream, reaching throughput up to **> 54,000 records/second** with database write latency **< 15 ms**.
@@ -331,7 +337,7 @@ flowchart TD
 
 ### 2. 🐘 Relational Database: Amazon RDS PostgreSQL 16 (Multi-AZ)
 * **High Availability**: Employs a *Multi-AZ Deployment* configuration with synchronous replication to a standby instance in a different Availability Zone to prevent single points of failure.
-* **Monthly Range Partitioning**: The `edcl.t_delivery_position_history` table is automatically partitioned by month (e.g., `t_delivery_position_history_y2025m09`), maintaining stable B-Tree and BRIN index performance even with hundreds of millions of coordinates.
+* **Monthly Range Partitioning**: Historical telemetry coordinate tables are automatically partitioned by month, maintaining stable B-Tree and BRIN index performance even with hundreds of millions of coordinates.
 * **Binary COPY Protocol**: Ingestion from the ECS Fargate worker uses direct binary sockets (`NpgsqlBinaryImporter`) with throughput > 54,000 records/second.
 
 ### 3. 🍃 NoSQL Database: MongoDB in AWS Environments
@@ -413,7 +419,7 @@ docker compose -f src/docker-compose.yml up -d --build
 
 ### 3. Running Automated Tests
 ```bash
-# Run all 121 unit & integration tests
+# Run all 133 unit & integration tests
 dotnet test src/edcl-gps-api.sln
 ```
 

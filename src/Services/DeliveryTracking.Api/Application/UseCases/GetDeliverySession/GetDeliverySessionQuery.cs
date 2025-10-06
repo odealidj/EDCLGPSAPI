@@ -21,6 +21,7 @@ public class GetDeliverySessionQueryValidator : AbstractValidator<GetDeliverySes
 
 public class GetDeliverySessionQueryHandler(
     IDeliveryTrackingRepository repository,
+    IMapper mapper,
     ILogger<GetDeliverySessionQueryHandler> logger)
     : IQueryHandler<GetDeliverySessionQuery, DeliveryTrackingSessionDto>
 {
@@ -42,20 +43,7 @@ public class GetDeliverySessionQueryHandler(
             vendorName = vendorLookup?.GpsVendorName;
         }
 
-        return new DeliveryTrackingSessionDto(
-            Id: session.Id,
-            DeliveryNo: session.DeliveryNo,
-            Lpcd: session.Lpcd,
-            VendorId: session.VendorId,
-            VendorName: vendorName,
-            Key: session.MatchKey,
-            Val: session.MatchValue,
-            CleanValue: session.CleanMatchValue,
-            DriverKtp: session.DriverKtp,
-            Status: session.Status,
-            StartedAt: session.StartedAt,
-            ArrivedAt: session.ArrivedAt,
-            CompletedAt: session.CompletedAt
-        );
+        var dto = mapper.Map<DeliveryTrackingSessionDto>(session);
+        return string.IsNullOrWhiteSpace(vendorName) ? dto : dto with { VendorName = vendorName };
     }
 }

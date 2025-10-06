@@ -21,6 +21,7 @@ public class GetActiveDeliverySessionsQueryValidator : AbstractValidator<GetActi
 
 public class GetActiveDeliverySessionsQueryHandler(
     IDeliveryTrackingRepository repository,
+    IMapper mapper,
     ILogger<GetActiveDeliverySessionsQueryHandler> logger)
     : IQueryHandler<GetActiveDeliverySessionsQuery, IReadOnlyList<DeliveryTrackingSessionDto>>
 {
@@ -30,27 +31,6 @@ public class GetActiveDeliverySessionsQueryHandler(
     {
         logger.LogDebug("Mengambil daftar sesi delivery aktif dengan limit {Limit}", request.Limit);
         var sessions = await repository.GetActiveDeliverySessionsAsync(request.Limit, cancellationToken);
-        var dtos = new List<DeliveryTrackingSessionDto>(sessions.Count);
-
-        foreach (var s in sessions)
-        {
-            dtos.Add(new DeliveryTrackingSessionDto(
-                Id: s.Id,
-                DeliveryNo: s.DeliveryNo,
-                Lpcd: s.Lpcd,
-                VendorId: s.VendorId,
-                VendorName: null,
-                Key: s.MatchKey,
-                Val: s.MatchValue,
-                CleanValue: s.CleanMatchValue,
-                DriverKtp: s.DriverKtp,
-                Status: s.Status,
-                StartedAt: s.StartedAt,
-                ArrivedAt: s.ArrivedAt,
-                CompletedAt: s.CompletedAt
-            ));
-        }
-
-        return dtos;
+        return mapper.Map<IReadOnlyList<DeliveryTrackingSessionDto>>(sessions);
     }
 }

@@ -18,3 +18,5 @@ global using VendorMaster.Application.UseCases.Vendors.Commands.UpdateVendor;
 global using VendorMaster.Application.UseCases.Vendors.Commands.DeleteVendor;
 global using VendorMaster.Application.UseCases.Vendors.Queries.GetVendors;
 global using VendorMaster.Application.UseCases.Vendors.Queries.GetVendorById;
+global using VendorMaster.Application;
+global using Microsoft.Extensions.DependencyInjection;

@@ -17,3 +17,4 @@ global using DeliveryTracking.Domain.Entities;
 global using DeliveryTracking.Domain.Exceptions;
 global using DeliveryTracking.Application.DTOs;
 global using DeliveryTracking.Application.Ports;
+global using AutoMapper;

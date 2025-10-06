@@ -422,5 +422,11 @@ MICROSERVICES_PLAN.md
 *.bak
 README.md.bak
 
+# Local README translations (excluded from remote git)
+README.id.md
+README.Id.md
+README_ID.md
+[Rr]eadme.[Ii]d*
+
 
 

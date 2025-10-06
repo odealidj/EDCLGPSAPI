@@ -5,7 +5,9 @@ public record GetGeofenceDestinationsQuery(bool ActiveOnly = true) : IQuery<GetG
 public record GetGeofenceDestinationsResult(List<GeofenceDestinationDto> Destinations);
 
 // handler use case get geofence plant toyota tmmin
-public class GetGeofenceDestinationsHandler(IVendorMasterRepository repository)
+public class GetGeofenceDestinationsHandler(
+    IVendorMasterRepository repository,
+    IMapper mapper)
     : IQueryHandler<GetGeofenceDestinationsQuery, GetGeofenceDestinationsResult>
 {
     public async Task<GetGeofenceDestinationsResult> Handle(
@@ -13,19 +15,7 @@ public class GetGeofenceDestinationsHandler(IVendorMasterRepository repository)
         CancellationToken cancellationToken)
     {
         var list = await repository.GetGeofenceDestinationsAsync(query.ActiveOnly, cancellationToken);
-
-        var dtos = list.Select(d => new GeofenceDestinationDto
-        {
-            Id = d.Id,
-            DestinationCode = d.DestinationCode,
-            DestinationName = d.DestinationName,
-            GeofenceType = d.GeofenceType,
-            CenterLatitude = d.CenterLatitude,
-            CenterLongitude = d.CenterLongitude,
-            RadiusMeters = d.RadiusMeters,
-            PolygonCoordinates = d.PolygonCoordinates,
-            IsActive = d.IsActive
-        }).ToList();
+        var dtos = mapper.Map<List<GeofenceDestinationDto>>(list);
 
         return new GetGeofenceDestinationsResult(dtos);
     }

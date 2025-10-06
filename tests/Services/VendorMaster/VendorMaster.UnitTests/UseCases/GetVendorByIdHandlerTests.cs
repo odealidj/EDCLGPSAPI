@@ -1,13 +1,22 @@
+using AutoMapper;
+using VendorMaster.Application.Mappings;
+
 namespace VendorMaster.UnitTests.UseCases;
 
 public class GetVendorByIdHandlerTests
 {
     private readonly IVendorMasterRepository _repository = Substitute.For<IVendorMasterRepository>();
+    private readonly IMapper _mapper;
     private readonly GetVendorByIdHandler _handler;
 
     public GetVendorByIdHandlerTests()
     {
-        _handler = new GetVendorByIdHandler(_repository);
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddApplicationServices();
+        var sp = services.BuildServiceProvider();
+
+        _mapper = sp.GetRequiredService<IMapper>();
+        _handler = new GetVendorByIdHandler(_repository, _mapper);
     }
 
     [Fact]

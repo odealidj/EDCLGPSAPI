@@ -53,6 +53,12 @@ public static class DeliveryModule
         // 5. registrasi mongodb logging & raw response repository
         services.AddMongoDbLogs(configuration);
 
+        // 6. registrasi automapper profile
+        services.AddAutoMapper(cfg =>
+        {
+            cfg.AddProfile<DeliveryTracking.Application.Mappings.DeliveryTrackingMappingProfile>();
+        });
+
         return services;
     }
 

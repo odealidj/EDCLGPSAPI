@@ -23,6 +23,7 @@ global using VendorMaster.Domain.Constants;
 global using VendorMaster.Domain.Entities;
 global using VendorMaster.Domain.Enums;
 global using VendorMaster.Domain.Exceptions;
+global using VendorMaster.Application;
 global using VendorMaster.Application.Ports;
 global using VendorMaster.Application.DTOs;
 global using VendorMaster.Application.UseCases.Vendors.Commands.CreateVendor;

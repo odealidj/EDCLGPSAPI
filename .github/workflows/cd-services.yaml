@@ -27,11 +27,8 @@ jobs:
           - service: gps-collector
             dockerfile: src/Services/GpsCollector/Dockerfile
             image_name: edcl-gps-collector
-          - service: position-query
-            dockerfile: src/Services/PositionQuery.Api/Dockerfile
-            image_name: edcl-position-query-svc
           - service: vendor-master
-            dockerfile: src/Services/VendorMaster.Api/Dockerfile
+            dockerfile: src/Services/VendorMaster/VendorMaster.Api/Dockerfile
             image_name: edcl-vendor-master-svc
           - service: delivery-tracking
             dockerfile: src/Services/DeliveryTracking.Api/Dockerfile
