@@ -398,3 +398,14 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# -----------------------------------------------------------------------------
+# Security & Local Configurations
+# -----------------------------------------------------------------------------
+# Exclude sensitive application configs (protect production & AWS secrets)
+**/appsettings*.json
+!**/appsettings.template.json
+
+# Exclude local database scripts & dump files
+*.sql
+src/*.sql
