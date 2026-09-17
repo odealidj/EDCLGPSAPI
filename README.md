@@ -35,7 +35,7 @@ Layanan ini beroperasi di garis terdepan (*Public Edge*) untuk mengumpulkan data
 Pada skala produksi industri di Toyota Motor Manufacturing Indonesia (TMMIN), sistem ini menerapkan arsitektur terdistribusi **Hybrid Cloud**:
 
 ```mermaid
-flowchart TB
+graph TD
     classDef aws fill:#ff9900,stroke:#d97706,stroke-width:2px,color:#fff;
     classDef onprem fill:#1e293b,stroke:#0f172a,stroke-width:2px,color:#fff;
     classDef vendor fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff;
@@ -43,65 +43,68 @@ flowchart TB
     classDef db fill:#334155,stroke:#1e293b,stroke-width:2px,color:#fff;
     classDef mq fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff;
 
-    subgraph Ext_Vendors ["🛰️ Vendor GPS Pihak Ketiga (Public Internet)"]
-        V1["Hino Connect API"]:::vendor
-        V2["Jitra GPS Cloud"]:::vendor
-        V3["Puninar GPS Endpoint"]:::vendor
-        V4["Vendor GPS Lainnya..."]:::vendor
+    subgraph "Vendor GPS Pihak Ketiga (Public Internet)"
+        V1["🛰️ Hino Connect API"]:::vendor
+        V2["🛰️ Jitra GPS Cloud"]:::vendor
+        V3["🛰️ Puninar GPS Endpoint"]:::vendor
+        V4["🛰️ Vendor GPS Lainnya..."]:::vendor
     end
 
-    subgraph AWS_Cloud ["☁️ AWS Cloud (Public Ingress & GPS Ingestion Layer)"]
-        subgraph Fargate ["AWS ECS Fargate (Serverless Container Runtime)"]
+    subgraph "AWS Cloud (Public Ingress & GPS Ingestion Layer)"
+        subgraph "AWS ECS Fargate"
             GpsApi["🛰️ EDCL GPS API Host (:5090)<br/>(Carter Minimal APIs / MediatR)"]:::aws
             GpsPoller["⏱️ GPS Poller Background Worker<br/>(Recurring Cron & Scheduler)"]:::aws
         end
 
-        subgraph RDS ["AWS RDS PostgreSQL 16 (Multi-AZ)"]
-            PgDb[("🐘 AE031_EDCL_GPS_DB<br/>Schema: edcl<br/>- Raw Breadcrumb Coordinates<br/>- tb_m_mapping & Dynamic Endpoints<br/>- tb_m_gps_api_log Audit")]:::db
+        subgraph "AWS RDS PostgreSQL 16"
+            PgDb[("🐘 AE031_EDCL_GPS_DB<br/>Schema: edcl<br/>Raw Breadcrumb Coordinates<br/>tb_m_mapping & Dynamic Endpoints<br/>tb_m_gps_api_log Audit")]:::db
         end
 
-        subgraph AmazonMQ ["Amazon MQ (Managed Message Broker)"]
+        subgraph "Amazon MQ"
             TopicEx{{"🐰 topic_exchange<br/>(AMQPS TLS :5671)<br/>Routing: gps.vendor.*"}}:::mq
         end
 
-        V1 & V2 & V3 & V4 -->|REST API Poll / Webhook| GpsApi
+        V1 -->|REST API / Webhook| GpsApi
+        V2 -->|REST API / Webhook| GpsApi
+        V3 -->|REST API / Webhook| GpsApi
+        V4 -->|REST API / Webhook| GpsApi
         GpsPoller -->|Fetch Active Schedules| PgDb
         GpsApi -->|Store Raw History & Audit| PgDb
         GpsApi -->|Publish GpsLastPositionHDto| TopicEx
     end
 
-    subgraph TMMIN_Network ["🏢 Jaringan Privat TMMIN (On-Premises Plant Core)"]
-        subgraph Plant_Gateway ["Edge Gateway & Interconnect"]
+    subgraph "Jaringan Privat TMMIN (On-Premises Plant Core)"
+        subgraph "Edge Gateway & Interconnect"
             VPN["🔒 AWS DirectConnect / Site-to-Site VPN Tunnel"]:::onprem
         end
 
-        subgraph Plant_Backend ["TMMIN Plant Backend Services"]
+        subgraph "TMMIN Plant Backend Services"
             EdclWebApi["⚙️ EDCL-Web-API<br/>(Core Logistics Host & Event Consumer)"]:::core
             GpsConsumer["📥 GPS Telemetry Consumer<br/>(Queue: edcl_gps_telemetry_queue)"]:::core
             SignalRHub["📡 SignalR TrackingHub<br/>(Real-Time WebSocket Stream)"]:::core
         end
 
-        subgraph Plant_Data ["TMMIN Core Data Layer"]
-            SqlServer[("🗄️ SQL Server Enterprise 2022<br/>[auth], [cargo], [job], [driver]<br/>Transaksi Manifes & 1 Juta Kanban")]:::db
-            RedisCache[("🔴 Redis 7.2 Cache<br/>- GEO: trucks:locations<br/>- HASH: truck:telemetry")]:::db
+        subgraph "TMMIN Core Data Layer"
+            SqlServer[("🗄️ SQL Server Enterprise 2022<br/>auth, cargo, job, driver<br/>Transaksi Manifes & 1 Juta Kanban")]:::db
+            RedisCache[("🔴 Redis 7.2 Cache<br/>GEO: trucks:locations<br/>HASH: truck:telemetry")]:::db
         end
 
-        subgraph Plant_Clients ["Monitoring & Dispatcher Clients"]
+        subgraph "Monitoring & Dispatcher Clients"
             WebDashboard["🖥️ TMMIN Web Logistics Dashboard<br/>(Leaflet Live Fleet Map)"]:::core
             PlantDispatcher["👷 Plant Karawang & Sunter Logistics Control"]:::core
         end
     end
 
     %% Koneksi Aliran Data
-    TopicEx ==>|Secure AMQPS Tunnel| VPN
-    VPN ==> GpsConsumer
+    TopicEx -->|Secure AMQPS Tunnel| VPN
+    VPN --> GpsConsumer
     GpsConsumer -->|GEOADD & HSET| RedisCache
     GpsConsumer -->|Broadcast Event| SignalRHub
     SignalRHub -->|WSS Real-time Push| WebDashboard
     WebDashboard --> PlantDispatcher
     EdclWebApi --> SqlServer
 
-    GpsApi -.->|Structured GELF/HTTP Logs| Seq["📋 Seq Observability (:5341)"]:::aws
+    GpsApi -. "Structured GELF/HTTP Logs" .-> Seq["📋 Seq Observability (:5341)"]:::aws
 ```
 
 ---
