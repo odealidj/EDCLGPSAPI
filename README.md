@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🛰️ EDCL GPS API — Fleet GPS Telematics & Ingestion Platform
+# 🛰️ Fleet GPS Telematics & Ingestion Platform
 
-**Enterprise-Grade Real-Time Truck Fleet GPS Telematics Ingestion & Observability Microservices Platform for the Toyota Motor Manufacturing Indonesia (TMMIN) Logistics Ecosystem.**
+**Enterprise-Grade Real-Time Truck Fleet GPS Telematics Ingestion & Observability Microservices Platform for High-Throughput Automotive Supply Chain Logistics.**
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com)
 [![Native AOT](https://img.shields.io/badge/Native_AOT-33MB_Chiseled-00C7B7?style=for-the-badge&logo=webassembly&logoColor=white)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
@@ -25,7 +25,11 @@
 
 ## 📖 Executive Summary
 
-**EDCL GPS API** (`EDCLGPSAPI`) is an enterprise-grade cloud-native telemetry ingestion microservices platform designed specifically to handle high-throughput ingestion, heterogeneous data normalization, partitioned polyglot storage, and real-time event streaming of GPS tracking coordinates from parts supplier logistics fleets for TMMIN in real time.
+The **Fleet GPS Telematics Platform** is an enterprise-grade cloud-native telemetry ingestion microservices platform designed specifically to handle high-throughput ingestion, heterogeneous data normalization, partitioned polyglot storage, and real-time event streaming of GPS tracking coordinates from parts supplier logistics fleets in real time.
+
+> [!NOTE]
+> **Architecture Heritage & Reference Blueprint:**  
+> This platform represents an independent, production-grade reference architecture and sanitized implementation derived from real-world high-throughput telematics systems engineered for automotive logistics ecosystems (including TMMIN supply-chain fleet operations). All proprietary internal business logic, private network endpoints, and corporate credentials have been thoroughly sanitized and re-architected into an open, high-performance microservices blueprint. It is engineered as a field-proven blueprint—not a simplified demo—demonstrating production-grade solutions for vendor throttling, zero-trust edge isolation, binary streaming I/O, and distributed observability.
 
 The platform operates at the public edge ingress to consume telematics data from various third-party GPS vendors (*Inovatrack, Muliatrack, Puninar, Dunex, Hino Connect, etc.*) over the public internet, normalizes heterogeneous data structures dynamically via a database-driven mapping engine, and reliably streams them to **`EDCL-Web-API`** located inside the **TMMIN Private Intranet Network (On-Premises Plant Core)**.
 
@@ -40,7 +44,7 @@ The platform operates at the public edge ingress to consume telematics data from
 
 ## 🏛️ Distributed System Architecture
 
-Here is the holistic system architecture of the **EDCL GPS Telematics Platform**:
+Here is the holistic system architecture of the **Fleet GPS Telematics Platform**:
 
 ```mermaid
 graph TD
@@ -193,7 +197,7 @@ graph TD
 
 ## 🧪 Comprehensive Testing Strategy (Testing Pyramid)
 
-The **EDCL GPS API** platform implements a full testing pyramid standard to ensure code reliability across every layer of the architecture:
+The platform implements a full testing pyramid standard to ensure code reliability across every layer of the architecture:
 
 ```text
                        / \
@@ -275,7 +279,7 @@ Below is the complete list of access URLs for services, operational dashboards, 
 
 ## ☁️ AWS Cloud Native Production Architecture
 
-At the enterprise production level, the entire **EDCL GPS API** platform is deployed on the **Amazon Web Services (AWS)** ecosystem, leveraging a serverless container architecture, multi-tier VPC isolation, and managed database services with high SLAs:
+At the enterprise production level, the entire platform is deployed on the **Amazon Web Services (AWS)** ecosystem, leveraging a serverless container architecture, multi-tier VPC isolation, and managed database services with high SLAs:
 
 ```mermaid
 flowchart TD
@@ -410,8 +414,8 @@ Telemetry ingestion benchmark tests demonstrate the efficiency of the Binary COP
 ### 2. Running the Full Stack via Docker Compose
 ```bash
 # 1. Clone the repository
-git clone git@github.com:odealidj/EDCLGPSAPI.git
-cd EDCLGPSAPI
+git clone git@github.com:odealidj/enterprise-gps-telemetry.git
+cd enterprise-gps-telemetry
 
 # 2. Start all backend services, databases, brokers, and monitoring
 docker compose -f src/docker-compose.yml up -d --build
@@ -427,6 +431,6 @@ dotnet test src/edcl-gps-api.sln
 
 <div align="center">
 
-**EDCL GPS Telematics Platform** — *Sub-system of EDCL-Web-API, TMMIN Logistics Ecosystem.*
+**Fleet GPS Telematics Platform** — *Enterprise-Grade Telematics Ingestion & Observability Reference Blueprint.*
 
 </div>
