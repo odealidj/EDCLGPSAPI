@@ -12,13 +12,13 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0_TTL_Logs-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.13_Topic_DLX-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com)
 [![AutoMapper](https://img.shields.io/badge/AutoMapper-15.1_CQRS_DTOs-red?style=for-the-badge&logo=nuget&logoColor=white)](https://automapper.org)
-[![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI/actions/workflows/ci.yaml)
+[![CI](https://img.shields.io/github/actions/workflow/status/odealidj/EDCLGPSAPI/ci.yaml?branch=feat%2Fsonarqube-setup&style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/odealidj/EDCLGPSAPI/actions/workflows/ci.yaml)
 [![CD](https://img.shields.io/badge/CD-GHCR_Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI/actions/workflows/cd-services.yaml)
-[![Tests](https://img.shields.io/badge/Tests-133_Passed-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI)
+[![Tests](https://img.shields.io/badge/Tests-203_Passed-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/odealidj/EDCLGPSAPI)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing_&_Metrics-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white)](https://opentelemetry.io)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics_Scraping-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Grafana-Monitoring_Dashboard-F46800?style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com)
-[![SonarQube](https://img.shields.io/badge/SonarQube-Quality_Gate-4B9CD3?style=for-the-badge&logo=sonarqube&logoColor=white)](SONARQUBE_GUIDE.md)
+[![SonarQube](https://img.shields.io/sonar/quality_gate/odealidj_EDCLGPSAPI?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqube&logoColor=white&label=SONARQUBE)](https://sonarcloud.io/dashboard?id=odealidj_EDCLGPSAPI)
 
 </div>
 
@@ -238,7 +238,7 @@ The platform implements a full testing pyramid standard to ensure code reliabili
 * **Coverage**: **38 Integration Tests (100% Passed)**:
   - `VendorMaster.IntegrationTests`: **13 Tests** (REST contracts, Redis active vendor sync, idempotency validation, error problem details).
   - `DeliveryTracking.IntegrationTests`: **25 Tests** (Start Job / Complete Job lifecycle, live tracking query, binary COPY bulk ingestion, MongoDB raw responses pagination, error status handling).
-* **Overall Suite Total**: **133 Automated Tests (100% Passed, 0 Failures)**.
+* **Overall Suite Total**: **203 Automated Tests (100% Passed, 0 Failures)**.
 
 ### 3. ⚡ Ingestion Throughput & Benchmark
 * **Binary COPY Protocol**: Streams telematics coordinate data via direct binary stream, reaching throughput up to **> 54,000 records/second** with database write latency **< 15 ms**.
@@ -438,7 +438,7 @@ docker compose -f src/docker-compose.yml up -d --build
 
 ### 3. Running Automated Tests
 ```bash
-# Run all 133 unit & integration tests
+# Run all 203 unit & integration tests
 dotnet test src/edcl-gps-api.sln
 ```
 
