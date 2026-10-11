@@ -73,7 +73,7 @@ app.MapGet("/", () => Results.Ok(new GatewayStatusDto(
 // 7. Map Reverse Proxy
 app.MapReverseProxy();
 
-app.Run();
+await app.RunAsync();
 
 namespace ApiGateway
 {

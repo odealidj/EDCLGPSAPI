@@ -74,7 +74,7 @@ app.MapGet("/", () => Results.Json(new
     Timestamp = DateTime.UtcNow
 }));
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program
 {

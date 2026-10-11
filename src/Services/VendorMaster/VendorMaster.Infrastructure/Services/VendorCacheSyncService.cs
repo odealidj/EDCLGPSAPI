@@ -44,6 +44,7 @@ public class VendorCacheSyncService(
                 .Include(v => v.GpsVendorAuth)
                 .Include(v => v.Mappings)
                 .Include(v => v.Lpcds)
+                .AsSplitQuery()
                 .OrderBy(v => v.VendorCode)
                 .ToListAsync(cancellationToken);
 

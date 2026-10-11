@@ -40,6 +40,7 @@ public class VendorMasterRepository(
             .Include(x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
     }
 
@@ -102,6 +103,7 @@ public class VendorMasterRepository(
             .Include(x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Lpcds.Any(l => l.Lpcd == normalizedLpcd), cancellationToken);
     }
 
@@ -121,6 +123,7 @@ public class VendorMasterRepository(
             .Include(x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
@@ -140,6 +143,7 @@ public class VendorMasterRepository(
             .Include(x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.VendorCode == vendorCode.ToUpperInvariant(), cancellationToken);
     }
 
@@ -198,6 +202,7 @@ public class VendorMasterRepository(
             .Include(x => x.GpsVendorAuth)
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (vendor == null) return false;

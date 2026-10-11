@@ -94,7 +94,7 @@ app.MapGet("/api/v1/collector/raw-responses/{id}", async (
 .WithName("GetCollectorRawResponseById")
 .WithSummary("Ambil detail satu dokumen data raw response asli berdasarkan ID MongoDB");
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program
 {
