@@ -56,7 +56,7 @@ jobs:
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="**/Program.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/Shared.Contracts/**,**/Extensions/**,**/Data/Mongo/Documents/**,**/*Settings.cs,**/*Options.cs,**/Exceptions/**,**/DTOs/**,**/*Dto.cs,**/*Request.cs,**/*Response.cs,src/Services/GpsCollector/Infrastructure/Adapters/Persistence/**" \
+            /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/**,**/Extensions/**,**/Data/Mongo/Documents/**,**/*Settings.cs,**/*Options.cs,**/Exceptions/**,**/DTOs/**,**/*Dto.cs,**/*Request.cs,**/*Response.cs,src/Services/GpsCollector/Infrastructure/Adapters/Persistence/**,src/Services/VendorMaster/VendorMaster.Infrastructure/**,**/Infrastructure/Persistence/**,**/Infrastructure/Services/**" \
             /d:sonar.cpd.exclusions="src/Shared/Shared.Contracts/**" \
             /d:sonar.exclusions="**/*.template.yaml,**/*.template.json,deploy/k8s/aws/**"
 
