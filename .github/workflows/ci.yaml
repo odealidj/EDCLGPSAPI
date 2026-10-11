@@ -57,7 +57,8 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="**/Program.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/Shared.Contracts/**,**/Extensions/**,**/Data/Mongo/Documents/**,**/*Settings.cs,**/*Options.cs,**/Exceptions/**,**/DTOs/**,**/*Dto.cs,**/*Request.cs,**/*Response.cs,src/Services/GpsCollector/Infrastructure/Adapters/Persistence/**" \
-            /d:sonar.cpd.exclusions="src/Shared/Shared.Contracts/**"
+            /d:sonar.cpd.exclusions="src/Shared/Shared.Contracts/**" \
+            /d:sonar.exclusions="**/*.template.yaml,**/*.template.json,deploy/k8s/aws/**"
 
       - name: Build Solution
         run: dotnet build src/edcl-gps-api.sln -c Release --no-restore

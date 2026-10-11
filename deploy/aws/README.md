@@ -46,7 +46,7 @@ kubectl apply -f deploy/k8s/aws/13-external-secrets.yaml
 ### Langkah 4: Terapkan ConfigMap & Manifests Aplikasi
 ```bash
 # Terapkan ConfigMap dengan endpoint AWS
-kubectl apply -f deploy/k8s/aws/01-configmap-aws.yaml
+kubectl apply -f deploy/k8s/aws/01-configmap-aws.template.yaml
 
 # Terapkan Deployments Microservices
 kubectl apply -f deploy/k8s/07-api-gateway-deployment.yaml

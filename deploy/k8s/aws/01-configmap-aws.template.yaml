@@ -4,7 +4,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: edcl-gps-config
+  name: edcl-gps-config-aws # Rename atau timpa ke edcl-gps-config saat deploy ke AWS EKS
   namespace: edcl-prod
 data:
   ASPNETCORE_ENVIRONMENT: "Production"
