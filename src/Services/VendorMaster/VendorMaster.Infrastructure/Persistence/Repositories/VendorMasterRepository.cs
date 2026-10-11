@@ -133,6 +133,10 @@ public class VendorMasterRepository(
         bool asNoTracking = true,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(vendorCode))
+            return null;
+
+        var normalizedCode = vendorCode.Trim().ToUpperInvariant();
         var query = dbContext.GpsVendors.AsQueryable();
 
         if (asNoTracking)
@@ -144,7 +148,7 @@ public class VendorMasterRepository(
             .Include(x => x.Mappings)
             .Include(x => x.Lpcds)
             .AsSplitQuery()
-            .FirstOrDefaultAsync(x => x.VendorCode == vendorCode.ToUpperInvariant(), cancellationToken);
+            .FirstOrDefaultAsync(x => x.VendorCode == normalizedCode, cancellationToken);
     }
 
     // create vendor baru
