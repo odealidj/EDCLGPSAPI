@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: edcl-gps-telematics
 data:
   ASPNETCORE_ENVIRONMENT: "Production"
-  ASPNETCORE_URLS: "http://+:8080"
+  ASPNETCORE_HTTP_PORTS: "8080"
 
   # Database Hostnames (Ganti ke endpoint AWS RDS / DocumentDB saat di AWS EKS)
   POSTGRES_HOST: "postgres-svc.edcl-infra.svc.cluster.local"

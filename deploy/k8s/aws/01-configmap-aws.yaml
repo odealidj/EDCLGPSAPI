@@ -8,7 +8,7 @@ metadata:
   namespace: edcl-prod
 data:
   ASPNETCORE_ENVIRONMENT: "Production"
-  ASPNETCORE_URLS: "http://+:8080"
+  ASPNETCORE_HTTP_PORTS: "8080"
   
   # AWS Managed Endpoints (Update with your provisioned endpoints)
   POSTGRES_HOST: "edcl-gps-pg.c7xxxxxx.ap-southeast-1.rds.amazonaws.com"

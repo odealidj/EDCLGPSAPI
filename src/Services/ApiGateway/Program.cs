@@ -20,12 +20,16 @@ builder.Services.AddReverseProxy()
 // 2. Health Checks
 builder.Services.AddHealthChecks();
 
-// 3. CORS Policy
+// 3. CORS Policy (Restricted to Trusted Corporate & Telematics Origins)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["https://*.toyota.co.id", "https://localhost:3000", "https://localhost:5001"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCorsPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
+              .SetIsOriginAllowedToAllowWildcardSubdomains()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
