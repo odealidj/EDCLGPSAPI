@@ -21,6 +21,7 @@ spec:
       labels:
         app: api-gateway
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: api-gateway
           image: ghcr.io/odealidj/edcl-api-gateway:latest

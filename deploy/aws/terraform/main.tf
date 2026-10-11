@@ -85,6 +85,7 @@ resource "aws_db_instance" "edcl_postgres" {
   allocated_storage    = 100
   max_allocated_storage = 500
   storage_type         = "gp3"
+  storage_encrypted    = true
   multi_az             = true
 
   db_name  = "AE031_EDCL_GPS_DB"
@@ -124,7 +125,7 @@ resource "aws_elasticache_replication_group" "edcl_redis" {
   subnet_group_name             = aws_elasticache_subnet_group.edcl_redis_subnets.name
   security_group_ids            = [aws_security_group.elasticache_sg.id]
   at_rest_encryption_enabled    = true
-  transit_encryption_enabled    = false
+  transit_encryption_enabled    = true
 
   tags = {
     Name        = "edcl-gps-redis"

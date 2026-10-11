@@ -21,6 +21,7 @@ spec:
       labels:
         app: position-query-svc
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: position-query-svc
           image: ghcr.io/odealidj/edcl-position-query-svc:latest

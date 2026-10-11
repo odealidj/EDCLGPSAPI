@@ -18,7 +18,7 @@ public static class DeliveryModule
     {
         var connectionString = configuration.GetConnectionString("Database")
             ?? configuration["Database"]
-            ?? "Server=localhost;Port=5436;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;";
+            ?? string.Empty;
 
         // 1. registrasi npgsql data source (ado.net connection pool bawaan .net 10)
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);

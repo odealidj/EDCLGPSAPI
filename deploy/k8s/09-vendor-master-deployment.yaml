@@ -21,6 +21,7 @@ spec:
       labels:
         app: vendor-master-svc
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: vendor-master-svc
           image: ghcr.io/odealidj/edcl-vendor-master-svc:latest

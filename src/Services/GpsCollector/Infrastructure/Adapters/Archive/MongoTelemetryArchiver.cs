@@ -33,8 +33,8 @@ public sealed class MongoTelemetryArchiver : ITelemetryArchiver
 
         try
         {
-            // 1. Hitung Hash MD5 dari payload JSON mentah (< 0.05 ms, 0 query DB)
-            var hashBytes = MD5.HashData(Encoding.UTF8.GetBytes(rawJson));
+            // 1. Hitung Hash SHA-256 dari payload JSON mentah (< 0.05 ms, 0 query DB)
+            var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawJson));
             var currentHash = Convert.ToHexString(hashBytes);
             var cacheKey = $"{vendorId:N}:{endpointUrl}";
 

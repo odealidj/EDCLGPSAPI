@@ -21,6 +21,7 @@ spec:
       labels:
         app: delivery-tracking-svc
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: delivery-tracking-svc
           image: ghcr.io/odealidj/edcl-delivery-tracking-svc:latest

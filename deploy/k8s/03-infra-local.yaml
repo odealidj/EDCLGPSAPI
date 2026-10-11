@@ -20,6 +20,7 @@ spec:
       labels:
         app: postgres
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: postgres
           image: postgres:16-alpine
@@ -70,6 +71,7 @@ spec:
       labels:
         app: mongodb
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: mongodb
           image: mongo:7.0
@@ -119,6 +121,7 @@ spec:
       labels:
         app: redis
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: redis
           image: redis:7-alpine
@@ -162,6 +165,7 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: rabbitmq
           image: rabbitmq:3-management-alpine

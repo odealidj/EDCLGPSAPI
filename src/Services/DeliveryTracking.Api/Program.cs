@@ -39,7 +39,7 @@ builder.Services.AddSwaggerGen(c =>
 // 4. health checks postgresql
 var healthDbConn = builder.Configuration.GetConnectionString("Database")
     ?? builder.Configuration["Database"]
-    ?? "Server=localhost;Port=5436;Database=AE031_EDCL_GPS_DB;User Id=postgres;Password=postgres;Include Error Detail=true;Timezone=Asia/Jakarta;";
+    ?? string.Empty;
 builder.Services.AddHealthChecks()
     .AddNpgSql(healthDbConn);
 
