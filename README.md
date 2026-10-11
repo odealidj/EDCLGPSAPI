@@ -201,6 +201,14 @@ graph TD
   | `idx_lpcd_code_lower` | Functional `LOWER(lpcd)` | Sub-millisecond case-insensitive joins on vendor logistics codes |
   | `idx_latest_pos_datetime` | Reverse `(datetime DESC)` | Fleet dashboard reads latest signals without filesort |
 
+- **Enterprise Code Quality Governance & Clean Code (SonarQube & SonarQube Cloud)**:
+  Every microservice adheres to automated Static Application Security Testing (SAST) and maintainability governance:
+  - **Quality Gate Guarantee**: **100% PASSED (OK)** across all microservices with **0 Blocker, 0 Critical, and 0 Major Issues**.
+  - **Clean Code Taxonomy**: Maintains **Rating A** in Reliability (0 Bugs), Security (0 Vulnerabilities, 0 Security Hotspots), and Maintainability.
+  - **Low Cognitive Complexity**: Handlers and pipeline algorithms strictly enforce **Cognitive Complexity ($\le 15$)**, breaking complex workflows into testable, single-responsibility primitives.
+  - **Zero Duplication**: **0.0% Duplication on New Code**, adhering strictly to DRY microservice patterns and shared domain models.
+  - **Continuous CI Inspection**: Every pull request and push to the default branch triggers automated compilation, 203 automated tests with OpenCover coverage ($\ge 80\%$), and static code analysis in GitHub Actions.
+
 - **Cloud-Native Deployment Readiness (Kubernetes / Amazon EKS)**:
   All microservices are designed as stateless workloads ready for Kubernetes without code modifications:
   - **Zero-Trust NetworkPolicy**: Internal pods only accept traffic from `edcl-api-gateway` and monitoring namespaces — lateral pod-to-pod communication is blocked by default.
@@ -442,21 +450,12 @@ docker compose -f src/docker-compose.yml up -d --build
 dotnet test src/edcl-gps-api.sln
 ```
 
-### 4. 🛡️ Enterprise Code Quality & Clean Code Architecture
-The platform enforces strict Static Application Security Testing (SAST), architectural maintainability standards, and continuous code quality governance integrated into both local developer workflows and GitHub Actions CI/CD pipelines via **SonarQube & SonarQube Cloud**:
-
-* **Quality Gate Guarantee**: **100% PASSED (OK)** across all microservices with **0 Blocker, 0 Critical, and 0 Major Issues**.
-* **Reliability (Rating A)**: **0 Bugs** across all services, guaranteeing zero unexpected runtime crashes in high-throughput streaming workloads.
-* **Security & Vulnerabilities (Rating A)**: **0 Vulnerabilities & 0 Security Hotspots**, featuring hardened cryptographic and supply-chain dependency standards.
-* **Maintainability (Rating A)**: Strict enforcement of **Cognitive Complexity ($\le 15$)**, clean domain separation, and zero accumulated technical debt.
-* **Zero Duplication**: **0.0% Duplication on New Code**, adhering strictly to DRY microservice patterns and reusable shared primitives.
-* **Automated Continuous Inspection**: Every pull request and push to the default branch triggers automated compilation, execution of 203 automated tests with OpenCover code coverage ($\ge 80\%$), and static code analysis before deployment.
-
+### 4. Running Local Code Quality Inspection (SonarQube)
 ```bash
-# Optional: Run local offline SonarQube stack during development
+# Optional: Run local offline SonarQube analysis during development
 make sonar-up     # Start isolated local SonarQube server (http://localhost:9000)
-make sonar-scan   # Run full .NET 10 compilation, OpenCover coverage & local analysis
-make sonar-down   # Stop local SonarQube containers
+make sonar-scan   # Run .NET 10 compilation, OpenCover coverage & static analysis
+make sonar-down   # Tear down local SonarQube containers
 ```
 
 ---
