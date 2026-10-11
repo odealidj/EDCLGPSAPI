@@ -100,4 +100,38 @@ public class UpdateVendorHandlerTests
         await act.Should().ThrowAsync<VendorConflictException>()
             .WithMessage("*sudah terdaftar pada vendor lain*");
     }
+
+    [Fact]
+    public async Task Handle_VendorAda_DenganPropertyLpcdLangsung_HarusUpdateDanReturnSuccess()
+    {
+        // arrange
+        var id = Guid.NewGuid();
+        var existing = GpsVendor.Create(id, "VND_HINO", "Hino GPS");
+
+        _repository.GetVendorByIdAsync(id, false, Arg.Any<CancellationToken>())
+            .Returns(existing);
+
+        _repository.UpdateVendorAsync(existing, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var dto = new VendorDto
+        {
+            Id = id,
+            VendorCode = "VND_HINO",
+            VendorName = "Hino GPS Updated",
+            Lpcd = "HINO123"
+        };
+
+        var command = new UpdateVendorCommand(dto);
+
+        // act
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        // assert
+        result.Should().NotBeNull();
+        result.IsSuccess.Should().BeTrue();
+        result.Lpcd.Should().Be("HINO123");
+
+        await _repository.Received(1).UpdateVendorAsync(existing, Arg.Any<CancellationToken>());
+    }
 }

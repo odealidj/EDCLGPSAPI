@@ -328,14 +328,6 @@ public class UpdateVendorHandler(
         }
     }
 
-    private static string ResolvePrimaryLpcd(VendorDto dto)
-    {
-        if (!string.IsNullOrWhiteSpace(dto.Lpcd))
-        {
-            return dto.Lpcd.Trim().ToUpperInvariant();
-        }
-
-        var first = dto.Lpcds.Count > 0 ? dto.Lpcds[0].Lpcd : null;
-        return !string.IsNullOrWhiteSpace(first) ? first.Trim().ToUpperInvariant() : string.Empty;
-    }
+    private static string ResolvePrimaryLpcd(VendorDto dto) =>
+        dto.Lpcd.Trim().ToUpperInvariant();
 }
