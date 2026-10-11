@@ -335,7 +335,7 @@ public class UpdateVendorHandler(
             return dto.Lpcd.Trim().ToUpperInvariant();
         }
 
-        var first = dto.Lpcds.FirstOrDefault()?.Lpcd;
+        var first = dto.Lpcds.Count > 0 ? dto.Lpcds[0].Lpcd : null;
         return !string.IsNullOrWhiteSpace(first) ? first.Trim().ToUpperInvariant() : string.Empty;
     }
 }

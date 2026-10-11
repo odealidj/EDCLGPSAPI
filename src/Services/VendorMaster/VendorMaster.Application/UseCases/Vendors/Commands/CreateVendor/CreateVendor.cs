@@ -119,7 +119,7 @@ public class CreateVendorHandler(
         // pasang unit armada toyota (lpcd) - 1 vendor, 1 lpcd
         var primaryLpcd = !string.IsNullOrWhiteSpace(dto.Lpcd)
             ? dto.Lpcd.Trim().ToUpperInvariant()
-            : (dto.Lpcds.FirstOrDefault()?.Lpcd?.Trim().ToUpperInvariant() ?? string.Empty);
+            : (dto.Lpcds.Count > 0 ? dto.Lpcds[0].Lpcd?.Trim().ToUpperInvariant() ?? string.Empty : string.Empty);
         vendor.SetLpcd(primaryLpcd);
 
         // simpan ke database

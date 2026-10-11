@@ -51,7 +51,7 @@ public class VendorCacheSyncService(
             var cacheDtos = vendors.Select(v =>
             {
                 var auth = v.GpsVendorAuth;
-                var primaryLpcd = v.Lpcds.FirstOrDefault()?.Lpcd;
+                var primaryLpcd = v.Lpcds.Count > 0 ? v.Lpcds[0].Lpcd : null;
 
                 return new ActiveVendorCacheDto
                 {

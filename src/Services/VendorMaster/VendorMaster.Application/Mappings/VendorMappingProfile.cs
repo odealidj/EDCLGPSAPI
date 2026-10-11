@@ -62,7 +62,7 @@ public class VendorMappingProfile : Profile
     {
         CreateMap<GpsVendor, VendorDto>()
             .ConstructUsing(_ => new VendorDto())
-            .ForMember(dest => dest.Lpcd, opt => opt.MapFrom(src => src.Lpcds.FirstOrDefault() != null ? src.Lpcds.FirstOrDefault()!.Lpcd : string.Empty))
+            .ForMember(dest => dest.Lpcd, opt => opt.MapFrom(src => src.Lpcds.Count > 0 ? src.Lpcds[0].Lpcd : string.Empty))
             .ForMember(dest => dest.RequiredAuth, opt => opt.MapFrom(src => src.GpsVendorAuth != null))
             .ForMember(dest => dest.AuthType, opt => opt.MapFrom(src => src.GpsVendorAuth != null ? src.GpsVendorAuth.AuthType : "NoAuth"))
             .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.GpsVendorAuth != null ? src.GpsVendorAuth.Username : null))
