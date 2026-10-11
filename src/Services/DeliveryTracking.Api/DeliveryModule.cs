@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shared.Data.Mongo;
+using Shared.Messaging.RabbitMqClient.Extension;
 
 namespace DeliveryTracking;
 
@@ -58,6 +59,11 @@ public static class DeliveryModule
         {
             cfg.AddProfile<DeliveryTracking.Application.Mappings.DeliveryTrackingMappingProfile>();
         });
+
+        // 7. registrasi modul rabbitmq, publisher event delivered & background consumer event delivery
+        services.AddRabbitMqModule(configuration);
+        services.AddSingleton<IDeliveryEventPublisher, DeliveryTracking.Infrastructure.Adapters.Messaging.RabbitMqDeliveryEventPublisher>();
+        services.AddHostedService<DeliveryTracking.Workers.DeliveryEventConsumerWorker>();
 
         return services;
     }

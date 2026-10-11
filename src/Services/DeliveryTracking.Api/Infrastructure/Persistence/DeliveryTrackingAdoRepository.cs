@@ -24,8 +24,8 @@ public class DeliveryTrackingAdoRepository(
         {
             var points = new List<TrackDeliveryPointDto>();
 
-            // coba jalankan stored procedure 1
-            await using (var cmd = dataSource.CreateCommand("SELECT * FROM edcl.sp_edclgps1_get_track_delivery($1, $2);"))
+            // Jalankan stored procedure utama edcl.sp_edclgps_get_track_delivery
+            await using (var cmd = dataSource.CreateCommand("SELECT * FROM edcl.sp_edclgps_get_track_delivery($1, $2);"))
             {
                 cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo);
                 cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, density);
@@ -35,23 +35,6 @@ public class DeliveryTrackingAdoRepository(
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     points.Add(reader.MapToTrackDeliveryPoint());
-                }
-            }
-
-            if (points.Count > 0)
-                return points;
-
-            // fallback ke stored procedure 2 jika sp 1 kosong
-            await using (var cmd2 = dataSource.CreateCommand("SELECT * FROM edcl.sp_edclgps2_get_track_delivery($1, $2);"))
-            {
-                cmd2.Parameters.AddWithValue(NpgsqlDbType.Varchar, deliveryNo);
-                cmd2.Parameters.AddWithValue(NpgsqlDbType.Integer, density);
-                cmd2.CommandTimeout = 60;
-
-                await using var reader2 = await cmd2.ExecuteReaderAsync(cancellationToken);
-                while (await reader2.ReadAsync(cancellationToken))
-                {
-                    points.Add(reader2.MapToTrackDeliveryPoint());
                 }
             }
 

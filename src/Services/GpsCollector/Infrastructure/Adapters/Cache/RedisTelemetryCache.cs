@@ -52,6 +52,7 @@ public sealed class RedisTelemetryCache : ITelemetryCache
 
         var payload = JsonSerializer.Serialize(dto, GpsCollectorJsonContext.Default.DeliveryLivePositionCacheDto);
         await SetRedisKeyAsync($"delivery:live:{deliveryNo}", payload, ct);
+        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload, ct);
     }
 
     public async Task UpdateDeliveryLiveStatusAsync(
@@ -70,6 +71,7 @@ public sealed class RedisTelemetryCache : ITelemetryCache
 
         var payload = JsonSerializer.Serialize(dto, GpsCollectorJsonContext.Default.DeliveryLiveStatusCacheDto);
         await SetRedisKeyAsync($"delivery:live:{deliveryNo}", payload, ct);
+        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload, ct);
     }
 
     public async Task SetLastPositionsAsync(string vendorName, IReadOnlyList<TelemetryPoint> points, CancellationToken ct)
@@ -129,6 +131,23 @@ public sealed class RedisTelemetryCache : ITelemetryCache
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to set Redis key {Key}", key);
+        }
+    }
+
+    private async Task PublishRedisChannelAsync(string channelName, string message, CancellationToken ct)
+    {
+        try
+        {
+            if (_redis != null && _redis.IsConnected)
+            {
+                var db = _redis.GetDatabase();
+                await db.PublishAsync(RedisChannel.Literal(channelName), message);
+                await db.PublishAsync(RedisChannel.Literal("delivery:live"), message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish Redis message to channel {Channel}", channelName);
         }
     }
 }

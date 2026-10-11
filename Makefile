@@ -28,7 +28,7 @@ INFRA_SERVICES := ae031db distributedcache messagebus5672 mongodb mongo-express 
 
 .PHONY: help infra-up infra-down infra-restart run-all stop-all restart-all \
         run-local-all stop-local-all restart-local-all status logs-all logs-local \
-        build build-aot docker-build-aot test clean health \
+        build build-aot docker-build-aot test test-delivery-sim test-happy-path clean health \
         run-gateway stop-gateway restart-gateway logs-gateway \
         run-vendor stop-vendor restart-vendor logs-vendor \
         run-position stop-position restart-position logs-position \
@@ -106,7 +106,8 @@ help:
 	@echo -e "  ${GREEN}make build${RESET}                 Compile the entire solution (dotnet build)"
 	@echo -e "  ${GREEN}make build-aot${RESET}             Publish ApiGateway with Native AOT (dotnet publish)"
 	@echo -e "  ${GREEN}make docker-build-aot${RESET}      Build ultra-slim Native AOT container (33MB chiseled)"
-	@echo -e "  ${GREEN}make test${RESET}                  Run tests (dotnet test)"
+	@echo -e "  ${GREEN}make test${RESET}                  Run unit & integration tests (dotnet test)"
+	@echo -e "  ${GREEN}make test-delivery-sim${RESET}     Simulasi happy path live delivery GPS tracking (2m breadcrumbs)"
 	@echo -e "  ${GREEN}make clean${RESET}                 Clean build artifacts (bin/obj) & local log/pid files"
 	@echo -e ""
 
@@ -204,7 +205,7 @@ run-gateway:
 		echo -e "  ${YELLOW}⚠️  ApiGateway is already running (PID: $$(cat $(PID_DIR)/api-gateway.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting ApiGateway (:5000)...${RESET}"; \
-		nohup dotnet run --no-build --project src/Services/ApiGateway --launch-profile http < /dev/null > $(LOG_DIR)/api-gateway.log 2>&1 & \
+		setsid nohup dotnet run --no-build --project src/Services/ApiGateway --launch-profile http < /dev/null > $(LOG_DIR)/api-gateway.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/api-gateway.pid; \
 		sleep 1.5; \
@@ -248,7 +249,7 @@ run-vendor:
 		echo -e "  ${YELLOW}⚠️  VendorMaster.Api is already running (PID: $$(cat $(PID_DIR)/vendor-master.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting VendorMaster.Api (:5001)...${RESET}"; \
-		nohup dotnet run --no-build --project src/Services/VendorMaster/VendorMaster.Api --launch-profile http < /dev/null > $(LOG_DIR)/vendor-master.log 2>&1 & \
+		setsid nohup dotnet run --no-build --project src/Services/VendorMaster/VendorMaster.Api --launch-profile http < /dev/null > $(LOG_DIR)/vendor-master.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/vendor-master.pid; \
 		sleep 1.5; \
@@ -315,7 +316,7 @@ run-delivery:
 		echo -e "  ${YELLOW}⚠️  DeliveryTracking.Api is already running (PID: $$(cat $(PID_DIR)/delivery-tracking.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting DeliveryTracking.Api (:5003)...${RESET}"; \
-		nohup dotnet run --no-build --project src/Services/DeliveryTracking.Api --launch-profile http < /dev/null > $(LOG_DIR)/delivery-tracking.log 2>&1 & \
+		setsid nohup dotnet run --no-build --project src/Services/DeliveryTracking.Api --launch-profile http < /dev/null > $(LOG_DIR)/delivery-tracking.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/delivery-tracking.pid; \
 		sleep 1.5; \
@@ -359,7 +360,7 @@ run-collector:
 		echo -e "  ${YELLOW}⚠️  GpsCollector is already running (PID: $$(cat $(PID_DIR)/gps-collector.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting GpsCollector Background Worker (:5004)...${RESET}"; \
-		nohup dotnet run --no-build --project src/Services/GpsCollector --launch-profile http < /dev/null > $(LOG_DIR)/gps-collector.log 2>&1 & \
+		setsid nohup dotnet run --no-build --project src/Services/GpsCollector --launch-profile http < /dev/null > $(LOG_DIR)/gps-collector.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/gps-collector.pid; \
 		sleep 1.5; \
@@ -532,6 +533,11 @@ docker-build-aot:
 test:
 	@echo -e "${BOLD}${CYAN}🧪 Running Unit & Integration Tests...${RESET}"
 	@dotnet test $(SOLUTION)
+
+test-delivery-sim:
+	@bash scripts/test_delivery_happy_path.sh $(do)
+
+test-happy-path: test-delivery-sim
 
 clean:
 	@echo -e "${BOLD}${YELLOW}🧹 Cleaning Solution and Artifacts...${RESET}"

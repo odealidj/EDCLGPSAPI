@@ -427,6 +427,6 @@ README.id.md
 README.Id.md
 README_ID.md
 [Rr]eadme.[Ii]d*
-
-
-
+# Local test & simulation scripts
+scripts/
+scripts/test_delivery_happy_path.sh

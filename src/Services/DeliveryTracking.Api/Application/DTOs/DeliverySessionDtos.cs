@@ -172,3 +172,16 @@ public static class DeliveryValidator
         return Regex.Replace(input.ToUpperInvariant(), @"[\s\-_]+", "");
     }
 }
+
+// Event DTO yang dipublish ke edcl.delivery (routing key: delivery.status.delivered) saat geofence tiba di tujuan
+public record DeliveryDeliveredEventDto(
+    string DeliveryNo,
+    string Status,
+    string? PlatNo,
+    string? Lpcd,
+    Guid? DestinationGeofenceId,
+    string? DestinationName,
+    DateTime DeliveredAt,
+    decimal? Latitude,
+    decimal? Longitude
+);

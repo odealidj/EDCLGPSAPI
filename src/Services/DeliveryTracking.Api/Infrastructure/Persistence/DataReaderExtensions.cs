@@ -67,15 +67,20 @@ public static class DataReaderExtensions
         {
             PositionId = reader.HasColumn("positionid") ? reader.GetSafeInt32("positionid") : 0,
             DeliveryNo = reader.HasColumn("deliveryno") ? reader.GetSafeString("deliveryno") : string.Empty,
-            NoKtp = reader.HasColumn("noktp") ? reader.GetSafeString("noktp") : string.Empty,
+            NoKtp = reader.HasColumn("noktp") ? reader.GetSafeString("noktp") 
+                  : (reader.HasColumn("driverktp") ? reader.GetSafeString("driverktp") : string.Empty),
             Lpcd = reader.HasColumn("lpcd") ? reader.GetSafeString("lpcd") : string.Empty,
-            GpsVendor = reader.HasColumn("gpsvendor") ? reader.GetSafeString("gpsvendor") : string.Empty,
+            GpsVendor = reader.HasColumn("gpsvendor") ? reader.GetSafeString("gpsvendor") 
+                      : (reader.HasColumn("vendorname") ? reader.GetSafeString("vendorname") : string.Empty),
             FlagGps = reader.HasColumn("flaggps") ? reader.GetSafeString("flaggps") : string.Empty,
-            PlatNo = reader.HasColumn("platno") ? reader.GetSafeString("platno") : string.Empty,
+            PlatNo = reader.HasColumn("platno") ? reader.GetSafeString("platno") 
+                   : (reader.HasColumn("platenumber") ? reader.GetSafeString("platenumber") : string.Empty),
             DeviceId = reader.HasColumn("deviceid") ? reader.GetSafeString("deviceid") : string.Empty,
             Datetime = reader.HasColumn("datetime") ? reader.GetNullableDateTime("datetime") : null,
-            X = reader.HasColumn("x") ? reader.GetNullableDecimal("x") : null,
-            Y = reader.HasColumn("y") ? reader.GetNullableDecimal("y") : null,
+            X = reader.HasColumn("x") ? reader.GetNullableDecimal("x") 
+              : (reader.HasColumn("longitude") ? reader.GetNullableDecimal("longitude") : null),
+            Y = reader.HasColumn("y") ? reader.GetNullableDecimal("y") 
+              : (reader.HasColumn("latitude") ? reader.GetNullableDecimal("latitude") : null),
             Speed = reader.HasColumn("speed") ? reader.GetNullableDecimal("speed") : null,
             Course = reader.HasColumn("course") ? reader.GetNullableDecimal("course") : null,
             StreetName = reader.HasColumn("streetname") ? reader.GetSafeString("streetname") : string.Empty

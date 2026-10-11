@@ -13,7 +13,7 @@ public sealed class RabbitMqTelemetryPublisher : ITelemetryEventPublisher
 {
     private readonly IRabbitMqConnectionProvider? _connectionProvider;
     private readonly ILogger<RabbitMqTelemetryPublisher> _logger;
-    private const string ExchangeName = "topic_exchange";
+    private const string ExchangeName = "edcl.gps.position";
 
     public RabbitMqTelemetryPublisher(ILogger<RabbitMqTelemetryPublisher> logger, IRabbitMqConnectionProvider? connectionProvider = null)
     {
@@ -71,7 +71,8 @@ public sealed class RabbitMqTelemetryPublisher : ITelemetryEventPublisher
             properties.ContentType = "application/json";
             properties.Type = "GpsTelemetryEvent";
 
-            var routingKey = $"gps.vendor.{vendorId}";
+            var cleanVendor = string.IsNullOrWhiteSpace(vendorName) ? "unknown" : vendorName.Trim().ToLowerInvariant();
+            var routingKey = $"gps.truck.{cleanVendor}";
 
             channel.BasicPublish(
                 exchange: ExchangeName,

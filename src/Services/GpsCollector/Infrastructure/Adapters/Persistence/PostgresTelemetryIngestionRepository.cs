@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using GpsCollector.Application.Ports;
 using GpsCollector.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -11,12 +12,16 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
 {
     private readonly NpgsqlDataSource _dataSource;
     private readonly ILogger<PostgresTelemetryIngestionRepository> _logger;
+    private static readonly ConcurrentDictionary<string, (decimal X, decimal Y, decimal Speed, DateTime LastRecordedAt)> s_lastRecordedHistory = new();
 
     public PostgresTelemetryIngestionRepository(NpgsqlDataSource dataSource, ILogger<PostgresTelemetryIngestionRepository> logger)
     {
         _dataSource = dataSource;
         _logger = logger;
     }
+
+    private static DateTime ToUnspecified(DateTime dt) =>
+        dt.Kind == DateTimeKind.Utc ? DateTime.SpecifyKind(dt, DateTimeKind.Unspecified) : dt;
 
     public async Task<int> IngestDeliveryPositionsAsync(
         Guid vendorId,
@@ -31,9 +36,10 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
 
         try
         {
-            var now = DateTime.UtcNow;
+            var nowUtc = DateTime.UtcNow;
+            var now = DateTime.SpecifyKind(nowUtc, DateTimeKind.Unspecified);
 
-            // 1. Upsert snapshot ke edcl.t_delivery_latest_position
+            // 1. Upsert snapshot ke edcl.t_delivery_latest_position (selalu update agar status live online)
             const string upsertLatestSql = @"
                 INSERT INTO edcl.t_delivery_latest_position (
                     delivery_no, session_id, vendor_id, plate_number, vehicle_id,
@@ -57,13 +63,15 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
 
             foreach (var (point, session) in matchedDeliveries)
             {
+                var gpsDt = ToUnspecified(point.Datetime == default ? nowUtc : point.Datetime);
+
                 await using var cmdLatest = new NpgsqlCommand(upsertLatestSql, conn, tx);
                 cmdLatest.Parameters.Add(new NpgsqlParameter("deliveryNo", NpgsqlDbType.Varchar) { Value = session.DeliveryNo });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("sessionId", NpgsqlDbType.Uuid) { Value = session.SessionId });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("vendorId", NpgsqlDbType.Uuid) { Value = (object?)session.VendorId ?? vendorId });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("plateNumber", NpgsqlDbType.Varchar) { Value = (object?)point.PlatNo ?? session.MatchValue });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("vehicleId", NpgsqlDbType.Varchar) { Value = (object?)point.DeviceId ?? DBNull.Value });
-                cmdLatest.Parameters.Add(new NpgsqlParameter("datetime", NpgsqlDbType.Timestamp) { Value = point.Datetime == default ? now : point.Datetime });
+                cmdLatest.Parameters.Add(new NpgsqlParameter("datetime", NpgsqlDbType.Timestamp) { Value = gpsDt });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("longitude", NpgsqlDbType.Numeric) { Value = point.X });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("latitude", NpgsqlDbType.Numeric) { Value = point.Y });
                 cmdLatest.Parameters.Add(new NpgsqlParameter("speed", NpgsqlDbType.Numeric) { Value = point.Speed });
@@ -74,7 +82,7 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
                 await cmdLatest.ExecuteNonQueryAsync(ct);
             }
 
-            // 2. Insert breadcrumbs jejak rute ke edcl.t_delivery_position_history
+            // 2. Insert breadcrumbs jejak rute ke edcl.t_delivery_position_history dengan Smart Movement Filter
             const string insertHistorySql = @"
                 INSERT INTO edcl.t_delivery_position_history (
                     id, delivery_no, session_id, datetime, longitude, latitude, speed, course, street_name, created_at
@@ -82,12 +90,43 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
                     gen_random_uuid(), @deliveryNo, @sessionId, @datetime, @longitude, @latitude, @speed, @course, @streetName, @createdAt
                 );";
 
+            var insertedBreadcrumbs = 0;
             foreach (var (point, session) in matchedDeliveries)
             {
+                var deliveryNo = session.DeliveryNo;
+                var currentX = point.X.GetValueOrDefault(0);
+                var currentY = point.Y.GetValueOrDefault(0);
+                var currentSpeed = point.Speed.GetValueOrDefault(0);
+                var shouldInsertHistory = true;
+
+                // Evaluasi filter gerakan di RAM: Jika truk diam (speed <= 1 dan delta < 0.0001 derajat ~11m)
+                if (s_lastRecordedHistory.TryGetValue(deliveryNo, out var lastRecord))
+                {
+                    var isStationary = Math.Abs(currentX - lastRecord.X) < 0.0001m
+                                    && Math.Abs(currentY - lastRecord.Y) < 0.0001m
+                                    && currentSpeed <= 1.0m;
+
+                    // Jika truk diam/parkir, rekam hanya 1 kali setiap 10 menit sebagai heartbeat
+                    if (isStationary && (nowUtc - lastRecord.LastRecordedAt).TotalMinutes < 10)
+                    {
+                        shouldInsertHistory = false;
+                    }
+                }
+
+                if (!shouldInsertHistory)
+                {
+                    _logger.LogDebug(
+                        "Armada delivery '{DeliveryNo}' sedang parkir/diam (Speed: {Speed}). Skip redundant breadcrumb insert.",
+                        deliveryNo, currentSpeed);
+                    continue;
+                }
+
+                var gpsDt = ToUnspecified(point.Datetime == default ? nowUtc : point.Datetime);
+
                 await using var cmdHist = new NpgsqlCommand(insertHistorySql, conn, tx);
                 cmdHist.Parameters.Add(new NpgsqlParameter("deliveryNo", NpgsqlDbType.Varchar) { Value = session.DeliveryNo });
                 cmdHist.Parameters.Add(new NpgsqlParameter("sessionId", NpgsqlDbType.Uuid) { Value = session.SessionId });
-                cmdHist.Parameters.Add(new NpgsqlParameter("datetime", NpgsqlDbType.Timestamp) { Value = point.Datetime == default ? now : point.Datetime });
+                cmdHist.Parameters.Add(new NpgsqlParameter("datetime", NpgsqlDbType.Timestamp) { Value = gpsDt });
                 cmdHist.Parameters.Add(new NpgsqlParameter("longitude", NpgsqlDbType.Numeric) { Value = point.X });
                 cmdHist.Parameters.Add(new NpgsqlParameter("latitude", NpgsqlDbType.Numeric) { Value = point.Y });
                 cmdHist.Parameters.Add(new NpgsqlParameter("speed", NpgsqlDbType.Numeric) { Value = point.Speed });
@@ -96,13 +135,15 @@ public sealed class PostgresTelemetryIngestionRepository : ITelemetryIngestionRe
                 cmdHist.Parameters.Add(new NpgsqlParameter("createdAt", NpgsqlDbType.Timestamp) { Value = now });
 
                 await cmdHist.ExecuteNonQueryAsync(ct);
+                s_lastRecordedHistory[deliveryNo] = (currentX, currentY, currentSpeed, nowUtc);
+                insertedBreadcrumbs++;
             }
 
             await tx.CommitAsync(ct);
 
             _logger.LogInformation(
-                "Ingested {Count} delivery position points for vendor {VendorName} into active delivery tables",
-                matchedDeliveries.Count, vendorName);
+                "Ingested snapshot for {Count} deliveries, and {HistoryCount} history breadcrumb points for vendor {VendorName}",
+                matchedDeliveries.Count, insertedBreadcrumbs, vendorName);
 
             return matchedDeliveries.Count;
         }
