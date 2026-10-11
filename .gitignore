@@ -433,3 +433,6 @@ scripts/test_delivery_happy_path.sh
 
 # SonarQube Scanner local cache & build output
 .sonarqube/
+SONARQUBE_GUIDE.md
+SONARQUBE_GUIDE*.md
+
