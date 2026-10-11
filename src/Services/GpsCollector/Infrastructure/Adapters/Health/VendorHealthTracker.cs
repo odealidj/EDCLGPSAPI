@@ -58,7 +58,6 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
             vendor.VendorName, endpoint.BaseUrl, state.ConsecutiveFailures, _failureThreshold, statusCode);
 
         // Picu alert jika mencapai ambang batas dan alert belum aktif
-        bool shouldTriggerAlert = false;
         VendorAlertEvent? alertEvent = null;
 
         lock (state)
@@ -66,7 +65,6 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
             if (state.ConsecutiveFailures >= _failureThreshold && !state.IsAlertActive)
             {
                 state.IsAlertActive = true;
-                shouldTriggerAlert = true;
 
                 alertEvent = new VendorAlertEvent
                 {
@@ -82,7 +80,7 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
             }
         }
 
-        if (shouldTriggerAlert && alertEvent != null)
+        if (alertEvent != null)
         {
             _logger.LogError(
                 "Triggering OUTAGE ALERT for vendor {VendorName} after {Failures} consecutive failures.",
@@ -105,7 +103,6 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
             return;
         }
 
-        bool shouldResolveAlert = false;
         VendorAlertEvent? recoveryEvent = null;
 
         lock (state)
@@ -129,7 +126,6 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
                     Downtime = downtime
                 };
 
-                shouldResolveAlert = true;
                 state.IsAlertActive = false;
             }
 
@@ -141,7 +137,7 @@ public sealed class VendorHealthTracker : IVendorHealthTracker
             state.LastStatusCode = null;
         }
 
-        if (shouldResolveAlert && recoveryEvent != null)
+        if (recoveryEvent != null)
         {
             _logger.LogInformation(
                 "Triggering RECOVERY ALERT for vendor {VendorName}. Total downtime: {DowntimeSeconds:F0}s",

@@ -93,7 +93,7 @@ public sealed class PostgresDeliverySessionRepository : IDeliverySessionReposito
             await using var conn = await _dataSource.OpenConnectionAsync(ct);
             await using var cmd = new NpgsqlCommand(sql, conn);
 
-            cmd.Parameters.Add(new NpgsqlParameter("platNos", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = platArray });
+            cmd.Parameters.AddWithValue("platNos", platArray);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))

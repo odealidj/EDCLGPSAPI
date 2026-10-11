@@ -66,5 +66,7 @@ app.MapGet("/", () => Results.Json(new
 
 app.Run();
 
-// expose Program buat WebApplicationFactory integration test
-public partial class Program { }
+public partial class Program
+{
+    protected Program() { }
+}

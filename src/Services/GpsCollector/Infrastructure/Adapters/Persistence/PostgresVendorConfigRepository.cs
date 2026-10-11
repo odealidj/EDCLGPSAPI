@@ -90,9 +90,23 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
 
-        // 1. Ambil semua vendor aktif beserta LPCD-nya
         var vendorDict = new Dictionary<Guid, VendorConfigBuilder>();
+        await PopulateVendorsAsync(conn, vendorDict, ct);
 
+        if (vendorDict.Count == 0) return [];
+
+        await PopulateEndpointsAsync(conn, vendorDict, ct);
+        await PopulateAuthsAsync(conn, vendorDict, ct);
+        await PopulateMappingsAsync(conn, vendorDict, ct);
+
+        return vendorDict.Values.Select(b => b.Build()).ToList();
+    }
+
+    private static async Task PopulateVendorsAsync(
+        NpgsqlConnection conn,
+        Dictionary<Guid, VendorConfigBuilder> vendorDict,
+        CancellationToken ct)
+    {
         const string sqlVendors = @"
             SELECT v.id, v.vendor_name, v.vendor_code, vl.lpcd,
                    v.processing_strategy, v.processing_strategy_path_key, v.processing_strategy_path_data
@@ -100,127 +114,151 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
             LEFT JOIN edcl.m_gps_vendor_lpcd vl ON v.id = vl.vendor_id
             WHERE v.is_active = true AND v.is_deleted = false;";
 
-        await using (var cmd = new NpgsqlCommand(sqlVendors, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        await using var cmd = new NpgsqlCommand(sqlVendors, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
-            while (await reader.ReadAsync(ct))
+            ReadVendorRow(reader, vendorDict);
+        }
+    }
+
+    private static void ReadVendorRow(NpgsqlDataReader reader, Dictionary<Guid, VendorConfigBuilder> vendorDict)
+    {
+        var id = reader.GetGuid(0);
+        if (!vendorDict.TryGetValue(id, out var builder))
+        {
+            builder = new VendorConfigBuilder
             {
-                var id = reader.GetGuid(0);
-                if (!vendorDict.TryGetValue(id, out var builder))
-                {
-                    builder = new VendorConfigBuilder
-                    {
-                        Id = id,
-                        VendorName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                        VendorCode = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                        Lpcd = reader.IsDBNull(3) ? null : reader.GetString(3),
-                        ProcessingStrategy = reader.IsDBNull(4) ? "individual" : reader.GetString(4),
-                        ProcessingStrategyPathKey = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        ProcessingStrategyPathData = reader.IsDBNull(6) ? "data" : reader.GetString(6),
-                    };
-                    vendorDict[id] = builder;
-                }
-                else if (string.IsNullOrEmpty(builder.Lpcd) && !reader.IsDBNull(3))
-                {
-                    builder.Lpcd = reader.GetString(3);
-                }
-            }
+                Id = id,
+                VendorName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                VendorCode = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                Lpcd = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ProcessingStrategy = reader.IsDBNull(4) ? "individual" : reader.GetString(4),
+                ProcessingStrategyPathKey = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ProcessingStrategyPathData = reader.IsDBNull(6) ? "data" : reader.GetString(6),
+            };
+            vendorDict[id] = builder;
+            return;
         }
 
-        if (vendorDict.Count == 0) return [];
+        if (string.IsNullOrEmpty(builder.Lpcd) && !reader.IsDBNull(3))
+        {
+            builder.Lpcd = reader.GetString(3);
+        }
+    }
 
-        // 2. Ambil endpoints
+    private static async Task PopulateEndpointsAsync(
+        NpgsqlConnection conn,
+        Dictionary<Guid, VendorConfigBuilder> vendorDict,
+        CancellationToken ct)
+    {
         const string sqlEndpoints = @"
             SELECT id, vendor_id, endpoint_type, base_url, method, 
                    headers::text, params::text, bodies::text, var_params::text, max_path
             FROM edcl.m_gps_vendor_endpoint;";
 
-        await using (var cmd = new NpgsqlCommand(sqlEndpoints, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        await using var cmd = new NpgsqlCommand(sqlEndpoints, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
-            while (await reader.ReadAsync(ct))
-            {
-                var vendorId = reader.GetGuid(1);
-                if (vendorDict.TryGetValue(vendorId, out var builder))
-                {
-                    builder.Endpoints.Add(new VendorEndpointConfig
-                    {
-                        Id = reader.GetGuid(0),
-                        GpsVendorId = vendorId,
-                        EndpointName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                        BaseUrl = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                        Method = reader.IsDBNull(4) ? "GET" : reader.GetString(4),
-                        HeadersJson = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        ParamsJson = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        BodiesJson = reader.IsDBNull(7) ? null : reader.GetString(7),
-                        VarParamsJson = reader.IsDBNull(8) ? null : reader.GetString(8),
-                        MaxPath = reader.IsDBNull(9) ? null : reader.GetString(9),
-                    });
-                }
-            }
+            ReadEndpointRow(reader, vendorDict);
         }
+    }
 
-        // 3. Ambil auth
+    private static void ReadEndpointRow(NpgsqlDataReader reader, Dictionary<Guid, VendorConfigBuilder> vendorDict)
+    {
+        var vendorId = reader.GetGuid(1);
+        if (!vendorDict.TryGetValue(vendorId, out var builder)) return;
+
+        builder.Endpoints.Add(new VendorEndpointConfig
+        {
+            Id = reader.GetGuid(0),
+            GpsVendorId = vendorId,
+            EndpointName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+            BaseUrl = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+            Method = reader.IsDBNull(4) ? "GET" : reader.GetString(4),
+            HeadersJson = reader.IsDBNull(5) ? null : reader.GetString(5),
+            ParamsJson = reader.IsDBNull(6) ? null : reader.GetString(6),
+            BodiesJson = reader.IsDBNull(7) ? null : reader.GetString(7),
+            VarParamsJson = reader.IsDBNull(8) ? null : reader.GetString(8),
+            MaxPath = reader.IsDBNull(9) ? null : reader.GetString(9),
+        });
+    }
+
+    private static async Task PopulateAuthsAsync(
+        NpgsqlConnection conn,
+        Dictionary<Guid, VendorConfigBuilder> vendorDict,
+        CancellationToken ct)
+    {
         const string sqlAuth = @"
             SELECT id, vendor_id, base_url, method, auth_type, content_type, 
                    username, password, headers::text, params::text, bodies::text, token_path
             FROM edcl.m_gps_vendor_auth;";
 
-        await using (var cmd = new NpgsqlCommand(sqlAuth, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        await using var cmd = new NpgsqlCommand(sqlAuth, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
-            while (await reader.ReadAsync(ct))
-            {
-                var vendorId = reader.GetGuid(1);
-                if (vendorDict.TryGetValue(vendorId, out var builder))
-                {
-                    builder.Auth = new VendorAuthConfig
-                    {
-                        Id = reader.GetGuid(0),
-                        GpsVendorId = vendorId,
-                        BaseUrl = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                        Method = reader.IsDBNull(3) ? "POST" : reader.GetString(3),
-                        AuthType = reader.IsDBNull(4) ? "Bearer" : reader.GetString(4),
-                        ContentType = reader.IsDBNull(5) ? "application/json" : reader.GetString(5),
-                        Username = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        Password = reader.IsDBNull(7) ? null : reader.GetString(7),
-                        HeadersJson = reader.IsDBNull(8) ? null : reader.GetString(8),
-                        ParamsJson = reader.IsDBNull(9) ? null : reader.GetString(9),
-                        BodiesJson = reader.IsDBNull(10) ? null : reader.GetString(10),
-                        TokenPath = reader.IsDBNull(11) ? null : reader.GetString(11),
-                    };
-                    builder.RequiredAuth = true;
-                    builder.AuthType = builder.Auth.AuthType;
-                    builder.Username = builder.Auth.Username;
-                    builder.Password = builder.Auth.Password;
-                }
-            }
+            ReadAuthRow(reader, vendorDict);
         }
+    }
 
-        // 4. Ambil mappings
+    private static void ReadAuthRow(NpgsqlDataReader reader, Dictionary<Guid, VendorConfigBuilder> vendorDict)
+    {
+        var vendorId = reader.GetGuid(1);
+        if (!vendorDict.TryGetValue(vendorId, out var builder)) return;
+
+        var auth = new VendorAuthConfig
+        {
+            Id = reader.GetGuid(0),
+            GpsVendorId = vendorId,
+            BaseUrl = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+            Method = reader.IsDBNull(3) ? "POST" : reader.GetString(3),
+            AuthType = reader.IsDBNull(4) ? "Bearer" : reader.GetString(4),
+            ContentType = reader.IsDBNull(5) ? "application/json" : reader.GetString(5),
+            Username = reader.IsDBNull(6) ? null : reader.GetString(6),
+            Password = reader.IsDBNull(7) ? null : reader.GetString(7),
+            HeadersJson = reader.IsDBNull(8) ? null : reader.GetString(8),
+            ParamsJson = reader.IsDBNull(9) ? null : reader.GetString(9),
+            BodiesJson = reader.IsDBNull(10) ? null : reader.GetString(10),
+            TokenPath = reader.IsDBNull(11) ? null : reader.GetString(11),
+        };
+
+        builder.Auth = auth;
+        builder.RequiredAuth = true;
+        builder.AuthType = auth.AuthType;
+        builder.Username = auth.Username;
+        builder.Password = auth.Password;
+    }
+
+    private static async Task PopulateMappingsAsync(
+        NpgsqlConnection conn,
+        Dictionary<Guid, VendorConfigBuilder> vendorDict,
+        CancellationToken ct)
+    {
         const string sqlMappings = @"
             SELECT vendor_id, response_field, mapped_field
             FROM edcl.m_gps_vendor_mapping;";
 
-        await using (var cmd = new NpgsqlCommand(sqlMappings, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        await using var cmd = new NpgsqlCommand(sqlMappings, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
-            while (await reader.ReadAsync(ct))
-            {
-                var vendorId = reader.GetGuid(0);
-                if (vendorDict.TryGetValue(vendorId, out var builder))
-                {
-                    builder.Mappings.Add(new VendorFieldMapping
-                    {
-                        GpsVendorId = vendorId,
-                        ResponseField = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                        MappedField = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    });
-                }
-            }
+            ReadMappingRow(reader, vendorDict);
         }
+    }
 
-        return vendorDict.Values.Select(b => b.Build()).ToList();
+    private static void ReadMappingRow(NpgsqlDataReader reader, Dictionary<Guid, VendorConfigBuilder> vendorDict)
+    {
+        var vendorId = reader.GetGuid(0);
+        if (!vendorDict.TryGetValue(vendorId, out var builder)) return;
+
+        builder.Mappings.Add(new VendorFieldMapping
+        {
+            GpsVendorId = vendorId,
+            ResponseField = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+            MappedField = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+        });
     }
 
     public async Task<VendorConfig?> GetVendorByIdAsync(Guid vendorId, CancellationToken ct)
@@ -273,7 +311,7 @@ public sealed class PostgresVendorConfigRepository : IVendorConfigRepository
             await using var cmd = new NpgsqlCommand(sql, conn);
 
             cmd.Parameters.Add(new NpgsqlParameter("endpointId", NpgsqlDbType.Uuid) { Value = endpointId });
-            cmd.Parameters.Add(new NpgsqlParameter("path", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = new[] { propertyName } });
+            cmd.Parameters.AddWithValue("path", new[] { propertyName });
             cmd.Parameters.Add(new NpgsqlParameter("val", NpgsqlDbType.Jsonb) { Value = maxId.ToString() });
             cmd.Parameters.Add(new NpgsqlParameter("modifiedAt", NpgsqlDbType.Timestamp) { Value = DateTime.UtcNow });
 

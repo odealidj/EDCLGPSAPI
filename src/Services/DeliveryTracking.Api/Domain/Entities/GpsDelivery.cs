@@ -19,6 +19,7 @@ public class GpsDelivery : Entity<Guid>
     public decimal? Course { get; set; }
     public string? StreetName { get; set; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Domain factory method mapping telemetry columns")]
     public static GpsDelivery Create(
         Guid id,
         Guid gpsVendorId,

@@ -169,6 +169,30 @@ public class DeliveryTrackingApiFactory : WebApplicationFactory<Program>, IAsync
             END;
             $$ LANGUAGE plpgsql;
 
+            -- stored procedure tracking koordinat gps (default)
+            CREATE OR REPLACE FUNCTION edcl.sp_edclgps_get_track_delivery(p_delivery_no VARCHAR, p_density INT)
+            RETURNS TABLE (
+                positionid INT,
+                deliveryno VARCHAR,
+                noktp VARCHAR,
+                lpcd VARCHAR,
+                gpsvendor VARCHAR,
+                flaggps VARCHAR,
+                platno VARCHAR,
+                deviceid VARCHAR,
+                datetime TIMESTAMP,
+                x NUMERIC,
+                y NUMERIC,
+                speed NUMERIC,
+                course NUMERIC,
+                streetname VARCHAR
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT * FROM edcl.sp_edclgps1_get_track_delivery(p_delivery_no, p_density);
+            END;
+            $$ LANGUAGE plpgsql;
+
             -- stored procedure 2 fallback tracking
             CREATE OR REPLACE FUNCTION edcl.sp_edclgps2_get_track_delivery(p_delivery_no VARCHAR, p_density INT)
             RETURNS TABLE (

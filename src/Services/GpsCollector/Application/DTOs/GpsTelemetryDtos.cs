@@ -97,5 +97,3 @@ public sealed record DeliveryLiveStatusCacheDto(
     DateTime UpdatedAt
 );
 
-
-

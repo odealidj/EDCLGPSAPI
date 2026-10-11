@@ -21,6 +21,7 @@ public static class JsonObjectConverterHelper
     }
 
     // deserialize string json jadi jsonobject
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S1168:Empty collection should be returned instead of null", Justification = "EF Core ValueConverter requires null representation for null database values")]
     public static JsonObject? Deserialize(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;

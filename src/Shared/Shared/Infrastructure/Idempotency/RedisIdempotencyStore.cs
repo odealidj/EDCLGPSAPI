@@ -35,58 +35,59 @@ public class RedisIdempotencyStore : IIdempotencyStore
 
         if (_redis != null && _redis.IsConnected)
         {
-            try
+            var redisResult = await TryAcquireFromRedisAsync(redisKey, requestHash, inFlightTtl);
+            if (redisResult != null)
             {
-                var db = _redis.GetDatabase();
-                var initialRecord = new IdempotencyRecord
-                {
-                    Status = "IN_FLIGHT",
-                    RequestHash = requestHash,
-                    CreatedAtUtc = DateTime.UtcNow
-                };
-
-                var json = JsonSerializer.Serialize(initialRecord);
-                var acquired = await db.StringSetAsync(redisKey, json, inFlightTtl, When.NotExists);
-
-                if (acquired)
-                {
-                    return IdempotencyResult.Acquired();
-                }
-
-                var existingVal = await db.StringGetAsync(redisKey);
-                if (existingVal.IsNullOrEmpty)
-                {
-                    return IdempotencyResult.Acquired();
-                }
-
-                var existingRecord = JsonSerializer.Deserialize<IdempotencyRecord>(existingVal.ToString());
-                if (existingRecord == null)
-                {
-                    return IdempotencyResult.Acquired();
-                }
-
-                if (string.Equals(existingRecord.Status, "IN_FLIGHT", StringComparison.OrdinalIgnoreCase))
-                {
-                    return IdempotencyResult.InFlight();
-                }
-
-                if (!string.Equals(existingRecord.RequestHash, requestHash, StringComparison.Ordinal))
-                {
-                    return IdempotencyResult.Mismatch();
-                }
-
-                return IdempotencyResult.Cached(
-                    existingRecord.StatusCode,
-                    existingRecord.ContentType,
-                    existingRecord.ResponseBody);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "[Idempotency] Redis error during TryAcquire. Falling back to memory store.");
+                return redisResult;
             }
         }
 
-        // In-memory fallback
+        return TryAcquireFromMemory(key, requestHash, inFlightTtl);
+    }
+
+    private async Task<IdempotencyResult?> TryAcquireFromRedisAsync(
+        string redisKey,
+        string requestHash,
+        TimeSpan inFlightTtl)
+    {
+        try
+        {
+            var db = _redis!.GetDatabase();
+            var initialRecord = new IdempotencyRecord
+            {
+                Status = "IN_FLIGHT",
+                RequestHash = requestHash,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+
+            var json = JsonSerializer.Serialize(initialRecord);
+            var acquired = await db.StringSetAsync(redisKey, json, inFlightTtl, When.NotExists);
+            if (acquired)
+            {
+                return IdempotencyResult.Acquired();
+            }
+
+            var existingVal = await db.StringGetAsync(redisKey);
+            if (existingVal.IsNullOrEmpty)
+            {
+                return IdempotencyResult.Acquired();
+            }
+
+            var existingRecord = JsonSerializer.Deserialize<IdempotencyRecord>(existingVal.ToString());
+            return existingRecord != null ? EvaluateExistingRecord(existingRecord, requestHash) : IdempotencyResult.Acquired();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Idempotency] Redis error during TryAcquire. Falling back to memory store.");
+            return null;
+        }
+    }
+
+    private IdempotencyResult TryAcquireFromMemory(
+        string key,
+        string requestHash,
+        TimeSpan inFlightTtl)
+    {
         CleanupMemoryStore();
         var now = DateTime.UtcNow;
 
@@ -94,20 +95,7 @@ public class RedisIdempotencyStore : IIdempotencyStore
         {
             if (existingMemory.ExpiresAtUtc > now)
             {
-                if (string.Equals(existingMemory.Record.Status, "IN_FLIGHT", StringComparison.OrdinalIgnoreCase))
-                {
-                    return IdempotencyResult.InFlight();
-                }
-
-                if (!string.Equals(existingMemory.Record.RequestHash, requestHash, StringComparison.Ordinal))
-                {
-                    return IdempotencyResult.Mismatch();
-                }
-
-                return IdempotencyResult.Cached(
-                    existingMemory.Record.StatusCode,
-                    existingMemory.Record.ContentType,
-                    existingMemory.Record.ResponseBody);
+                return EvaluateExistingRecord(existingMemory.Record, requestHash);
             }
 
             _memoryFallback.TryRemove(key, out _);
@@ -122,6 +110,24 @@ public class RedisIdempotencyStore : IIdempotencyStore
 
         _memoryFallback[key] = (memoryRecord, now.Add(inFlightTtl));
         return IdempotencyResult.Acquired();
+    }
+
+    private static IdempotencyResult EvaluateExistingRecord(IdempotencyRecord existingRecord, string requestHash)
+    {
+        if (string.Equals(existingRecord.Status, "IN_FLIGHT", StringComparison.OrdinalIgnoreCase))
+        {
+            return IdempotencyResult.InFlight();
+        }
+
+        if (!string.Equals(existingRecord.RequestHash, requestHash, StringComparison.Ordinal))
+        {
+            return IdempotencyResult.Mismatch();
+        }
+
+        return IdempotencyResult.Cached(
+            existingRecord.StatusCode,
+            existingRecord.ContentType,
+            existingRecord.ResponseBody);
     }
 
     public async Task CompleteAsync(

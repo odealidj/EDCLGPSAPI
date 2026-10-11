@@ -60,25 +60,20 @@ app.MapPost("/api/v1/collector/trigger/{vendorId:guid}", async (Guid vendorId, I
 
 // Arsip Data Raw Response Asli di MongoDB (dengan filter & pagination)
 app.MapGet("/api/v1/collector/raw-responses", async (
-    string? vendorId,
-    string? vendorName,
-    DateTime? fromDate,
-    DateTime? toDate,
-    string? search,
-    int? pageIndex,
-    int? pageSize,
+    HttpContext httpContext,
     IGpsRawResponseRepository rawRepo,
     CancellationToken ct) =>
 {
+    var query = httpContext.Request.Query;
     var filter = new RawResponseFilterRequest
     {
-        VendorId = vendorId,
-        VendorName = vendorName,
-        FromDate = fromDate,
-        ToDate = toDate,
-        Search = search,
-        PageIndex = pageIndex ?? 1,
-        PageSize = pageSize ?? 20
+        VendorId = query["vendorId"].ToString(),
+        VendorName = query["vendorName"].ToString(),
+        FromDate = DateTime.TryParse(query["fromDate"], out var fd) ? fd : null,
+        ToDate = DateTime.TryParse(query["toDate"], out var td) ? td : null,
+        Search = query["search"].ToString(),
+        PageIndex = int.TryParse(query["pageIndex"], out var pi) ? pi : 1,
+        PageSize = int.TryParse(query["pageSize"], out var ps) ? ps : 20
     };
     var result = await rawRepo.QueryRawResponsesAsync(filter, ct);
     return Results.Ok(result);
@@ -101,5 +96,7 @@ app.MapGet("/api/v1/collector/raw-responses/{id}", async (
 
 app.Run();
 
-// Marker untuk integration testing
-public partial class Program { }
+public partial class Program
+{
+    protected Program() { }
+}

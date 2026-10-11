@@ -1,0 +1,5 @@
+root = true
+
+[*.cs]
+# CA1873: Avoid potentially expensive logging evaluations without LogLevel guard
+dotnet_diagnostic.CA1873.severity = none

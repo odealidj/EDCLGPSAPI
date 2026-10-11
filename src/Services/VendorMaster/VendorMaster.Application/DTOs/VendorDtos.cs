@@ -27,7 +27,7 @@ public class VendorDto
     [JsonIgnore]
     public List<VendorEndpointDto>? GeofenceMasterEndpoints
     {
-        get => null;
+        get => [];
         set => Endpoints = (Endpoints.Count == 0 && value != null) ? value : Endpoints;
     }
 
@@ -41,14 +41,14 @@ public class VendorDto
     [JsonIgnore]
     public List<VendorMappingDto>? GeofenceMasterMappings
     {
-        get => null;
+        get => [];
         set => Mappings = (Mappings.Count == 0 && value != null) ? value : Mappings;
     }
 
     [JsonIgnore]
     public List<VendorLpcdDto>? GeofenceMasterLpcds
     {
-        get => null;
+        get => [];
         set => Lpcds = (Lpcds.Count == 0 && value != null) ? value : Lpcds;
     }
 
@@ -72,6 +72,7 @@ public class VendorDto
 
     public VendorDto() { }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "DTO constructor matching full entity payload")]
     public VendorDto(
         Guid id,
         string vendorName,
@@ -132,6 +133,7 @@ public class VendorEndpointDto
 
     public VendorEndpointDto() { }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "DTO constructor matching full entity payload")]
     public VendorEndpointDto(
         Guid id,
         Guid gpsVendorId,
@@ -179,6 +181,7 @@ public class VendorAuthDto
 
     public VendorAuthDto() { }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "DTO constructor matching full entity payload")]
     public VendorAuthDto(
         Guid id,
         Guid gpsVendorId,

@@ -120,7 +120,7 @@ public class StartDeliveryJobCommandHandler(
             var lpcdHashKey = $"delivery:active:lookup:{lpcd}";
             await db.HashSetAsync(lpcdHashKey, cleanValue, deliveryNo);
 
-            // Hash 2: lookup global aktif (delivery:active:lookup -> B9001FXR = DELIV-001)
+            // Hash 2: lookup global aktif untuk pemetaan nilai aktif ke deliveryNo
             await db.HashSetAsync("delivery:active:lookup", cleanValue, deliveryNo);
 
             // Set: daftar delivery aktif global
@@ -167,16 +167,22 @@ public class StartDeliveryJobCommandHandler(
             });
             await db.StringSetAsync($"delivery:live:{deliveryNo}", initialLivePayload, TimeSpan.FromHours(24));
 
-            logger.LogInformation("Hot index Redis berhasil didaftarkan: LPCD {Lpcd}, VendorCode {VendorCode}, Value {CleanValue} -> Delivery {DeliveryNo}",
-                lpcd, vendorCode, cleanValue, deliveryNo);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Hot index Redis berhasil didaftarkan: LPCD {Lpcd}, VendorCode {VendorCode}, Value {CleanValue} -> Delivery {DeliveryNo}",
+                    lpcd, vendorCode, cleanValue, deliveryNo);
+            }
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Gagal memperbarui cache/index Redis untuk delivery '{DeliveryNo}'. Database PostgreSQL tetap tersimpan.", deliveryNo);
         }
 
-        logger.LogInformation("Sesi Start Job berhasil dimulai: Delivery '{DeliveryNo}', LPCD '{Lpcd}', VendorCode '{VendorCode}', CleanVal '{CleanValue}', Vendor '{VendorName}'",
-            deliveryNo, lpcd, vendorCode, cleanValue, vendorName);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Sesi Start Job berhasil dimulai: Delivery '{DeliveryNo}', LPCD '{Lpcd}', VendorCode '{VendorCode}', CleanVal '{CleanValue}', Vendor '{VendorName}'",
+                deliveryNo, lpcd, vendorCode, cleanValue, vendorName);
+        }
 
         return new StartDeliveryJobResultDto(
             Status: 200,

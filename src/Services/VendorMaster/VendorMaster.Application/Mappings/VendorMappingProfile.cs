@@ -13,27 +13,42 @@ public class VendorMappingProfile : Profile
 {
     public VendorMappingProfile()
     {
-        // Safe deep-clone for JsonObject to avoid parent-node assignment issues
         CreateMap<JsonObject, JsonObject>()
-            .ConvertUsing(src => src != null ? (JsonObject)src.DeepClone() : null!);
+            .ConvertUsing(src => (JsonObject)CloneJson(src)!);
 
-        // Child entity mappings
+        ConfigureEndpointMapping();
+        ConfigureAuthMapping();
+        ConfigureSimpleChildMappings();
+        ConfigureVendorMapping();
+        ConfigureGeofenceMapping();
+    }
+
+    private static JsonNode? CloneJson(JsonNode? src) => src?.DeepClone();
+
+    private void ConfigureEndpointMapping()
+    {
         CreateMap<GpsVendorEndpoint, VendorEndpointDto>()
             .ConstructUsing(_ => new VendorEndpointDto())
             .ForMember(dest => dest.GpsVendorId, opt => opt.MapFrom(src => src.VendorId))
-            .ForMember(dest => dest.Headers, opt => opt.MapFrom(src => src.Headers != null ? (JsonObject)src.Headers.DeepClone() : null))
-            .ForMember(dest => dest.Params, opt => opt.MapFrom(src => src.Params != null ? (JsonObject)src.Params.DeepClone() : null))
-            .ForMember(dest => dest.Bodies, opt => opt.MapFrom(src => src.Bodies != null ? (JsonObject)src.Bodies.DeepClone() : null))
-            .ForMember(dest => dest.VarParams, opt => opt.MapFrom(src => src.VarParams != null ? (JsonObject)src.VarParams.DeepClone() : null));
+            .ForMember(dest => dest.Headers, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Headers)))
+            .ForMember(dest => dest.Params, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Params)))
+            .ForMember(dest => dest.Bodies, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Bodies)))
+            .ForMember(dest => dest.VarParams, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.VarParams)));
+    }
 
+    private void ConfigureAuthMapping()
+    {
         CreateMap<GpsVendorAuth, VendorAuthDto>()
             .ConstructUsing(_ => new VendorAuthDto())
             .ForMember(dest => dest.GpsVendorId, opt => opt.MapFrom(src => src.VendorId))
             .ForMember(dest => dest.Authtype, opt => opt.MapFrom(src => src.AuthType))
-            .ForMember(dest => dest.Headers, opt => opt.MapFrom(src => src.Headers != null ? (JsonObject)src.Headers.DeepClone() : null))
-            .ForMember(dest => dest.Params, opt => opt.MapFrom(src => src.Params != null ? (JsonObject)src.Params.DeepClone() : null))
-            .ForMember(dest => dest.Bodies, opt => opt.MapFrom(src => src.Bodies != null ? (JsonObject)src.Bodies.DeepClone() : null));
+            .ForMember(dest => dest.Headers, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Headers)))
+            .ForMember(dest => dest.Params, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Params)))
+            .ForMember(dest => dest.Bodies, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.Bodies)));
+    }
 
+    private void ConfigureSimpleChildMappings()
+    {
         CreateMap<GpsVendorMapping, VendorMappingDto>()
             .ConstructUsing(_ => new VendorMappingDto())
             .ForMember(dest => dest.GpsVendorId, opt => opt.MapFrom(src => src.VendorId));
@@ -41,8 +56,10 @@ public class VendorMappingProfile : Profile
         CreateMap<GpsVendorLpcd, VendorLpcdDto>()
             .ConstructUsing(_ => new VendorLpcdDto())
             .ForMember(dest => dest.GpsVendorId, opt => opt.MapFrom(src => src.VendorId));
+    }
 
-        // Aggregate root mapping
+    private void ConfigureVendorMapping()
+    {
         CreateMap<GpsVendor, VendorDto>()
             .ConstructUsing(_ => new VendorDto())
             .ForMember(dest => dest.Lpcd, opt => opt.MapFrom(src => src.Lpcds.FirstOrDefault() != null ? src.Lpcds.FirstOrDefault()!.Lpcd : string.Empty))
@@ -59,10 +76,12 @@ public class VendorMappingProfile : Profile
             .ForMember(dest => dest.GeofenceMasterMappings, opt => opt.Ignore())
             .ForMember(dest => dest.GeofenceMasterLpcds, opt => opt.Ignore())
             .ForMember(dest => dest.LpcdCodes, opt => opt.Ignore());
+    }
 
-        // Geofence destination mapping
+    private void ConfigureGeofenceMapping()
+    {
         CreateMap<GeofenceDestination, GeofenceDestinationDto>()
             .ConstructUsing(_ => new GeofenceDestinationDto())
-            .ForMember(dest => dest.PolygonCoordinates, opt => opt.MapFrom(src => src.PolygonCoordinates != null ? (JsonObject)src.PolygonCoordinates.DeepClone() : null));
+            .ForMember(dest => dest.PolygonCoordinates, opt => opt.MapFrom(src => (JsonObject?)CloneJson(src.PolygonCoordinates)));
     }
 }

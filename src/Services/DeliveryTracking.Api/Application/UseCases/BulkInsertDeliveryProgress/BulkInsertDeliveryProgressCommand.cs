@@ -40,8 +40,11 @@ public class BulkInsertDeliveryProgressCommandHandler(
         var rowsInserted = await repository.BulkInsertDeliveryProgressAsync(entities, cancellationToken);
         sw.Stop();
 
-        logger.LogInformation("Selesai bulk insert {Count} delivery progress via PostgreSQL Binary COPY dalam {Elapsed}ms",
-            rowsInserted, sw.ElapsedMilliseconds);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Selesai bulk insert {Count} delivery progress via PostgreSQL Binary COPY dalam {Elapsed}ms",
+                rowsInserted, sw.ElapsedMilliseconds);
+        }
 
         return new BulkInsertResult(rowsInserted, nameof(DeliveryProgress), sw.Elapsed);
     }

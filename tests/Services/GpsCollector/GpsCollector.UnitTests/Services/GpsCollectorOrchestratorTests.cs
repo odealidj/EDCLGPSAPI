@@ -344,4 +344,346 @@ public class GpsCollectorOrchestratorTests
             It.IsAny<CancellationToken>()
         ), Times.Once);
     }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenVendorNotFound_ShouldReturnErrorMessage()
+    {
+        var vendorId = Guid.NewGuid();
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VendorConfig?)null);
+
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenVendorHasNoEndpoints_ShouldReturnEmptySuccess()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "NoEndpointVendor",
+            Endpoints = []
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.PointsCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WhenHttpReturns429Or403_ShouldApplyBackoffCooldown()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "RateLimitedVendor",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "Pos",
+                    BaseUrl = "https://api.test.com/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        // Test 429
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(false, 429, "Too Many Requests", "Limit reached", "https://api.test.com/pos"));
+
+        var result429 = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+        result429.Success.Should().BeTrue();
+
+        // Test 403
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(false, 403, "Forbidden", "WAF Block", "https://api.test.com/pos"));
+
+        var result403 = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+        result403.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_WithCombinedStrategyAndMaxPath_ShouldProcessCorrectly()
+    {
+        var vendorId = Guid.NewGuid();
+        var epId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "CombinedVendor",
+            ProcessingStrategy = "combined",
+            ProcessingStrategyPathKey = "vin",
+            ProcessingStrategyPathData = "items",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = epId,
+                    GpsVendorId = vendorId,
+                    EndpointName = "CombPos",
+                    BaseUrl = "https://api.combined.com/pos",
+                    Method = "GET",
+                    MaxPath = "max_id"
+                }
+            ]
+        };
+
+        var rawJson = "{\"items\":[{\"vin\":\"V1\"}],\"max_id\":999}";
+        var points = new List<TelemetryPoint>
+        {
+            new() { DeviceId = "V1", Datetime = DateTime.UtcNow, X = 106.8m, Y = -6.2m }
+        };
+
+        var activeSessions = new List<DeliveryProgressSession>
+        {
+            new() { DeliveryNo = "DO-COMB", MatchKey = "DeviceId", MatchValue = "V1", CleanMatchValue = "V1" }
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(true, 200, "OK", rawJson, "https://api.combined.com/pos"));
+
+        _normalizer.Setup(n => n.ExtractMaxProperty(rawJson, "items", "max_id"))
+            .Returns(999);
+
+        _normalizer.Setup(n => n.NormalizeCombined(vendorId, It.IsAny<List<string>>(), "vin", "items", vendor.Mappings, vendor.Endpoints[0].BaseUrl))
+            .Returns(points);
+
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(activeSessions);
+
+        _ingestionRepo.Setup(i => i.IngestDeliveryPositionsAsync(vendorId, vendor.VendorName, It.IsAny<IReadOnlyList<(TelemetryPoint, DeliveryProgressSession)>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.PointsCount.Should().Be(1);
+        result.DeliveryPointsCount.Should().Be(1);
+
+        _vendorConfigRepo.Verify(r => r.UpdateVarParamsMaxIdAsync(epId, "max_id", 999, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CollectAllVendorsAsync_WhenActiveVendorsPresent_ShouldProcessEachVendor()
+    {
+        var vendor1 = new VendorConfig
+        {
+            Id = Guid.NewGuid(),
+            VendorName = "Vendor1",
+            Endpoints = []
+        };
+        var vendor2 = new VendorConfig
+        {
+            Id = Guid.NewGuid(),
+            VendorName = "Vendor2",
+            Endpoints = []
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetActiveVendorsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([vendor1, vendor2]);
+
+        using var cts = new CancellationTokenSource();
+        var results = await _orchestrator.CollectAllVendorsAsync(cts.Token);
+
+        results.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CollectAllVendorsAsync_WhenNoActiveSessions_ShouldSkipPolling()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "NoSessionsVendor",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "Pos",
+                    BaseUrl = "https://api.test.com/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetActiveVendorsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([vendor]);
+
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        using var cts = new CancellationTokenSource();
+        var results = await _orchestrator.CollectAllVendorsAsync(cts.Token);
+
+        results.Should().HaveCount(1);
+        results[0].Success.Should().BeTrue();
+        results[0].PointsCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CollectAllVendorsAsync_WhenVendorInCooldown_ShouldSkipPolling()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "CooldownVendor",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "Pos",
+                    BaseUrl = "https://api.test.com/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(false, 429, "Too Many Requests", "Limit", "https://api.test.com/pos"));
+
+        // Trigger 429 to put vendor in cooldown
+        await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        // Now run CollectAllVendorsAsync with active sessions
+        _vendorConfigRepo.Setup(r => r.GetActiveVendorsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([vendor]);
+
+        var activeSessions = new List<DeliveryProgressSession>
+        {
+            new() { DeliveryNo = "DO-001", MatchKey = "PlatNo", MatchValue = "B123" }
+        };
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(activeSessions);
+
+        using var cts = new CancellationTokenSource();
+        var results = await _orchestrator.CollectAllVendorsAsync(cts.Token);
+
+        results.Should().HaveCount(1);
+        results[0].Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_KetikaFetchThrowsException_HarusTangkapDanReturnError()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "CrashingVendor",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "CrashPos",
+                    BaseUrl = "https://crash.test.com",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Connection forcibly closed"));
+
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Connection forcibly closed");
+    }
+
+    [Fact]
+    public async Task CollectVendorAsync_KetikaCustomMatchKeyDanLegacySessions_HarusMatchDanIngest()
+    {
+        var vendorId = Guid.NewGuid();
+        var vendor = new VendorConfig
+        {
+            Id = vendorId,
+            VendorName = "CustomVendor",
+            ProcessingStrategy = "individual",
+            ProcessingStrategyPathData = "data",
+            Endpoints =
+            [
+                new VendorEndpointConfig
+                {
+                    Id = Guid.NewGuid(),
+                    GpsVendorId = vendorId,
+                    EndpointName = "Pos",
+                    BaseUrl = "https://custom.test.com/pos",
+                    Method = "GET"
+                }
+            ]
+        };
+
+        var rawJson = "{\"data\":[{\"plat\":\"B 1111 ZZ\"}]}";
+        var points = new List<TelemetryPoint>
+        {
+            new() { PlatNo = "B 1111 ZZ", DeviceId = "D999", Datetime = DateTime.UtcNow, X = 106.8m, Y = -6.2m }
+        };
+
+        _vendorConfigRepo.Setup(r => r.GetVendorByIdAsync(vendorId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        _httpFetcher.Setup(f => f.FetchEndpointAsync(vendor, vendor.Endpoints[0], It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VendorFetchResult(true, 200, "OK", rawJson, "https://custom.test.com/pos"));
+
+        _normalizer.Setup(n => n.Normalize(vendorId, rawJson, "data", vendor.Mappings, vendor.Endpoints[0].BaseUrl))
+            .Returns(points);
+
+        // GetActiveSessionsForVendorAsync returns empty, legacy GetActiveSessionsByPlatNosAsync returns data
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsForVendorAsync(vendorId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var legacySession = new DeliveryProgressSession
+        {
+            DeliveryNo = "DO-LEGACY",
+            PlatNo = "B 1111 ZZ",
+            MatchKey = "CustomOtherKey",
+            MatchValue = "B 1111 ZZ",
+            CleanMatchValue = "B1111ZZ"
+        };
+        _deliverySessionRepo.Setup(s => s.GetActiveSessionsByPlatNosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, DeliveryProgressSession> { ["B 1111 ZZ"] = legacySession });
+
+        _ingestionRepo.Setup(i => i.IngestDeliveryPositionsAsync(vendorId, vendor.VendorName, It.IsAny<IReadOnlyList<(TelemetryPoint, DeliveryProgressSession)>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var result = await _orchestrator.CollectVendorAsync(vendorId, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.DeliveryPointsCount.Should().Be(1);
+    }
 }
+
+
+

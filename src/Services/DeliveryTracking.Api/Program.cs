@@ -76,5 +76,7 @@ app.MapGet("/", () => Results.Json(new
 
 app.Run();
 
-// expose Program untuk keperluan integration testing (webapplicationfactory)
-public partial class Program { }
+public partial class Program
+{
+    protected Program() { }
+}

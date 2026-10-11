@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -19,14 +19,7 @@ public static class MassTransitExtentions
             config.AddSagaStateMachines(assemblies);
             config.AddSagas(assemblies);
             config.AddActivities(assemblies);
-            /*
-            config.UsingInMemory((context, configurator) =>);
-            {
-                configurator.ConfigureEndpoints(context);
-            });
-            */
 
-            var hot = configuration["MessageBroker:Host"]!;
             config.UsingRabbitMq((context, configurator) =>
             {
                 configurator.Host(new Uri(configuration["MessageBroker:Host"]!), host =>

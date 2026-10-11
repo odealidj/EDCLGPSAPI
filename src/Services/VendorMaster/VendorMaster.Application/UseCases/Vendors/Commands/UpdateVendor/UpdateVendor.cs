@@ -57,7 +57,47 @@ public class UpdateVendorHandler(
     {
         var dto = command.Vendor;
 
-        // sinkronisasi shortcut lpcd jika diisi string tunggal atau array string
+        SynchronizeAndValidateLpcds(dto);
+
+        var vendor = await repository.GetVendorByIdAsync(dto.Id, asNoTracking: false, cancellationToken);
+        if (vendor == null)
+        {
+            throw new VendorNotFoundException(dto.Id);
+        }
+
+        await ValidateVendorAsync(vendor, dto, cancellationToken);
+        ValidateEndpoints(dto.Endpoints);
+
+        vendor.UpdateDetails(
+            dto.VendorCode,
+            dto.VendorName,
+            dto.ProtocolType,
+            dto.Timezone,
+            dto.IsActive,
+            dto.ProcessingStrategy,
+            dto.ProcessingStrategyPathData,
+            dto.ProcessingStrategyPathKey);
+
+        SyncEndpoints(vendor, dto.Endpoints);
+        SyncAuth(vendor, dto.Auth);
+        SyncMappings(vendor, dto.Mappings);
+
+        var primaryLpcd = ResolvePrimaryLpcd(dto);
+        vendor.SetLpcd(primaryLpcd);
+
+        await repository.UpdateVendorAsync(vendor, cancellationToken);
+        logger.LogInformation("Berhasil update vendor: {VendorCode} ({Id})", vendor.VendorCode, vendor.Id);
+
+        if (vendorCacheSync != null)
+        {
+            await vendorCacheSync.RefreshActiveVendorsCacheAsync(cancellationToken);
+        }
+
+        return new UpdateVendorResult(true, vendor.Id, vendor.VendorCode, primaryLpcd);
+    }
+
+    private static void SynchronizeAndValidateLpcds(VendorDto dto)
+    {
         if (!string.IsNullOrWhiteSpace(dto.Lpcd) && !dto.Lpcds.Any(x => x.Lpcd.Equals(dto.Lpcd.Trim(), StringComparison.OrdinalIgnoreCase)))
         {
             dto.Lpcds.Add(new VendorLpcdDto { Lpcd = dto.Lpcd.Trim().ToUpperInvariant() });
@@ -83,25 +123,6 @@ public class UpdateVendorHandler(
             throw new VendorBadRequestException("Vendor wajib memiliki minimal satu kode LPCD.");
         }
 
-        // load vendor existing beserta relasinya
-        var vendor = await repository.GetVendorByIdAsync(dto.Id, asNoTracking: false, cancellationToken);
-        if (vendor == null)
-        {
-            throw new VendorNotFoundException(dto.Id);
-        }
-
-        // jika vendor code diganti, pastiin belum dipake vendor lain
-        if (!string.IsNullOrWhiteSpace(dto.VendorCode) && 
-            !string.Equals(dto.VendorCode, vendor.VendorCode, StringComparison.OrdinalIgnoreCase))
-        {
-            var codeOwner = await repository.GetVendorByCodeAsync(dto.VendorCode, cancellationToken: cancellationToken);
-            if (codeOwner != null && codeOwner.Id != vendor.Id)
-            {
-                throw new VendorConflictException($"Vendor dengan kode '{dto.VendorCode}' sudah terdaftar pada vendor lain.");
-            }
-        }
-
-        // cek duplikasi lpcd
         var duplicateLpcds = dto.Lpcds
             .GroupBy(x => x.Lpcd.Trim().ToUpperInvariant())
             .Where(g => g.Count() > 1)
@@ -112,19 +133,33 @@ public class UpdateVendorHandler(
         {
             throw new VendorBadRequestException($"Duplikat LPCD ditemukan: {string.Join(", ", duplicateLpcds)}");
         }
+    }
 
-        // cek keunikan lpcd terhadap database (kecualikan vendor saat ini)
-        foreach (var l in dto.Lpcds)
+    private async Task ValidateVendorAsync(GpsVendor vendor, VendorDto dto, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(dto.VendorCode) && 
+            !string.Equals(dto.VendorCode, vendor.VendorCode, StringComparison.OrdinalIgnoreCase))
         {
-            var isExists = await repository.IsLpcdExistsAsync(l.Lpcd, excludeVendorId: vendor.Id, cancellationToken: cancellationToken);
-            if (isExists)
+            var codeOwner = await repository.GetVendorByCodeAsync(dto.VendorCode, cancellationToken: cancellationToken);
+            if (codeOwner != null && codeOwner.Id != vendor.Id)
             {
-                throw new VendorConflictException($"LPCD '{l.Lpcd.Trim().ToUpperInvariant()}' sudah terdaftar pada vendor lain.");
+                throw new VendorConflictException($"Vendor dengan kode '{dto.VendorCode}' sudah terdaftar pada vendor lain.");
             }
         }
 
-        // cek duplikasi endpoint base url
-        var duplicateEndpoints = dto.Endpoints
+        foreach (var lpcd in dto.Lpcds.Select(l => l.Lpcd))
+        {
+            var isExists = await repository.IsLpcdExistsAsync(lpcd, excludeVendorId: vendor.Id, cancellationToken: cancellationToken);
+            if (isExists)
+            {
+                throw new VendorConflictException($"LPCD '{lpcd.Trim().ToUpperInvariant()}' sudah terdaftar pada vendor lain.");
+            }
+        }
+    }
+
+    private static void ValidateEndpoints(IEnumerable<VendorEndpointDto> endpoints)
+    {
+        var duplicateEndpoints = endpoints
             .GroupBy(x => x.BaseUrl.Trim().ToLowerInvariant())
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
@@ -134,45 +169,45 @@ public class UpdateVendorHandler(
         {
             throw new VendorBadRequestException($"Duplikat BaseUrl endpoint ditemukan: {string.Join(", ", duplicateEndpoints)}");
         }
+    }
 
-        // update data induk
-        vendor.UpdateDetails(
-            dto.VendorCode,
-            dto.VendorName,
-            dto.ProtocolType,
-            dto.Timezone,
-            dto.IsActive,
-            dto.ProcessingStrategy,
-            dto.ProcessingStrategyPathData,
-            dto.ProcessingStrategyPathKey);
-
-        // 1. Sinkronisasi endpoints secara in-place agar EF Core change tracker akurat
+    private static void SyncEndpoints(GpsVendor vendor, List<VendorEndpointDto> endpoints)
+    {
         var existingEndpoints = vendor.GpsVendorEndpoints.ToList();
-        var endpointsToRemove = existingEndpoints.Where(ex =>
-            !dto.Endpoints.Any(n => (n.Id != Guid.Empty && n.Id == ex.Id) ||
-                                   (n.Id == Guid.Empty && n.EndpointType == ex.EndpointType))).ToList();
+        RemoveObsoleteEndpoints(vendor, existingEndpoints, endpoints);
+        UpsertEndpoints(vendor, existingEndpoints, endpoints);
+    }
+
+    private static bool IsEndpointMatching(VendorEndpointDto dto, GpsVendorEndpoint existing) =>
+        (dto.Id != Guid.Empty && dto.Id == existing.Id) ||
+        (dto.Id == Guid.Empty && dto.EndpointType == existing.EndpointType);
+
+    private static void RemoveObsoleteEndpoints(
+        GpsVendor vendor,
+        List<GpsVendorEndpoint> existingEndpoints,
+        List<VendorEndpointDto> endpoints)
+    {
+        var endpointsToRemove = existingEndpoints
+            .Where(ex => !endpoints.Any(n => IsEndpointMatching(n, ex)))
+            .ToList();
+
         foreach (var rem in endpointsToRemove)
         {
             vendor.RemoveEndpoint(rem);
         }
+    }
 
-        foreach (var ep in dto.Endpoints)
+    private static void UpsertEndpoints(
+        GpsVendor vendor,
+        List<GpsVendorEndpoint> existingEndpoints,
+        List<VendorEndpointDto> endpoints)
+    {
+        foreach (var ep in endpoints)
         {
-            var existing = existingEndpoints.FirstOrDefault(ex =>
-                (ep.Id != Guid.Empty && ex.Id == ep.Id) ||
-                (ep.Id == Guid.Empty && ex.EndpointType == ep.EndpointType));
-
+            var existing = existingEndpoints.FirstOrDefault(ex => IsEndpointMatching(ep, ex));
             if (existing != null)
             {
-                existing.EndpointType = string.IsNullOrWhiteSpace(ep.EndpointType) ? VendorDefaults.DefaultEndpointType : ep.EndpointType;
-                existing.BaseUrl = ep.BaseUrl;
-                existing.Method = string.IsNullOrWhiteSpace(ep.Method) ? VendorDefaults.DefaultHttpMethod : ep.Method;
-                existing.ContentType = ep.ContentType ?? VendorDefaults.DefaultContentType;
-                existing.Headers = ep.Headers;
-                existing.Params = ep.Params;
-                existing.Bodies = ep.Bodies;
-                existing.VarParams = ep.VarParams;
-                existing.MaxPath = ep.MaxPath;
+                UpdateExistingEndpoint(existing, ep);
             }
             else
             {
@@ -189,64 +224,97 @@ public class UpdateVendorHandler(
                     ep.MaxPath);
             }
         }
+    }
 
-        // 2. Update / pasang auth config baru
-        if (dto.Auth != null)
+    private static void UpdateExistingEndpoint(GpsVendorEndpoint existing, VendorEndpointDto ep)
+    {
+        existing.EndpointType = string.IsNullOrWhiteSpace(ep.EndpointType) ? VendorDefaults.DefaultEndpointType : ep.EndpointType;
+        existing.BaseUrl = ep.BaseUrl;
+        existing.Method = string.IsNullOrWhiteSpace(ep.Method) ? VendorDefaults.DefaultHttpMethod : ep.Method;
+        existing.ContentType = ep.ContentType ?? VendorDefaults.DefaultContentType;
+        existing.Headers = ep.Headers;
+        existing.Params = ep.Params;
+        existing.Bodies = ep.Bodies;
+        existing.VarParams = ep.VarParams;
+        existing.MaxPath = ep.MaxPath;
+    }
+
+    private static void SyncAuth(GpsVendor vendor, VendorAuthDto? authDto)
+    {
+        if (authDto == null)
         {
-            if (vendor.GpsVendorAuth != null)
-            {
-                vendor.GpsVendorAuth.AuthType = string.IsNullOrWhiteSpace(dto.Auth.Authtype) ? VendorDefaults.DefaultAuthType : dto.Auth.Authtype;
-                vendor.GpsVendorAuth.BaseUrl = dto.Auth.BaseUrl;
-                vendor.GpsVendorAuth.Method = string.IsNullOrWhiteSpace(dto.Auth.Method) ? VendorDefaults.DefaultAuthHttpMethod : dto.Auth.Method;
-                vendor.GpsVendorAuth.ContentType = dto.Auth.ContentType ?? VendorDefaults.DefaultContentType;
-                vendor.GpsVendorAuth.Username = dto.Auth.Username;
-                vendor.GpsVendorAuth.Password = dto.Auth.Password;
-                vendor.GpsVendorAuth.TokenPath = dto.Auth.TokenPath;
-                vendor.GpsVendorAuth.TokenExpiresInPath = dto.Auth.TokenExpiresInPath;
-                vendor.GpsVendorAuth.TokenTtlSeconds = dto.Auth.TokenTtlSeconds <= 0 ? VendorDefaults.DefaultTokenTtlSeconds : dto.Auth.TokenTtlSeconds;
-                vendor.GpsVendorAuth.Headers = dto.Auth.Headers;
-                vendor.GpsVendorAuth.Params = dto.Auth.Params;
-                vendor.GpsVendorAuth.Bodies = dto.Auth.Bodies;
-            }
-            else
-            {
-                vendor.SetAuth(
-                    dto.Auth.Id,
-                    dto.Auth.Authtype,
-                    dto.Auth.BaseUrl,
-                    dto.Auth.Method,
-                    dto.Auth.ContentType,
-                    dto.Auth.Username,
-                    dto.Auth.Password,
-                    dto.Auth.TokenPath,
-                    dto.Auth.TokenExpiresInPath,
-                    dto.Auth.TokenTtlSeconds,
-                    dto.Auth.Headers,
-                    dto.Auth.Params,
-                    dto.Auth.Bodies);
-            }
+            vendor.GpsVendorAuth = null;
+            return;
+        }
+
+        if (vendor.GpsVendorAuth != null)
+        {
+            vendor.GpsVendorAuth.AuthType = string.IsNullOrWhiteSpace(authDto.Authtype) ? VendorDefaults.DefaultAuthType : authDto.Authtype;
+            vendor.GpsVendorAuth.BaseUrl = authDto.BaseUrl;
+            vendor.GpsVendorAuth.Method = string.IsNullOrWhiteSpace(authDto.Method) ? VendorDefaults.DefaultAuthHttpMethod : authDto.Method;
+            vendor.GpsVendorAuth.ContentType = authDto.ContentType ?? VendorDefaults.DefaultContentType;
+            vendor.GpsVendorAuth.Username = authDto.Username;
+            vendor.GpsVendorAuth.Password = authDto.Password;
+            vendor.GpsVendorAuth.TokenPath = authDto.TokenPath;
+            vendor.GpsVendorAuth.TokenExpiresInPath = authDto.TokenExpiresInPath;
+            vendor.GpsVendorAuth.TokenTtlSeconds = authDto.TokenTtlSeconds <= 0 ? VendorDefaults.DefaultTokenTtlSeconds : authDto.TokenTtlSeconds;
+            vendor.GpsVendorAuth.Headers = authDto.Headers;
+            vendor.GpsVendorAuth.Params = authDto.Params;
+            vendor.GpsVendorAuth.Bodies = authDto.Bodies;
         }
         else
         {
-            vendor.GpsVendorAuth = null;
+            vendor.SetAuth(
+                authDto.Id,
+                authDto.Authtype,
+                authDto.BaseUrl,
+                authDto.Method,
+                authDto.ContentType,
+                authDto.Username,
+                authDto.Password,
+                authDto.TokenPath,
+                authDto.TokenExpiresInPath,
+                authDto.TokenTtlSeconds,
+                authDto.Headers,
+                authDto.Params,
+                authDto.Bodies);
         }
+    }
 
-        // 3. Sinkronisasi mapping field secara in-place
+    private static void SyncMappings(GpsVendor vendor, List<VendorMappingDto> mappings)
+    {
         var existingMappings = vendor.Mappings.ToList();
-        var mappingsToRemove = existingMappings.Where(ex =>
-            !dto.Mappings.Any(n => (n.Id > 0 && n.Id == ex.Id) ||
-                                   (n.Id <= 0 && n.ResponseField.Equals(ex.ResponseField, StringComparison.OrdinalIgnoreCase)))).ToList();
+        RemoveObsoleteMappings(vendor, existingMappings, mappings);
+        UpsertMappings(vendor, existingMappings, mappings);
+    }
+
+    private static bool IsMappingMatching(VendorMappingDto dto, GpsVendorMapping existing) =>
+        (dto.Id > 0 && dto.Id == existing.Id) ||
+        (dto.Id <= 0 && dto.ResponseField.Equals(existing.ResponseField, StringComparison.OrdinalIgnoreCase));
+
+    private static void RemoveObsoleteMappings(
+        GpsVendor vendor,
+        List<GpsVendorMapping> existingMappings,
+        List<VendorMappingDto> mappings)
+    {
+        var mappingsToRemove = existingMappings
+            .Where(ex => !mappings.Any(n => IsMappingMatching(n, ex)))
+            .ToList();
+
         foreach (var rem in mappingsToRemove)
         {
             vendor.RemoveMapping(rem);
         }
+    }
 
-        foreach (var m in dto.Mappings)
+    private static void UpsertMappings(
+        GpsVendor vendor,
+        List<GpsVendorMapping> existingMappings,
+        List<VendorMappingDto> mappings)
+    {
+        foreach (var m in mappings)
         {
-            var existing = existingMappings.FirstOrDefault(ex =>
-                (m.Id > 0 && ex.Id == m.Id) ||
-                (m.Id <= 0 && ex.ResponseField.Equals(m.ResponseField, StringComparison.OrdinalIgnoreCase)));
-
+            var existing = existingMappings.FirstOrDefault(ex => IsMappingMatching(m, ex));
             if (existing != null)
             {
                 existing.ResponseField = m.ResponseField;
@@ -258,23 +326,16 @@ public class UpdateVendorHandler(
                 vendor.AddMapping(m.Id, m.ResponseField, m.MappedField, m.DataType);
             }
         }
+    }
 
-        // pasang unit armada toyota (lpcd) - 1 vendor, 1 lpcd
-        var primaryLpcd = !string.IsNullOrWhiteSpace(dto.Lpcd)
-            ? dto.Lpcd.Trim().ToUpperInvariant()
-            : (dto.Lpcds.FirstOrDefault()?.Lpcd?.Trim().ToUpperInvariant() ?? string.Empty);
-        vendor.SetLpcd(primaryLpcd);
-
-        // commit perubahan
-        await repository.UpdateVendorAsync(vendor, cancellationToken);
-        logger.LogInformation("Berhasil update vendor: {VendorCode} ({Id})", vendor.VendorCode, vendor.Id);
-
-        // sinkronisasi update/insert ke redis cache vendor aktif (hapus cache lama & isi ulang)
-        if (vendorCacheSync != null)
+    private static string ResolvePrimaryLpcd(VendorDto dto)
+    {
+        if (!string.IsNullOrWhiteSpace(dto.Lpcd))
         {
-            await vendorCacheSync.RefreshActiveVendorsCacheAsync(cancellationToken);
+            return dto.Lpcd.Trim().ToUpperInvariant();
         }
 
-        return new UpdateVendorResult(true, vendor.Id, vendor.VendorCode, primaryLpcd);
+        var first = dto.Lpcds.FirstOrDefault()?.Lpcd;
+        return !string.IsNullOrWhiteSpace(first) ? first.Trim().ToUpperInvariant() : string.Empty;
     }
 }

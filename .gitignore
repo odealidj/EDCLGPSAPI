@@ -430,3 +430,6 @@ README_ID.md
 # Local test & simulation scripts
 scripts/
 scripts/test_delivery_happy_path.sh
+
+# SonarQube Scanner local cache & build output
+.sonarqube/

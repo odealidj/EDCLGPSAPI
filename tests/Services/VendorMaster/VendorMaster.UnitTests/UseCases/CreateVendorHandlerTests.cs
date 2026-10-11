@@ -179,4 +179,36 @@ public class CreateVendorHandlerTests
         await act.Should().ThrowAsync<VendorBadRequestException>()
             .WithMessage("*Duplikat BaseUrl*");
     }
+
+    [Fact]
+    public async Task Handle_DenganLpcdCodes_HarusTambahkanKeLpcds()
+    {
+        var dto = new VendorDto
+        {
+            VendorCode = "VND_CODES",
+            VendorName = "Vendor Codes",
+            LpcdCodes = ["LPCD_EXTRA_1", "LPCD_EXTRA_2"]
+        };
+
+        _repository.GetVendorByCodeAsync(dto.VendorCode, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns((GpsVendor?)null);
+
+        _repository.IsLpcdExistsAsync(Arg.Any<string>(), null, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        _repository.CreateVendorAsync(Arg.Any<GpsVendor>(), Arg.Any<CancellationToken>())
+            .Returns(args => args.Arg<GpsVendor>());
+
+        var command = new CreateVendorCommand(dto);
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result.Id.Should().NotBeEmpty();
+
+        await _repository.Received(1).CreateVendorAsync(
+            Arg.Is<GpsVendor>(x => x.VendorCode == "VND_CODES"),
+            Arg.Any<CancellationToken>());
+    }
 }
+
+

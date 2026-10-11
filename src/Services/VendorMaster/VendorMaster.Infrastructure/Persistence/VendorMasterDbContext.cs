@@ -14,13 +14,13 @@ public class VendorMasterDbContext : DbContext
     public DbSet<Msystem> Msystems => Set<Msystem>();
     public DbSet<GeofenceDestination> GeofenceDestinations => Set<GeofenceDestination>();
 
-    protected override void OnModelCreating(ModelBuilder builder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        builder.HasDefaultSchema("edcl");
+        modelBuilder.HasDefaultSchema("edcl");
 
         // scan semua entity configurations di assembly
-        builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-        base.OnModelCreating(builder);
+        base.OnModelCreating(modelBuilder);
     }
 }

@@ -60,37 +60,91 @@ public static class DataReaderExtensions
         return false;
     }
 
+    public static string GetFirstString(this DbDataReader reader, string col1, string col2, string defaultValue = "")
+    {
+        if (reader.HasColumn(col1)) return reader.GetSafeString(col1);
+        if (reader.HasColumn(col2)) return reader.GetSafeString(col2);
+        return defaultValue;
+    }
+
+    public static string? GetFirstNullableString(this DbDataReader reader, string col1, string col2)
+    {
+        if (reader.HasColumn(col1)) return reader.GetNullableString(col1);
+        if (reader.HasColumn(col2)) return reader.GetNullableString(col2);
+        return null;
+    }
+
+    public static Guid GetFirstGuid(this DbDataReader reader, string col1, string col2)
+    {
+        if (reader.HasColumn(col1)) return reader.GetSafeGuid(col1);
+        if (reader.HasColumn(col2)) return reader.GetSafeGuid(col2);
+        return Guid.Empty;
+    }
+
+    public static decimal? GetFirstNullableDecimal(this DbDataReader reader, string col1, string col2)
+    {
+        if (reader.HasColumn(col1)) return reader.GetNullableDecimal(col1);
+        if (reader.HasColumn(col2)) return reader.GetNullableDecimal(col2);
+        return null;
+    }
+
+    public static string GetSafeStringOrDefault(this DbDataReader reader, string columnName, string defaultValue = "") =>
+        reader.HasColumn(columnName) ? reader.GetSafeString(columnName) : defaultValue;
+
+    public static string? GetNullableStringOrDefault(this DbDataReader reader, string columnName, string? defaultValue = null) =>
+        reader.HasColumn(columnName) ? reader.GetNullableString(columnName) : defaultValue;
+
+    public static int GetSafeInt32OrDefault(this DbDataReader reader, string columnName, int defaultValue = 0) =>
+        reader.HasColumn(columnName) ? reader.GetSafeInt32(columnName) : defaultValue;
+
+    public static decimal? GetNullableDecimalOrDefault(this DbDataReader reader, string columnName, decimal? defaultValue = null) =>
+        reader.HasColumn(columnName) ? reader.GetNullableDecimal(columnName) : defaultValue;
+
+    public static DateTime? GetNullableDateTimeOrDefault(this DbDataReader reader, string columnName, DateTime? defaultValue = null) =>
+        reader.HasColumn(columnName) ? reader.GetNullableDateTime(columnName) : defaultValue;
+
+    public static DateTime GetSafeDateTimeOrDefault(this DbDataReader reader, string columnName, DateTime defaultValue) =>
+        (reader.HasColumn(columnName) ? reader.GetNullableDateTime(columnName) : null) ?? defaultValue;
+
+    public static Guid GetSafeGuidOrDefault(this DbDataReader reader, string columnName, Guid defaultValue) =>
+        reader.HasColumn(columnName) ? reader.GetSafeGuid(columnName) : defaultValue;
+
+    public static Guid? GetNullableGuidOrDefault(this DbDataReader reader, string columnName, Guid? defaultValue = null) =>
+        reader.HasColumn(columnName) ? reader.GetNullableGuid(columnName) : defaultValue;
+
+    public static bool GetBooleanOrDefault(this DbDataReader reader, string columnName, bool defaultValue = false)
+    {
+        if (!reader.HasColumn(columnName)) return defaultValue;
+        var ordinal = reader.GetOrdinal(columnName);
+        return !reader.IsDBNull(ordinal) && reader.GetBoolean(ordinal);
+    }
+
     // pemetaan statis koordinat gps dari data reader stored procedure
     public static TrackDeliveryPointDto MapToTrackDeliveryPoint(this NpgsqlDataReader reader)
     {
         return new TrackDeliveryPointDto
         {
-            PositionId = reader.HasColumn("positionid") ? reader.GetSafeInt32("positionid") : 0,
-            DeliveryNo = reader.HasColumn("deliveryno") ? reader.GetSafeString("deliveryno") : string.Empty,
-            NoKtp = reader.HasColumn("noktp") ? reader.GetSafeString("noktp") 
-                  : (reader.HasColumn("driverktp") ? reader.GetSafeString("driverktp") : string.Empty),
-            Lpcd = reader.HasColumn("lpcd") ? reader.GetSafeString("lpcd") : string.Empty,
-            GpsVendor = reader.HasColumn("gpsvendor") ? reader.GetSafeString("gpsvendor") 
-                      : (reader.HasColumn("vendorname") ? reader.GetSafeString("vendorname") : string.Empty),
-            FlagGps = reader.HasColumn("flaggps") ? reader.GetSafeString("flaggps") : string.Empty,
-            PlatNo = reader.HasColumn("platno") ? reader.GetSafeString("platno") 
-                   : (reader.HasColumn("platenumber") ? reader.GetSafeString("platenumber") : string.Empty),
-            DeviceId = reader.HasColumn("deviceid") ? reader.GetSafeString("deviceid") : string.Empty,
-            Datetime = reader.HasColumn("datetime") ? reader.GetNullableDateTime("datetime") : null,
-            X = reader.HasColumn("x") ? reader.GetNullableDecimal("x") 
-              : (reader.HasColumn("longitude") ? reader.GetNullableDecimal("longitude") : null),
-            Y = reader.HasColumn("y") ? reader.GetNullableDecimal("y") 
-              : (reader.HasColumn("latitude") ? reader.GetNullableDecimal("latitude") : null),
-            Speed = reader.HasColumn("speed") ? reader.GetNullableDecimal("speed") : null,
-            Course = reader.HasColumn("course") ? reader.GetNullableDecimal("course") : null,
-            StreetName = reader.HasColumn("streetname") ? reader.GetSafeString("streetname") : string.Empty
+            PositionId = reader.GetSafeInt32OrDefault("positionid"),
+            DeliveryNo = reader.GetSafeStringOrDefault("deliveryno"),
+            NoKtp = reader.GetFirstString("noktp", "driverktp"),
+            Lpcd = reader.GetSafeStringOrDefault("lpcd"),
+            GpsVendor = reader.GetFirstString("gpsvendor", "vendorname"),
+            FlagGps = reader.GetSafeStringOrDefault("flaggps"),
+            PlatNo = reader.GetFirstString("platno", "platenumber"),
+            DeviceId = reader.GetSafeStringOrDefault("deviceid"),
+            Datetime = reader.GetNullableDateTimeOrDefault("datetime"),
+            X = reader.GetFirstNullableDecimal("x", "longitude"),
+            Y = reader.GetFirstNullableDecimal("y", "latitude"),
+            Speed = reader.GetNullableDecimalOrDefault("speed"),
+            Course = reader.GetNullableDecimalOrDefault("course"),
+            StreetName = reader.GetSafeStringOrDefault("streetname")
         };
     }
 
     // pemetaan statis progres delivery dari tabel tb_r_delivery_progress
     public static DeliveryProgress MapToDeliveryProgress(this NpgsqlDataReader reader)
     {
-        var progress = new DeliveryProgress
+        return new DeliveryProgress
         {
             Id = reader.GetSafeGuid("id"),
             DeliveryNo = reader.GetSafeString("delivery_no"),
@@ -99,33 +153,26 @@ public static class DataReaderExtensions
             VendorName = reader.GetNullableString("vendor_name"),
             Lpcd = reader.GetNullableString("lpcd")
         };
-        return progress;
     }
 
     // pemetaan statis posisi armada dari data reader postgresql (aot-ready tanpa refleksi)
     public static LastPositionDto MapToLastPosition(this NpgsqlDataReader reader)
     {
+        var rawPlatNo = reader.GetFirstNullableString("plat_no", "platno");
         return new LastPositionDto
         {
-            Id = reader.HasColumn("id") ? reader.GetSafeGuid("id") : Guid.NewGuid(),
-            GpsVendorId = reader.HasColumn("gps_vendor_id") ? reader.GetSafeGuid("gps_vendor_id") 
-                        : (reader.HasColumn("gpsvendorid") ? reader.GetSafeGuid("gpsvendorid") : Guid.Empty),
-            VendorName = reader.HasColumn("vendor_name") ? reader.GetSafeString("vendor_name") 
-                        : (reader.HasColumn("vendorname") ? reader.GetSafeString("vendorname") : string.Empty),
-            PlatNo = (reader.HasColumn("plat_no") ? reader.GetNullableString("plat_no") 
-                    : (reader.HasColumn("platno") ? reader.GetNullableString("platno") : null))?.Trim().ToUpperInvariant(),
-            DeviceId = reader.HasColumn("device_id") ? reader.GetNullableString("device_id") 
-                      : (reader.HasColumn("deviceid") ? reader.GetNullableString("deviceid") : null),
-            Datetime = reader.HasColumn("datetime") ? (reader.GetNullableDateTime("datetime") ?? DateTime.UtcNow) : DateTime.UtcNow,
-            X = reader.HasColumn("x") ? reader.GetNullableDecimal("x") 
-                : (reader.HasColumn("longitude") ? reader.GetNullableDecimal("longitude") : null),
-            Y = reader.HasColumn("y") ? reader.GetNullableDecimal("y") 
-                : (reader.HasColumn("latitude") ? reader.GetNullableDecimal("latitude") : null),
-            Speed = reader.HasColumn("speed") ? reader.GetNullableDecimal("speed") : null,
-            Course = reader.HasColumn("course") ? reader.GetNullableDecimal("course") : null,
-            StreetName = reader.HasColumn("street_name") ? reader.GetNullableString("street_name") 
-                        : (reader.HasColumn("streetname") ? reader.GetNullableString("streetname") : null),
-            CreatedAt = reader.HasColumn("created_at") ? (reader.GetNullableDateTime("created_at") ?? DateTime.UtcNow) : DateTime.UtcNow,
+            Id = reader.GetSafeGuidOrDefault("id", Guid.NewGuid()),
+            GpsVendorId = reader.GetFirstGuid("gps_vendor_id", "gpsvendorid"),
+            VendorName = reader.GetFirstString("vendor_name", "vendorname"),
+            PlatNo = rawPlatNo?.Trim().ToUpperInvariant(),
+            DeviceId = reader.GetFirstNullableString("device_id", "deviceid"),
+            Datetime = reader.GetSafeDateTimeOrDefault("datetime", DateTime.UtcNow),
+            X = reader.GetFirstNullableDecimal("x", "longitude"),
+            Y = reader.GetFirstNullableDecimal("y", "latitude"),
+            Speed = reader.GetNullableDecimalOrDefault("speed"),
+            Course = reader.GetNullableDecimalOrDefault("course"),
+            StreetName = reader.GetFirstNullableString("street_name", "streetname"),
+            CreatedAt = reader.GetSafeDateTimeOrDefault("created_at", DateTime.UtcNow),
             DataSource = "PostgreSQL"
         };
     }
@@ -139,19 +186,18 @@ public static class DataReaderExtensions
             DeliveryNo = reader.GetSafeString("delivery_no"),
             Lpcd = reader.GetSafeString("lpcd"),
             VendorId = reader.GetNullableGuid("vendor_id"),
-            MatchKey = reader.HasColumn("match_key") ? reader.GetSafeString("match_key") : "PlatNo",
-            MatchValue = reader.HasColumn("match_value") ? reader.GetSafeString("match_value") : string.Empty,
-            CleanMatchValue = reader.HasColumn("clean_match_value") ? reader.GetSafeString("clean_match_value") : string.Empty,
-            DriverKtp = reader.HasColumn("driver_ktp") ? reader.GetNullableString("driver_ktp") : null,
-            Status = reader.HasColumn("status") ? reader.GetSafeString("status") : "STARTED",
-            StartedAt = reader.HasColumn("started_at") ? (reader.GetNullableDateTime("started_at") ?? DateTime.UtcNow) : DateTime.UtcNow,
-            ArrivedAt = reader.HasColumn("arrived_at") ? reader.GetNullableDateTime("arrived_at") : null,
-            DestinationGeofenceId = reader.HasColumn("destination_geofence_id") ? reader.GetNullableGuid("destination_geofence_id") : null,
-            CompletedAt = reader.HasColumn("completed_at") ? reader.GetNullableDateTime("completed_at") : null,
-            CompletedBy = reader.HasColumn("completed_by") ? reader.GetNullableString("completed_by") : null,
-            CompletionSource = reader.HasColumn("completion_source") ? reader.GetNullableString("completion_source") : null,
-            IsDeleted = reader.HasColumn("is_deleted") && reader.GetBoolean(reader.GetOrdinal("is_deleted"))
+            MatchKey = reader.GetSafeStringOrDefault("match_key", "PlatNo"),
+            MatchValue = reader.GetSafeStringOrDefault("match_value"),
+            CleanMatchValue = reader.GetSafeStringOrDefault("clean_match_value"),
+            DriverKtp = reader.GetNullableStringOrDefault("driver_ktp"),
+            Status = reader.GetSafeStringOrDefault("status", "STARTED"),
+            StartedAt = reader.GetSafeDateTimeOrDefault("started_at", DateTime.UtcNow),
+            ArrivedAt = reader.GetNullableDateTimeOrDefault("arrived_at"),
+            DestinationGeofenceId = reader.GetNullableGuidOrDefault("destination_geofence_id"),
+            CompletedAt = reader.GetNullableDateTimeOrDefault("completed_at"),
+            CompletedBy = reader.GetNullableStringOrDefault("completed_by"),
+            CompletionSource = reader.GetNullableStringOrDefault("completion_source"),
+            IsDeleted = reader.GetBooleanOrDefault("is_deleted")
         };
     }
 }
-

@@ -37,59 +37,21 @@ public sealed class GpsCollectorWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // 1. Leader Election: hanya 1 instance yang aktif melakukan polling
-                if (_leaderElection != null)
+                var isLeader = await CheckLeaderStatusAsync(stoppingToken);
+                if (!isLeader)
                 {
-                    var isLeader = await _leaderElection.TryAcquireAsync(TimeSpan.FromSeconds(90), stoppingToken);
-                    _metrics?.SetLeaderStatus(isLeader);
-
-                    if (!isLeader)
-                    {
-                        // Standby instance menunggu 30 detik sebelum mencoba kembali
-                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-                        continue;
-                    }
-                }
-                else
-                {
-                    _metrics?.SetLeaderStatus(true);
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    continue;
                 }
 
-                int delayMinutes = 1;
+                var delayMinutes = await RunCollectorScopeAsync(stoppingToken);
 
-                // 2. Eksekusi pengumpulan data dalam service scope
-                using (var scope = _serviceProvider.CreateScope())
-                {
-                    var orchestrator = scope.ServiceProvider.GetRequiredService<IGpsCollectorOrchestrator>();
-                    var configRepo = scope.ServiceProvider.GetRequiredService<IVendorConfigRepository>();
-
-                    delayMinutes = await configRepo.GetPollingDelayMinutesAsync(stoppingToken);
-
-                    var results = await orchestrator.CollectAllVendorsAsync(stoppingToken);
-                    _logger.LogInformation("Completed vendor poll cycle. Processed {Count} vendors.", results.Count);
-                }
-
-                // 3. Perpanjang lease leader election
                 if (_leaderElection != null)
                 {
                     await _leaderElection.RenewAsync(TimeSpan.FromSeconds(90), stoppingToken);
                 }
 
-                // 4. Istirahat sesuai environment:
-                // Production: tepat setiap 1 menit (60 detik) sesuai ketentuan
-                // Development: acak > 30 detik (35 - 75 detik) agar tidak terdeteksi sebagai robot
-                if (_env.IsDevelopment())
-                {
-                    var randomDelaySeconds = Random.Shared.Next(35, 76);
-                    _logger.LogInformation("Development mode: Next vendor poll cycle scheduled in {Sec}s (randomized > 30s to prevent bot detection).", randomDelaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(randomDelaySeconds), stoppingToken);
-                }
-                else
-                {
-                    var prodDelay = delayMinutes > 0 ? delayMinutes : 1;
-                    _logger.LogInformation("Production mode: Next vendor poll cycle scheduled in {Minutes} minute(s) (60s interval).", prodDelay);
-                    await Task.Delay(TimeSpan.FromMinutes(prodDelay), stoppingToken);
-                }
+                await DelayNextCycleAsync(delayMinutes, stoppingToken);
             }
         }
         catch (OperationCanceledException)
@@ -115,6 +77,47 @@ public sealed class GpsCollectorWorker : BackgroundService
                 }
             }
             _logger.LogInformation("GpsCollectorWorker has stopped.");
+        }
+    }
+
+    private async Task<bool> CheckLeaderStatusAsync(CancellationToken stoppingToken)
+    {
+        if (_leaderElection == null)
+        {
+            _metrics?.SetLeaderStatus(true);
+            return true;
+        }
+
+        var isLeader = await _leaderElection.TryAcquireAsync(TimeSpan.FromSeconds(90), stoppingToken);
+        _metrics?.SetLeaderStatus(isLeader);
+        return isLeader;
+    }
+
+    private async Task<int> RunCollectorScopeAsync(CancellationToken stoppingToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var orchestrator = scope.ServiceProvider.GetRequiredService<IGpsCollectorOrchestrator>();
+        var configRepo = scope.ServiceProvider.GetRequiredService<IVendorConfigRepository>();
+
+        var delayMinutes = await configRepo.GetPollingDelayMinutesAsync(stoppingToken);
+        var results = await orchestrator.CollectAllVendorsAsync(stoppingToken);
+        _logger.LogInformation("Completed vendor poll cycle. Processed {Count} vendors.", results.Count);
+        return delayMinutes;
+    }
+
+    private async Task DelayNextCycleAsync(int delayMinutes, CancellationToken stoppingToken)
+    {
+        if (_env.IsDevelopment())
+        {
+            var randomDelaySeconds = Random.Shared.Next(35, 76);
+            _logger.LogInformation("Development mode: Next vendor poll cycle scheduled in {Sec}s (randomized > 30s to prevent bot detection).", randomDelaySeconds);
+            await Task.Delay(TimeSpan.FromSeconds(randomDelaySeconds), stoppingToken);
+        }
+        else
+        {
+            var prodDelay = delayMinutes > 0 ? delayMinutes : 1;
+            _logger.LogInformation("Production mode: Next vendor poll cycle scheduled in {Minutes} minute(s) (60s interval).", prodDelay);
+            await Task.Delay(TimeSpan.FromMinutes(prodDelay), stoppingToken);
         }
     }
 }

@@ -35,10 +35,26 @@ public class StartDeliveryJobRequestDto
     public string? DriverKtp { get; set; }
 
     [JsonIgnore]
-    public string EffectiveKey => !string.IsNullOrWhiteSpace(MatchKey) ? MatchKey : (!string.IsNullOrWhiteSpace(Key) ? Key : "PlatNo");
+    public string EffectiveKey
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(MatchKey)) return MatchKey;
+            if (!string.IsNullOrWhiteSpace(Key)) return Key;
+            return "PlatNo";
+        }
+    }
 
     [JsonIgnore]
-    public string EffectiveValue => !string.IsNullOrWhiteSpace(MatchValue) ? MatchValue : (!string.IsNullOrWhiteSpace(Val) ? Val : (Value ?? string.Empty));
+    public string EffectiveValue
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(MatchValue)) return MatchValue;
+            if (!string.IsNullOrWhiteSpace(Val)) return Val;
+            return Value ?? string.Empty;
+        }
+    }
 
     public string GetEffectiveKey() => EffectiveKey;
 
@@ -169,7 +185,7 @@ public static class DeliveryValidator
     public static string CleanKey(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
-        return Regex.Replace(input.ToUpperInvariant(), @"[\s\-_]+", "");
+        return Regex.Replace(input.ToUpperInvariant(), @"[\s\-_]+", "", RegexOptions.None, TimeSpan.FromSeconds(1));
     }
 }
 

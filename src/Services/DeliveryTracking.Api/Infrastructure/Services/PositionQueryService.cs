@@ -77,17 +77,29 @@ public class PositionQueryService(
     {
         return new LastPositionDto
         {
-            Id = json.TryGetProperty("Id", out var id) && id.TryGetGuid(out var g) ? g : Guid.NewGuid(),
-            PlatNo = json.TryGetProperty("PlatNo", out var plat) ? plat.GetString() : null,
-            DeviceId = json.TryGetProperty("DeviceId", out var dev) ? dev.GetString() : null,
-            Datetime = json.TryGetProperty("Datetime", out var dt) && dt.TryGetDateTime(out var d) ? d : DateTime.UtcNow,
-            X = json.TryGetProperty("X", out var x) && x.TryGetDecimal(out var decX) ? decX : null,
-            Y = json.TryGetProperty("Y", out var y) && y.TryGetDecimal(out var decY) ? decY : null,
-            Speed = json.TryGetProperty("Speed", out var sp) && sp.TryGetDecimal(out var decSp) ? decSp : null,
-            Course = json.TryGetProperty("Course", out var cs) && cs.TryGetDecimal(out var decCs) ? decCs : null,
-            StreetName = json.TryGetProperty("StreetName", out var st) ? st.GetString() : null,
-            CreatedAt = json.TryGetProperty("CachedAt", out var cat) && cat.TryGetDateTime(out var cdt) ? cdt : DateTime.UtcNow,
+            Id = ParseGuid(json, "Id"),
+            PlatNo = ParseString(json, "PlatNo"),
+            DeviceId = ParseString(json, "DeviceId"),
+            Datetime = ParseDateTime(json, "Datetime"),
+            X = ParseDecimal(json, "X"),
+            Y = ParseDecimal(json, "Y"),
+            Speed = ParseDecimal(json, "Speed"),
+            Course = ParseDecimal(json, "Course"),
+            StreetName = ParseString(json, "StreetName"),
+            CreatedAt = ParseDateTime(json, "CachedAt"),
             DataSource = source
         };
     }
+
+    private static Guid ParseGuid(JsonElement json, string prop) =>
+        json.TryGetProperty(prop, out var el) && el.TryGetGuid(out var g) ? g : Guid.NewGuid();
+
+    private static DateTime ParseDateTime(JsonElement json, string prop) =>
+        json.TryGetProperty(prop, out var el) && el.TryGetDateTime(out var dt) ? dt : DateTime.UtcNow;
+
+    private static decimal? ParseDecimal(JsonElement json, string prop) =>
+        json.TryGetProperty(prop, out var el) && el.TryGetDecimal(out var dec) ? dec : null;
+
+    private static string? ParseString(JsonElement json, string prop) =>
+        json.TryGetProperty(prop, out var el) ? el.GetString() : null;
 }

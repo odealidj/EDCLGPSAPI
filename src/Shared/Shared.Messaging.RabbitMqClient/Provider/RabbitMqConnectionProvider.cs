@@ -135,8 +135,24 @@ public class RabbitMqConnectionProvider : IRabbitMqConnectionProvider, IDisposab
         return _connection.CreateModel();
     }
     
-    public void Dispose() {
-        _channel?.Close();
-        _connection?.Dispose();
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _channel?.Close();
+                _connection?.Dispose();
+            }
+            _disposed = true;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,39 +95,13 @@ public static class OpenTelemetryExtensions
         {
             var activity = Activity.Current;
             var traceId = activity?.TraceId.ToString() ?? context.TraceIdentifier;
-
-            // Resolve correlationId from client (X-Correlation-Id / correlationId / X-Request-Id / requestId) or fallback to traceId
             const string correlationHeader = "X-Correlation-Id";
-            string correlationId = traceId;
-            if (context.Request.Headers.TryGetValue(correlationHeader, out var clientCorrId) &&
-                !string.IsNullOrWhiteSpace(clientCorrId))
-            {
-                correlationId = clientCorrId.ToString();
-            }
-            else if (context.Request.Headers.TryGetValue("correlationId", out var clientCorrId2) &&
-                     !string.IsNullOrWhiteSpace(clientCorrId2))
-            {
-                correlationId = clientCorrId2.ToString();
-            }
-            else if (context.Request.Headers.TryGetValue("X-Request-Id", out var clientReqId) &&
-                     !string.IsNullOrWhiteSpace(clientReqId))
-            {
-                correlationId = clientReqId.ToString();
-            }
-            else if (context.Request.Headers.TryGetValue("requestId", out var clientReqId2) &&
-                     !string.IsNullOrWhiteSpace(clientReqId2))
-            {
-                correlationId = clientReqId2.ToString();
-            }
+            var correlationId = ResolveCorrelationId(context.Request.Headers, traceId);
 
-            // Propagate on request headers for downstream calls
             context.Request.Headers[correlationHeader] = correlationId;
-
-            // Expose traceId and correlationId in HTTP response headers
             context.Response.Headers["X-Trace-Id"] = traceId;
             context.Response.Headers[correlationHeader] = correlationId;
 
-            // Buffer response to inject traceId & correlationId into successful JSON object bodies
             var originalBodyStream = context.Response.Body;
             await using var memoryStream = new MemoryStream();
             context.Response.Body = memoryStream;
@@ -135,45 +110,7 @@ public static class OpenTelemetryExtensions
             {
                 await next();
 
-                memoryStream.Position = 0;
-                var contentType = context.Response.ContentType;
-
-                if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300 &&
-                    contentType != null && contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) &&
-                    memoryStream.Length > 0)
-                {
-                    try
-                    {
-                        var jsonNode = System.Text.Json.Nodes.JsonNode.Parse(memoryStream);
-                        if (jsonNode is System.Text.Json.Nodes.JsonObject jsonObject)
-                        {
-                            if (!jsonObject.ContainsKey("traceId"))
-                            {
-                                jsonObject["traceId"] = traceId;
-                            }
-                            if (!jsonObject.ContainsKey("correlationId"))
-                            {
-                                jsonObject["correlationId"] = correlationId;
-                            }
-
-                            memoryStream.SetLength(0);
-                            using (var writer = new System.Text.Json.Utf8JsonWriter(memoryStream))
-                            {
-                                jsonObject.WriteTo(writer);
-                            }
-                            context.Response.ContentLength = memoryStream.Length;
-                            memoryStream.Position = 0;
-                        }
-                        else
-                        {
-                            memoryStream.Position = 0;
-                        }
-                    }
-                    catch
-                    {
-                        memoryStream.Position = 0;
-                    }
-                }
+                TryInjectTraceInfo(memoryStream, context.Response, traceId, correlationId);
 
                 memoryStream.Position = 0;
                 await memoryStream.CopyToAsync(originalBodyStream);
@@ -183,5 +120,60 @@ public static class OpenTelemetryExtensions
                 context.Response.Body = originalBodyStream;
             }
         });
+    }
+
+    private static string ResolveCorrelationId(IHeaderDictionary headers, string fallbackTraceId)
+    {
+        string[] candidateHeaders = ["X-Correlation-Id", "correlationId", "X-Request-Id", "requestId"];
+        foreach (var header in candidateHeaders)
+        {
+            if (headers.TryGetValue(header, out var val) && !string.IsNullOrWhiteSpace(val))
+            {
+                return val.ToString();
+            }
+        }
+        return fallbackTraceId;
+    }
+
+    private static void TryInjectTraceInfo(MemoryStream memoryStream, HttpResponse response, string traceId, string correlationId)
+    {
+        memoryStream.Position = 0;
+        var contentType = response.ContentType;
+        var isSuccessJson = response.StatusCode >= 200 && response.StatusCode < 300 &&
+                            contentType != null && contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) &&
+                            memoryStream.Length > 0;
+
+        if (!isSuccessJson) return;
+
+        try
+        {
+            var jsonNode = System.Text.Json.Nodes.JsonNode.Parse(memoryStream);
+            if (jsonNode is System.Text.Json.Nodes.JsonObject jsonObject)
+            {
+                if (!jsonObject.ContainsKey("traceId"))
+                {
+                    jsonObject["traceId"] = traceId;
+                }
+                if (!jsonObject.ContainsKey("correlationId"))
+                {
+                    jsonObject["correlationId"] = correlationId;
+                }
+
+                memoryStream.SetLength(0);
+                using (var writer = new System.Text.Json.Utf8JsonWriter(memoryStream))
+                {
+                    jsonObject.WriteTo(writer);
+                }
+                response.ContentLength = memoryStream.Length;
+            }
+        }
+        catch
+        {
+            // Ignore parse errors and retain original stream
+        }
+        finally
+        {
+            memoryStream.Position = 0;
+        }
     }
 }

@@ -228,9 +228,9 @@ public class DeliveryTrackingAdoRepository(
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
-            var vendorId = reader.HasColumn("VendorId") ? reader.GetSafeGuid("VendorId") : (reader.HasColumn("gpsvendorid") ? reader.GetSafeGuid("gpsvendorid") : Guid.Empty);
-            var vendorName = reader.HasColumn("VendorName") ? reader.GetSafeString("VendorName") : (reader.HasColumn("gpsvendorname") ? reader.GetSafeString("gpsvendorname") : string.Empty);
-            var vendorCode = reader.HasColumn("VendorCode") ? reader.GetSafeString("VendorCode") : (reader.HasColumn("gpsvendorcode") ? reader.GetSafeString("gpsvendorcode") : null);
+            var vendorId = reader.GetFirstGuid("VendorId", "gpsvendorid");
+            var vendorName = reader.GetFirstString("VendorName", "gpsvendorname");
+            var vendorCode = reader.GetFirstNullableString("VendorCode", "gpsvendorcode");
             return new VendorByLpcdLookupResult(vendorId, vendorName, lpcd, vendorCode);
         }
 
@@ -287,53 +287,8 @@ public class DeliveryTrackingAdoRepository(
             var pageIndex = param.PageIndex <= 0 ? 0 : param.PageIndex - 1;
             var pageSize = param.PageSize <= 0 ? 100 : param.PageSize;
 
-            const string sqlData = @"
-                SELECT * FROM edcl.sp_edclgps1_get_last_positions(
-                    $1, $2, $3, $4, $5, $6, $7, $8
-                );";
-
-            const string sqlCount = @"
-                SELECT * FROM edcl.sp_edclgps1_get_last_positions_count(
-                    $1, $2, $3, $4, $5, $6
-                );";
-
-            var positions = new List<LastPositionDto>();
-            await using (var cmd = dataSource.CreateCommand(sqlData))
-            {
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Uuid, param.GpsVendorId.HasValue && param.GpsVendorId.Value != Guid.Empty ? param.GpsVendorId.Value : DBNull.Value);
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.VendorName) ? DBNull.Value : param.VendorName.ToLower());
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.PlatNo) ? DBNull.Value : param.PlatNo.ToLower());
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.DeviceId) ? DBNull.Value : param.DeviceId.ToLower());
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Timestamp, param.Datetime.HasValue ? param.Datetime.Value : DBNull.Value);
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Date, param.CreatedAt.HasValue ? param.CreatedAt.Value.Date : DBNull.Value);
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, pageIndex);
-                cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, pageSize);
-                cmd.CommandTimeout = 60;
-
-                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-                while (await reader.ReadAsync(cancellationToken))
-                {
-                    positions.Add(reader.MapToLastPosition());
-                }
-            }
-
-            long totalCount = 0;
-            await using (var cmdCount = dataSource.CreateCommand(sqlCount))
-            {
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Uuid, param.GpsVendorId.HasValue && param.GpsVendorId.Value != Guid.Empty ? param.GpsVendorId.Value : DBNull.Value);
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.VendorName) ? DBNull.Value : param.VendorName.ToLower());
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.PlatNo) ? DBNull.Value : param.PlatNo.ToLower());
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.DeviceId) ? DBNull.Value : param.DeviceId.ToLower());
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Timestamp, param.Datetime.HasValue ? param.Datetime.Value : DBNull.Value);
-                cmdCount.Parameters.AddWithValue(NpgsqlDbType.Date, param.CreatedAt.HasValue ? param.CreatedAt.Value.Date : DBNull.Value);
-                cmdCount.CommandTimeout = 60;
-
-                var scalar = await cmdCount.ExecuteScalarAsync(cancellationToken);
-                if (scalar != null && scalar != DBNull.Value)
-                {
-                    totalCount = Convert.ToInt64(scalar);
-                }
-            }
+            var positions = await FetchPositionsListAsync(param, pageIndex, pageSize, cancellationToken);
+            var totalCount = await FetchPositionsTotalCountAsync(param, cancellationToken);
 
             return new PaginatedPositionResponse(
                 PageIndex: param.PageIndex <= 0 ? 1 : param.PageIndex,
@@ -347,6 +302,55 @@ public class DeliveryTrackingAdoRepository(
             logger.LogError(ex, "Gagal kueri posisi armada dari PostgreSQL via stored procedure sp_edclgps1_get_last_positions");
             throw new DeliveryProgressBadRequestException($"Gagal mengambil data posisi armada: {ex.MessageText}");
         }
+    }
+
+    private async Task<List<LastPositionDto>> FetchPositionsListAsync(
+        LastPositionRequest param, int pageIndex, int pageSize, CancellationToken ct)
+    {
+        const string sqlData = @"
+            SELECT * FROM edcl.sp_edclgps1_get_last_positions(
+                $1, $2, $3, $4, $5, $6, $7, $8
+            );";
+
+        var positions = new List<LastPositionDto>();
+        await using var cmd = dataSource.CreateCommand(sqlData);
+        BindPositionFilterParameters(cmd, param);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, pageIndex);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, pageSize);
+        cmd.CommandTimeout = 60;
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            positions.Add(reader.MapToLastPosition());
+        }
+
+        return positions;
+    }
+
+    private async Task<long> FetchPositionsTotalCountAsync(LastPositionRequest param, CancellationToken ct)
+    {
+        const string sqlCount = @"
+            SELECT * FROM edcl.sp_edclgps1_get_last_positions_count(
+                $1, $2, $3, $4, $5, $6
+            );";
+
+        await using var cmdCount = dataSource.CreateCommand(sqlCount);
+        BindPositionFilterParameters(cmdCount, param);
+        cmdCount.CommandTimeout = 60;
+
+        var scalar = await cmdCount.ExecuteScalarAsync(ct);
+        return (scalar != null && scalar != DBNull.Value) ? Convert.ToInt64(scalar) : 0;
+    }
+
+    private static void BindPositionFilterParameters(NpgsqlCommand cmd, LastPositionRequest param)
+    {
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Uuid, param.GpsVendorId.HasValue && param.GpsVendorId.Value != Guid.Empty ? param.GpsVendorId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.VendorName) ? DBNull.Value : param.VendorName.ToLower());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.PlatNo) ? DBNull.Value : param.PlatNo.ToLower());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Varchar, string.IsNullOrEmpty(param.DeviceId) ? DBNull.Value : param.DeviceId.ToLower());
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Timestamp, param.Datetime.HasValue ? param.Datetime.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue(NpgsqlDbType.Date, param.CreatedAt.HasValue ? param.CreatedAt.Value.Date : DBNull.Value);
     }
 
     // 11. ambil posisi armada terakhir berdasarkan plat nomor

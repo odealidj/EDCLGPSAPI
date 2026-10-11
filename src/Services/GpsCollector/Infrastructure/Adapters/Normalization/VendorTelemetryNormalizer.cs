@@ -83,59 +83,20 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
 
         try
         {
-            // Kumpulkan seluruh data items dari respons-respons vendor
             var mergedByKey = new Dictionary<string, Dictionary<string, object?>>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var json in rawJsons)
             {
-                if (string.IsNullOrWhiteSpace(json)) continue;
-
-                using var doc = JsonDocument.Parse(json);
-                var items = ExtractDataItems(doc.RootElement, dataPath);
-
-                foreach (var item in items)
+                if (!string.IsNullOrWhiteSpace(json))
                 {
-                    var keyValue = ExtractValueByPath(item, keyPath)?.ToString();
-                    if (string.IsNullOrWhiteSpace(keyValue)) continue;
-
-                    if (!mergedByKey.TryGetValue(keyValue, out var propDict))
-                    {
-                        propDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                        mergedByKey[keyValue] = propDict;
-                    }
-
-                    // Kumpulkan semua field dari item ini
-                    if (item.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in item.EnumerateObject())
-                        {
-                            propDict[prop.Name] = ExtractJsonPrimitive(prop.Value);
-                        }
-                    }
+                    CollectRawJsonItems(json, dataPath, keyPath, mergedByKey);
                 }
             }
 
-            // Normalisasi data yang telah digabung ke TelemetryPoint
             var points = new List<TelemetryPoint>(mergedByKey.Count);
             foreach (var kvp in mergedByKey)
             {
-                var point = new TelemetryPoint();
-                var propDict = kvp.Value;
-
-                foreach (var mapping in mappings)
-                {
-                    if (propDict.TryGetValue(mapping.ResponseField, out var val) && val != null)
-                    {
-                        TelemetryPoint.SetMappedField(point, mapping.MappedField, val);
-                    }
-                }
-
-                if (endpointUrl.Contains("puninarlogistics", StringComparison.OrdinalIgnoreCase))
-                {
-                    point.Datetime = point.Datetime.AddHours(7);
-                }
-
-                points.Add(point);
+                points.Add(MapMergedItemToPoint(kvp.Value, mappings, endpointUrl));
             }
 
             return points;
@@ -145,6 +106,59 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
             _logger.LogError(ex, "Failed to normalize combined responses for vendor {VendorId}", vendorId);
             return [];
         }
+    }
+
+    private static void CollectRawJsonItems(
+        string json,
+        string dataPath,
+        string keyPath,
+        Dictionary<string, Dictionary<string, object?>> mergedByKey)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var items = ExtractDataItems(doc.RootElement, dataPath);
+
+        foreach (var item in items)
+        {
+            var keyValue = ExtractValueByPath(item, keyPath)?.ToString();
+            if (string.IsNullOrWhiteSpace(keyValue)) continue;
+
+            if (!mergedByKey.TryGetValue(keyValue, out var propDict))
+            {
+                propDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                mergedByKey[keyValue] = propDict;
+            }
+
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in item.EnumerateObject())
+                {
+                    propDict[prop.Name] = ExtractJsonPrimitive(prop.Value);
+                }
+            }
+        }
+    }
+
+    private static TelemetryPoint MapMergedItemToPoint(
+        Dictionary<string, object?> propDict,
+        IReadOnlyList<VendorFieldMapping> mappings,
+        string endpointUrl)
+    {
+        var point = new TelemetryPoint();
+
+        foreach (var mapping in mappings)
+        {
+            if (propDict.TryGetValue(mapping.ResponseField, out var val) && val != null)
+            {
+                TelemetryPoint.SetMappedField(point, mapping.MappedField, val);
+            }
+        }
+
+        if (endpointUrl.Contains("puninarlogistics", StringComparison.OrdinalIgnoreCase))
+        {
+            point.Datetime = point.Datetime.AddHours(7);
+        }
+
+        return point;
     }
 
     public int? ExtractMaxProperty(string rawJson, string dataPath, string maxPropertyPath)
@@ -163,12 +177,9 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
             foreach (var item in items)
             {
                 var valObj = ExtractValueByPath(item, maxPropertyPath);
-                if (valObj != null && int.TryParse(valObj.ToString(), out var intVal))
+                if (valObj != null && int.TryParse(valObj.ToString(), out var intVal) && (!maxVal.HasValue || intVal > maxVal.Value))
                 {
-                    if (!maxVal.HasValue || intVal > maxVal.Value)
-                    {
-                        maxVal = intVal;
-                    }
+                    maxVal = intVal;
                 }
             }
 
@@ -205,21 +216,9 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
             return result;
         }
 
-        var current = root;
-        var parts = dataPath.Split('.');
-        for (int i = 0; i < parts.Length; i++)
+        if (!TryTraverseObjectPath(root, dataPath, out var current))
         {
-            var part = parts[i].Trim();
-            if (string.IsNullOrEmpty(part)) continue;
-
-            if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(part, out var next))
-            {
-                current = next;
-            }
-            else
-            {
-                return result;
-            }
+            return result;
         }
 
         if (current.ValueKind == JsonValueKind.Array)
@@ -237,6 +236,27 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
         return result;
     }
 
+    private static bool TryTraverseObjectPath(JsonElement root, string dataPath, out JsonElement current)
+    {
+        current = root;
+        var parts = dataPath.Split('.');
+        foreach (var rawPart in parts)
+        {
+            var part = rawPart.Trim();
+            if (string.IsNullOrEmpty(part)) continue;
+
+            if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(part, out var next))
+            {
+                current = next;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static object? ExtractValueByPath(JsonElement element, string path)
     {
         if (element.ValueKind != JsonValueKind.Object) return null;
@@ -244,41 +264,19 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
         var current = element;
         var parts = path.Split('.');
 
-        for (int i = 0; i < parts.Length; i++)
+        foreach (var rawPart in parts)
         {
-            var part = parts[i].Trim();
+            var part = rawPart.Trim();
             if (string.IsNullOrEmpty(part)) continue;
 
-            // Handle segment dengan indeks array seperti items[0]
-            var bracketIndex = part.IndexOf('[');
-            if (bracketIndex > 0 && part.EndsWith(']'))
+            if (part.Contains('['))
             {
-                var propName = part[..bracketIndex];
-                var indexStr = part[(bracketIndex + 1)..^1];
-
-                if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(propName, out var arrayElem) &&
-                    arrayElem.ValueKind == JsonValueKind.Array && int.TryParse(indexStr, out var arrayIdx))
+                if (!TryNavigateArraySegment(current, part, out current))
                 {
-                    int currIdx = 0;
-                    bool found = false;
-                    foreach (var item in arrayElem.EnumerateArray())
-                    {
-                        if (currIdx == arrayIdx)
-                        {
-                            current = item;
-                            found = true;
-                            break;
-                        }
-                        currIdx++;
-                    }
-
-                    if (!found) return null;
-                    continue;
+                    return null;
                 }
-                return null;
             }
-
-            if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(part, out var next))
+            else if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(part, out var next))
             {
                 current = next;
             }
@@ -289,6 +287,33 @@ public sealed class VendorTelemetryNormalizer : ITelemetryNormalizer
         }
 
         return ExtractJsonPrimitive(current);
+    }
+
+    private static bool TryNavigateArraySegment(JsonElement current, string part, out JsonElement target)
+    {
+        target = default;
+        var bracketIndex = part.IndexOf('[');
+        if (bracketIndex <= 0 || !part.EndsWith(']')) return false;
+
+        var propName = part[..bracketIndex];
+        var indexStr = part[(bracketIndex + 1)..^1];
+
+        if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(propName, out var arrayElem) &&
+            arrayElem.ValueKind == JsonValueKind.Array && int.TryParse(indexStr, out var arrayIdx))
+        {
+            int currIdx = 0;
+            foreach (var item in arrayElem.EnumerateArray())
+            {
+                if (currIdx == arrayIdx)
+                {
+                    target = item;
+                    return true;
+                }
+                currIdx++;
+            }
+        }
+
+        return false;
     }
 
     private static object? ExtractJsonPrimitive(JsonElement el) => el.ValueKind switch

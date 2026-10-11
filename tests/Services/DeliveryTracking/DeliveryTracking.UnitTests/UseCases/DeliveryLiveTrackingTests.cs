@@ -190,4 +190,144 @@ public class DeliveryLiveTrackingTests
         // assert
         await act.Should().ThrowAsync<DeliveryProgressNotFoundException>();
     }
+
+    [Fact]
+    public async Task Handle_KetikaRedisKosongDanTidakAdaPosisiMaupunMissLog_HarusReturnWaitingTelemetry()
+    {
+        // arrange
+        var deliveryNo = "DELIV-WAITING";
+        _dbMock.Setup(d => d.StringGetAsync($"delivery:live:{deliveryNo}", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+
+        var session = DeliveryTrackingSession.Create(deliveryNo, "LPCD-01", "PlatNo", "B1234XYZ", "B1234XYZ");
+        _repositoryMock.Setup(r => r.GetDeliverySessionByDeliveryNoAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        _repositoryMock.Setup(r => r.GetDeliveryLatestPositionAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DeliveryLatestPositionDto?)null);
+
+        _repositoryMock.Setup(r => r.GetLatestCorrelationMissLogAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GpsCorrelationMissLogDto?)null);
+
+        var handler = new GetDeliveryLiveTrackingQueryHandler(_redisMock.Object, _repositoryMock.Object, _loggerMock.Object);
+
+        // act
+        var result = await handler.Handle(new GetDeliveryLiveTrackingQuery(deliveryNo), CancellationToken.None);
+
+        // assert
+        result.Should().NotBeNull();
+        result.TrackingStatus.Should().Be("WAITING_TELEMETRY");
+        result.StatusMessage.Should().Contain("Menunggu data telemetri");
+    }
+
+    [Fact]
+    public async Task Handle_KetikaSesiSudahCompleted_HarusReturnStatusCompleted()
+    {
+        // arrange
+        var deliveryNo = "DELIV-COMPLETED";
+        _dbMock.Setup(d => d.StringGetAsync($"delivery:live:{deliveryNo}", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+
+        var session = DeliveryTrackingSession.Create(deliveryNo, "LPCD-01", "PlatNo", "B1234XYZ", "B1234XYZ");
+        session.Status = "COMPLETED";
+        session.CompletedAt = DateTime.UtcNow;
+        session.CompletedBy = "Driver";
+        session.CompletionSource = "MOBILE";
+
+        _repositoryMock.Setup(r => r.GetDeliverySessionByDeliveryNoAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var latestPos = new DeliveryLatestPositionDto(
+            deliveryNo,
+            session.Id,
+            Guid.NewGuid(),
+            "B 1234 XYZ",
+            "DEV-01",
+            DateTime.UtcNow,
+            106.8m,
+            -6.2m,
+            40.0m,
+            180.0m,
+            "Jl Sudirman",
+            DateTime.UtcNow
+        );
+        _repositoryMock.Setup(r => r.GetDeliveryLatestPositionAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(latestPos);
+
+        var handler = new GetDeliveryLiveTrackingQueryHandler(_redisMock.Object, _repositoryMock.Object, _loggerMock.Object);
+
+        // act
+        var result = await handler.Handle(new GetDeliveryLiveTrackingQuery(deliveryNo), CancellationToken.None);
+
+        // assert
+        result.Should().NotBeNull();
+        result.TrackingStatus.Should().Be("COMPLETED");
+        result.StatusMessage.Should().Be("Pengiriman telah selesai");
+    }
+
+    [Fact]
+    public async Task Handle_KetikaDeviceIdMatchKeyDanWaiting_HarusSetDeviceIdDanStatus()
+    {
+        // arrange
+        var deliveryNo = "DELIV-DEV-MATCH";
+        _dbMock.Setup(d => d.StringGetAsync($"delivery:live:{deliveryNo}", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+
+        var session = DeliveryTrackingSession.Create(deliveryNo, "LPCD-02", "DeviceId", "DEV-100", "DEV-100");
+        session.Status = "COMPLETED";
+
+        _repositoryMock.Setup(r => r.GetDeliverySessionByDeliveryNoAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        _repositoryMock.Setup(r => r.GetDeliveryLatestPositionAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DeliveryLatestPositionDto?)null);
+
+        var missLog = new GpsCorrelationMissLogDto("WARNING", null, null, DateTime.UtcNow);
+        _repositoryMock.Setup(r => r.GetLatestCorrelationMissLogAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(missLog);
+
+        var handler = new GetDeliveryLiveTrackingQueryHandler(_redisMock.Object, _repositoryMock.Object, _loggerMock.Object);
+
+        // act
+        var result = await handler.Handle(new GetDeliveryLiveTrackingQuery(deliveryNo), CancellationToken.None);
+
+        // assert
+        result.Should().NotBeNull();
+        result.DeviceId.Should().Be("DEV-100");
+        result.PlatNo.Should().BeNull();
+        result.TrackingStatus.Should().Be("DATA_MISMATCH");
+    }
+
+    [Fact]
+    public async Task Handle_KetikaWaitingSessionStatusCompleted_HarusReturnCompleted()
+    {
+        // arrange
+        var deliveryNo = "DELIV-WAITING-COMPLETED";
+        _dbMock.Setup(d => d.StringGetAsync($"delivery:live:{deliveryNo}", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+
+        var session = DeliveryTrackingSession.Create(deliveryNo, "LPCD-02", "DeviceId", "DEV-200", "DEV-200");
+        session.Status = "COMPLETED";
+
+        _repositoryMock.Setup(r => r.GetDeliverySessionByDeliveryNoAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        _repositoryMock.Setup(r => r.GetDeliveryLatestPositionAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DeliveryLatestPositionDto?)null);
+
+        _repositoryMock.Setup(r => r.GetLatestCorrelationMissLogAsync(deliveryNo, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GpsCorrelationMissLogDto?)null);
+
+        var handler = new GetDeliveryLiveTrackingQueryHandler(_redisMock.Object, _repositoryMock.Object, _loggerMock.Object);
+
+        // act
+        var result = await handler.Handle(new GetDeliveryLiveTrackingQuery(deliveryNo), CancellationToken.None);
+
+        // assert
+        result.Should().NotBeNull();
+        result.DeviceId.Should().Be("DEV-200");
+        result.TrackingStatus.Should().Be("COMPLETED");
+        result.StatusMessage.Should().Be("Pengiriman telah selesai");
+    }
 }
+

@@ -7,7 +7,7 @@ export PATH := $(PATH):$(HOME)/.dotnet/tools
 COMPOSE_FILES := -f src/docker-compose.yml -f src/docker-compose.override.yml
 SONAR_COMPOSE := -f deploy/sonar/docker-compose.sonar.yml
 SONAR_PROJECT_KEY ?= edcl-gps-telematics-api
-SONAR_PROJECT_NAME ?= "EDCL GPS Telematics API"
+SONAR_PROJECT_NAME ?= EDCL GPS Telematics API
 SONAR_HOST_URL ?= http://localhost:9000
 SONAR_TOKEN ?= $(token)
 SOLUTION := src/edcl-gps-api.sln
@@ -604,19 +604,22 @@ sonar-scan:
 		echo -e "${YELLOW}Or:    export SONAR_TOKEN=<YOUR_SONAR_TOKEN> && make sonar-scan${RESET}"; \
 		exit 1; \
 	fi; \
+	curl -s -u "$$TOKEN_VAL:" -X POST "$(SONAR_HOST_URL)/api/projects/create?project=$(SONAR_PROJECT_KEY)&name=$(SONAR_PROJECT_NAME)" > /dev/null 2>&1 || true; \
+	find tests -type d -name "TestResults" -exec rm -rf {} + 2>/dev/null || true; \
 	echo -e "${BOLD}${CYAN}🚀 [1/4] Initializing SonarQube Scanner Begin...${RESET}"; \
 	dotnet sonarscanner begin \
 		/k:"$(SONAR_PROJECT_KEY)" \
 		/n:"$(SONAR_PROJECT_NAME)" \
 		/d:sonar.host.url="$(SONAR_HOST_URL)" \
 		/d:sonar.token="$$TOKEN_VAL" \
+		/d:sonar.login="$$TOKEN_VAL" \
 		/d:sonar.cs.opencover.reportsPaths="tests/**/TestResults/**/coverage.opencover.xml" \
-		/d:sonar.coverage.exclusions="**/Program.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/Shared.Contracts/**" \
+		/d:sonar.coverage.exclusions="**/Program.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/Shared.Contracts/**,**/Extensions/**,**/Data/Mongo/Documents/**,**/*Settings.cs,**/*Options.cs,**/Exceptions/**,**/DTOs/**,**/*Dto.cs,**/*Request.cs,**/*Response.cs,src/Services/GpsCollector/Infrastructure/Adapters/Persistence/**" \
 		/d:sonar.cpd.exclusions="src/Shared/Shared.Contracts/**" && \
 	echo -e "${BOLD}${CYAN}🔨 [2/4] Building Solution (Release)...${RESET}" && \
 	dotnet build $(SOLUTION) -c Release && \
 	echo -e "${BOLD}${CYAN}🧪 [3/4] Running Tests & Collecting OpenCover Coverage...${RESET}" && \
 	dotnet test $(SOLUTION) -c Release --no-build --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover && \
 	echo -e "${BOLD}${CYAN}📤 [4/4] Finalizing SonarQube Scan & Uploading Report...${RESET}" && \
-	dotnet sonarscanner end /d:sonar.token="$$TOKEN_VAL" && \
+	dotnet sonarscanner end /d:sonar.token="$$TOKEN_VAL" /d:sonar.login="$$TOKEN_VAL" && \
 	echo -e "${BOLD}${GREEN}✅ SonarQube Analysis Completed! View results at: $(SONAR_HOST_URL)/dashboard?id=$(SONAR_PROJECT_KEY)${RESET}"

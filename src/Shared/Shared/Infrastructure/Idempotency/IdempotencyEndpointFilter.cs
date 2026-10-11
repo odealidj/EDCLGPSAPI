@@ -22,21 +22,19 @@ public class IdempotencyEndpointFilter(
         var cancellationToken = httpContext.RequestAborted;
 
         // 1. Mandatory X-Idempotency-Key check
-        if (!httpContext.Request.Headers.TryGetValue(HeaderName, out var keyVal) ||
-            string.IsNullOrWhiteSpace(keyVal))
-        {
-            if (!httpContext.Request.Headers.TryGetValue("Idempotency-Key", out keyVal) ||
-                string.IsNullOrWhiteSpace(keyVal))
-            {
-                logger.LogWarning("[Idempotency] Request rejected. Missing required header: {HeaderName} on {Path}",
-                    HeaderName, httpContext.Request.Path);
+        var hasKey = (httpContext.Request.Headers.TryGetValue(HeaderName, out var keyVal) && !string.IsNullOrWhiteSpace(keyVal))
+            || (httpContext.Request.Headers.TryGetValue("Idempotency-Key", out keyVal) && !string.IsNullOrWhiteSpace(keyVal));
 
-                return Results.Problem(
-                    title: "Missing Idempotency Key",
-                    detail: $"Header '{HeaderName}' is required for this operation.",
-                    statusCode: StatusCodes.Status400BadRequest,
-                    instance: httpContext.Request.Path);
-            }
+        if (!hasKey)
+        {
+            logger.LogWarning("[Idempotency] Request rejected. Missing required header: {HeaderName} on {Path}",
+                HeaderName, httpContext.Request.Path);
+
+            return Results.Problem(
+                title: "Missing Idempotency Key",
+                detail: $"Header '{HeaderName}' is required for this operation.",
+                statusCode: StatusCodes.Status400BadRequest,
+                instance: httpContext.Request.Path);
         }
 
         var idempotencyKey = keyVal.ToString().Trim();

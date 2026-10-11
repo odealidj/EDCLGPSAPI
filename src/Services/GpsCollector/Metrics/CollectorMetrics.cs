@@ -15,7 +15,6 @@ public interface ICollectorMetrics
 public sealed class CollectorMetrics : ICollectorMetrics
 {
     public const string MeterName = "edcl.gps.collector";
-    private readonly Meter _meter;
     private readonly Counter<int> _vendorPolls;
     private readonly Histogram<double> _pollDurationMs;
     private readonly Counter<int> _recordsInserted;
@@ -25,14 +24,14 @@ public sealed class CollectorMetrics : ICollectorMetrics
 
     public CollectorMetrics(IMeterFactory meterFactory)
     {
-        _meter = meterFactory.Create(MeterName);
-        _vendorPolls = _meter.CreateCounter<int>("gps.vendor.polls.total", description: "Total vendor polling attempts");
-        _pollDurationMs = _meter.CreateHistogram<double>("gps.vendor.poll.duration.ms", unit: "ms", description: "Vendor polling duration");
-        _recordsInserted = _meter.CreateCounter<int>("gps.records.inserted.total", description: "Total GPS records inserted into PostgreSQL");
-        _mongoInserted = _meter.CreateCounter<int>("gps.mongo.docs.inserted.total", description: "Total raw documents inserted into MongoDB");
+        var meter = meterFactory.Create(MeterName);
+        _vendorPolls = meter.CreateCounter<int>("gps.vendor.polls.total", description: "Total vendor polling attempts");
+        _pollDurationMs = meter.CreateHistogram<double>("gps.vendor.poll.duration.ms", unit: "ms", description: "Vendor polling duration");
+        _recordsInserted = meter.CreateCounter<int>("gps.records.inserted.total", description: "Total GPS records inserted into PostgreSQL");
+        _mongoInserted = meter.CreateCounter<int>("gps.mongo.docs.inserted.total", description: "Total raw documents inserted into MongoDB");
 
-        _meter.CreateObservableGauge("gps.leader.status", () => _isLeader, description: "1 if current instance is active leader, 0 if standby");
-        _meter.CreateObservableGauge("gps.last.collection.timestamp", () => _lastCollectionTimestamp, description: "Unix timestamp of last successful GPS collection");
+        meter.CreateObservableGauge("gps.leader.status", () => _isLeader, description: "1 if current instance is active leader, 0 if standby");
+        meter.CreateObservableGauge("gps.last.collection.timestamp", () => _lastCollectionTimestamp, description: "Unix timestamp of last successful GPS collection");
     }
 
     public void RecordVendorPoll(string vendorName, bool success, double durationMs)

@@ -48,8 +48,11 @@ public class BulkInsertGpsDeliveryCommandHandler(
         var rowsInserted = await repository.BulkInsertGpsDeliveriesAsync(entities, cancellationToken);
         sw.Stop();
 
-        logger.LogInformation("Selesai bulk insert {Count} titik GPS via PostgreSQL Binary COPY dalam {Elapsed}ms",
-            rowsInserted, sw.ElapsedMilliseconds);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Selesai bulk insert {Count} titik GPS via PostgreSQL Binary COPY dalam {Elapsed}ms",
+                rowsInserted, sw.ElapsedMilliseconds);
+        }
 
         return new BulkInsertResult(rowsInserted, nameof(GpsDelivery), sw.Elapsed);
     }

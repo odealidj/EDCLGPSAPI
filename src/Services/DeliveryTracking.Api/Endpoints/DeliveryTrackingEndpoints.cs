@@ -168,26 +168,10 @@ public class DeliveryTrackingEndpoints : ICarterModule
 
         // 12. GET /api/v1/deliveries/raw-responses (Arsip JSON Asli MongoDB dengan Filter & Pagination)
         group.MapGet("/raw-responses", async (
-            string? vendorId,
-            string? vendorName,
-            DateTime? fromDate,
-            DateTime? toDate,
-            string? search,
-            int? pageIndex,
-            int? pageSize,
+            [AsParameters] RawResponseFilterRequest filter,
             IGpsRawResponseRepository rawRepo,
             CancellationToken ct) =>
         {
-            var filter = new RawResponseFilterRequest
-            {
-                VendorId = vendorId,
-                VendorName = vendorName,
-                FromDate = fromDate,
-                ToDate = toDate,
-                Search = search,
-                PageIndex = pageIndex ?? 1,
-                PageSize = pageSize ?? 20
-            };
             var result = await rawRepo.QueryRawResponsesAsync(filter, ct);
             return Results.Ok(result);
         })

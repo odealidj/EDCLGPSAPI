@@ -52,7 +52,7 @@ public sealed class RedisTelemetryCache : ITelemetryCache
 
         var payload = JsonSerializer.Serialize(dto, GpsCollectorJsonContext.Default.DeliveryLivePositionCacheDto);
         await SetRedisKeyAsync($"delivery:live:{deliveryNo}", payload, ct);
-        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload, ct);
+        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload);
     }
 
     public async Task UpdateDeliveryLiveStatusAsync(
@@ -71,7 +71,7 @@ public sealed class RedisTelemetryCache : ITelemetryCache
 
         var payload = JsonSerializer.Serialize(dto, GpsCollectorJsonContext.Default.DeliveryLiveStatusCacheDto);
         await SetRedisKeyAsync($"delivery:live:{deliveryNo}", payload, ct);
-        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload, ct);
+        await PublishRedisChannelAsync($"delivery:live:{deliveryNo}", payload);
     }
 
     public async Task SetLastPositionsAsync(string vendorName, IReadOnlyList<TelemetryPoint> points, CancellationToken ct)
@@ -134,7 +134,7 @@ public sealed class RedisTelemetryCache : ITelemetryCache
         }
     }
 
-    private async Task PublishRedisChannelAsync(string channelName, string message, CancellationToken ct)
+    private async Task PublishRedisChannelAsync(string channelName, string message)
     {
         try
         {

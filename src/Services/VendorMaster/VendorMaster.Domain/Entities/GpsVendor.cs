@@ -30,6 +30,7 @@ public class GpsVendor : Aggregate<Guid>
     public IReadOnlyList<GpsVendorLpcd> Lpcds => _lpcds;
 
     // factory method buat bikin instance baru vendor
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Domain entity factory method configuring all properties")]
     public static GpsVendor Create(
         Guid id,
         string vendorCode,
@@ -65,6 +66,7 @@ public class GpsVendor : Aggregate<Guid>
     }
 
     // update data pokok vendor
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Domain entity method updating all properties")]
     public void UpdateDetails(
         string vendorCode,
         string vendorName,
@@ -91,6 +93,7 @@ public class GpsVendor : Aggregate<Guid>
     }
 
     // tambah endpoint baru
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Domain entity method adding endpoint with all configurations")]
     public void AddEndpoint(
         Guid id,
         string endpointType,
@@ -120,6 +123,7 @@ public class GpsVendor : Aggregate<Guid>
     }
 
     // pasang konfigurasi auth vendor
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Domain entity method setting vendor auth configurations")]
     public void SetAuth(
         Guid id,
         string authType,

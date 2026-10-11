@@ -15,42 +15,60 @@ public class CustomExceptionHandler(
     IHostEnvironment? env = null)
     : IExceptionHandler
 {
-    public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken cancellationToken)
+    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
-
+        var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
         const string correlationHeader = "X-Correlation-Id";
-        string correlationId = traceId;
-        if (context.Request.Headers.TryGetValue(correlationHeader, out var clientCorrId) &&
-            !string.IsNullOrWhiteSpace(clientCorrId))
-        {
-            correlationId = clientCorrId.ToString();
-        }
-        else if (context.Request.Headers.TryGetValue("correlationId", out var clientCorrId2) &&
-                 !string.IsNullOrWhiteSpace(clientCorrId2))
-        {
-            correlationId = clientCorrId2.ToString();
-        }
-        else if (context.Request.Headers.TryGetValue("X-Request-Id", out var clientReqId) &&
-                 !string.IsNullOrWhiteSpace(clientReqId))
-        {
-            correlationId = clientReqId.ToString();
-        }
-        else if (context.Request.Headers.TryGetValue("requestId", out var clientReqId2) &&
-                 !string.IsNullOrWhiteSpace(clientReqId2))
-        {
-            correlationId = clientReqId2.ToString();
-        }
+        var correlationId = ResolveCorrelationId(httpContext.Request.Headers, traceId);
 
-        context.Response.Headers["X-Trace-Id"] = traceId;
-        context.Response.Headers[correlationHeader] = correlationId;
+        httpContext.Response.Headers["X-Trace-Id"] = traceId;
+        httpContext.Response.Headers[correlationHeader] = correlationId;
 
         logger.LogError(
             exception,
             "Error Message: {exceptionMessage}, TraceId: {traceId}, CorrelationId: {correlationId}, Time: {time}",
             exception.Message, traceId, correlationId, DateTime.UtcNow);
 
-        (string Detail, string Title, int StatusCode, string Type) details = exception switch
+        var details = MapExceptionDetails(exception);
+
+        httpContext.Response.StatusCode = details.StatusCode;
+        httpContext.Response.ContentType = "application/problem+json";
+
+        var problemDetails = new ProblemDetails
+        {
+            Type = details.Type,
+            Title = details.Title,
+            Detail = details.Detail,
+            Status = details.StatusCode,
+            Instance = httpContext.Request.Path
+        };
+
+        EnrichProblemDetails(problemDetails, exception, traceId, correlationId);
+
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: (System.Text.Json.JsonSerializerOptions?)null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
+        return true;
+    }
+
+    private static string ResolveCorrelationId(IHeaderDictionary headers, string fallbackTraceId)
+    {
+        string[] candidateHeaders = ["X-Correlation-Id", "correlationId", "X-Request-Id", "requestId"];
+        foreach (var header in candidateHeaders)
+        {
+            if (headers.TryGetValue(header, out var val) && !string.IsNullOrWhiteSpace(val))
+            {
+                return val.ToString();
+            }
+        }
+        return fallbackTraceId;
+    }
+
+    private (string Detail, string Title, int StatusCode, string Type) MapExceptionDetails(Exception exception)
+    {
+        return exception switch
         {
             ValidationException =>
             (
@@ -80,8 +98,7 @@ public class CustomExceptionHandler(
                 StatusCodes.Status409Conflict,
                 "https://tools.ietf.org/html/rfc7231#section-6.5.8"
             ),
-            DbUpdateException dbUpdateEx when dbUpdateEx.InnerException?.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true ||
-                                             dbUpdateEx.InnerException?.Message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase) == true =>
+            DbUpdateException dbUpdateEx when IsDuplicateKeyException(dbUpdateEx) =>
             (
                 "Data yang dikirim bentrok dengan data yang sudah ada (duplikat unique key).",
                 "Conflict",
@@ -105,19 +122,17 @@ public class CustomExceptionHandler(
                 "https://tools.ietf.org/html/rfc7231#section-6.6.1"
             )
         };
+    }
 
-        context.Response.StatusCode = details.StatusCode;
-        context.Response.ContentType = "application/problem+json";
+    private static bool IsDuplicateKeyException(DbUpdateException ex)
+    {
+        var msg = ex.InnerException?.Message;
+        return msg != null && (msg.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) ||
+                               msg.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase));
+    }
 
-        var problemDetails = new ProblemDetails
-        {
-            Type = details.Type,
-            Title = details.Title,
-            Detail = details.Detail,
-            Status = details.StatusCode,
-            Instance = context.Request.Path
-        };
-
+    private static void EnrichProblemDetails(ProblemDetails problemDetails, Exception exception, string traceId, string correlationId)
+    {
         problemDetails.Extensions.Add("traceId", traceId);
         problemDetails.Extensions.Add("correlationId", correlationId);
 
@@ -126,24 +141,17 @@ public class CustomExceptionHandler(
             problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
         }
 
-        if (exception is BadRequestException badRequestEx && !string.IsNullOrWhiteSpace(badRequestEx.Details))
+        var customDetails = exception switch
         {
-            problemDetails.Extensions.Add("details", badRequestEx.Details);
-        }
-        else if (exception is ConflictException conflictEx && !string.IsNullOrWhiteSpace(conflictEx.Details))
-        {
-            problemDetails.Extensions.Add("details", conflictEx.Details);
-        }
-        else if (exception is InternalServerException internalEx && !string.IsNullOrWhiteSpace(internalEx.Details))
-        {
-            problemDetails.Extensions.Add("details", internalEx.Details);
-        }
+            BadRequestException badRequestEx => badRequestEx.Details,
+            ConflictException conflictEx => conflictEx.Details,
+            InternalServerException internalEx => internalEx.Details,
+            _ => null
+        };
 
-        await context.Response.WriteAsJsonAsync(
-            problemDetails,
-            options: (System.Text.Json.JsonSerializerOptions?)null,
-            contentType: "application/problem+json",
-            cancellationToken: cancellationToken);
-        return true;
+        if (!string.IsNullOrWhiteSpace(customDetails))
+        {
+            problemDetails.Extensions.Add("details", customDetails);
+        }
     }
 }

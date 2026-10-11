@@ -58,67 +58,7 @@ public sealed class DeliveryEventConsumerWorker : BackgroundService
                 channel.BasicQos(prefetchSize: 0, prefetchCount: 10, global: false);
 
                 var consumer = new AsyncEventingBasicConsumer(channel);
-                consumer.Received += async (sender, ea) =>
-                {
-                    var routingKey = ea.RoutingKey;
-                    var bodyText = Encoding.UTF8.GetString(ea.Body.Span);
-
-                    _logger.LogInformation("📨 [RabbitMQ] Received event on {Queue}: RoutingKey={RoutingKey}", QueueName, routingKey);
-
-                    try
-                    {
-                        using var scope = _scopeFactory.CreateScope();
-                        var mediator = scope.ServiceProvider.GetRequiredService<ISender>();
-
-                        if (routingKey.EndsWith("started", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var request = JsonSerializer.Deserialize<StartDeliveryJobRequestDto>(bodyText, JsonOptions);
-                            if (request == null || string.IsNullOrWhiteSpace(request.DeliveryNo))
-                            {
-                                throw new InvalidOperationException($"Invalid StartDeliveryJob payload: {bodyText}");
-                            }
-
-                            _logger.LogInformation("🚀 [RabbitMQ] Processing start-job for DeliveryNo '{DeliveryNo}', LPCD '{Lpcd}', Value '{Val}'",
-                                request.DeliveryNo, request.Lpcd, request.GetEffectiveValue());
-
-                            var result = await mediator.Send(new StartDeliveryJobCommand(request), stoppingToken);
-
-                            _logger.LogInformation("✅ [RabbitMQ] Delivery '{DeliveryNo}' started successfully. Vendor: {VendorName}, StartedAt: {StartedAt}",
-                                result.DeliveryNo, result.VendorName, result.StartedAt);
-                        }
-                        else if (routingKey.EndsWith("completed", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var request = JsonSerializer.Deserialize<CompleteDeliveryJobRequestDto>(bodyText, JsonOptions);
-                            if (request == null || string.IsNullOrWhiteSpace(request.DeliveryNo))
-                            {
-                                throw new InvalidOperationException($"Invalid CompleteDeliveryJob payload: {bodyText}");
-                            }
-
-                            _logger.LogInformation("🏁 [RabbitMQ] Processing complete-job for DeliveryNo '{DeliveryNo}', CompletedBy '{CompletedBy}'",
-                                request.DeliveryNo, request.CompletedBy);
-
-                            var result = await mediator.Send(new CompleteDeliveryJobCommand(request), stoppingToken);
-
-                            _logger.LogInformation("✅ [RabbitMQ] Delivery '{DeliveryNo}' completed successfully. Status: {Status}, CompletedAt: {CompletedAt}",
-                                result.DeliveryNo, result.Status, result.CompletedAt);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("⚠️ [RabbitMQ] Unhandled routing key '{RoutingKey}' on queue '{Queue}'. Ignoring.",
-                                routingKey, QueueName);
-                        }
-
-                        channel.BasicAck(ea.DeliveryTag, multiple: false);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "❌ [RabbitMQ] Error processing event with RoutingKey '{RoutingKey}'. Dead-lettering to edcl.dlx/edcl.dlq.",
-                            routingKey);
-
-                        // Nack without requeue -> RabbitMQ will send this to dead-letter exchange (edcl.dlx -> edcl.dlq)
-                        channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
-                    }
-                };
+                consumer.Received += async (sender, ea) => await OnEventReceivedAsync(ea, channel, stoppingToken);
 
                 channel.BasicConsume(
                     queue: QueueName,
@@ -127,7 +67,6 @@ public sealed class DeliveryEventConsumerWorker : BackgroundService
 
                 _logger.LogInformation("🚀 DeliveryEventConsumerWorker actively consuming queue '{Queue}' for routing keys 'delivery.active.#'", QueueName);
 
-                // Keep alive until stopped
                 await Task.Delay(Timeout.Infinite, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -145,5 +84,76 @@ public sealed class DeliveryEventConsumerWorker : BackgroundService
 
         channel?.Dispose();
         _logger.LogInformation("DeliveryEventConsumerWorker stopped.");
+    }
+
+    private async Task OnEventReceivedAsync(BasicDeliverEventArgs ea, IModel channel, CancellationToken ct)
+    {
+        var routingKey = ea.RoutingKey;
+        var bodyText = Encoding.UTF8.GetString(ea.Body.Span);
+
+        _logger.LogInformation("📨 [RabbitMQ] Received event on {Queue}: RoutingKey={RoutingKey}", QueueName, routingKey);
+
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<ISender>();
+
+            if (routingKey.EndsWith("started", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleStartedJobAsync(bodyText, mediator, ct);
+            }
+            else if (routingKey.EndsWith("completed", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleCompletedJobAsync(bodyText, mediator, ct);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ [RabbitMQ] Unhandled routing key '{RoutingKey}' on queue '{Queue}'. Ignoring.",
+                    routingKey, QueueName);
+            }
+
+            channel.BasicAck(ea.DeliveryTag, multiple: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [RabbitMQ] Error processing event with RoutingKey '{RoutingKey}'. Dead-lettering to edcl.dlx/edcl.dlq.",
+                routingKey);
+
+            channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+        }
+    }
+
+    private async Task HandleStartedJobAsync(string bodyText, ISender mediator, CancellationToken ct)
+    {
+        var request = JsonSerializer.Deserialize<StartDeliveryJobRequestDto>(bodyText, JsonOptions);
+        if (request == null || string.IsNullOrWhiteSpace(request.DeliveryNo))
+        {
+            throw new InvalidOperationException($"Invalid StartDeliveryJob payload: {bodyText}");
+        }
+
+        _logger.LogInformation("🚀 [RabbitMQ] Processing start-job for DeliveryNo '{DeliveryNo}', LPCD '{Lpcd}', Value '{Val}'",
+            request.DeliveryNo, request.Lpcd, request.GetEffectiveValue());
+
+        var result = await mediator.Send(new StartDeliveryJobCommand(request), ct);
+
+        _logger.LogInformation("✅ [RabbitMQ] Delivery '{DeliveryNo}' started successfully. Vendor: {VendorName}, StartedAt: {StartedAt}",
+            result.DeliveryNo, result.VendorName, result.StartedAt);
+    }
+
+    private async Task HandleCompletedJobAsync(string bodyText, ISender mediator, CancellationToken ct)
+    {
+        var request = JsonSerializer.Deserialize<CompleteDeliveryJobRequestDto>(bodyText, JsonOptions);
+        if (request == null || string.IsNullOrWhiteSpace(request.DeliveryNo))
+        {
+            throw new InvalidOperationException($"Invalid CompleteDeliveryJob payload: {bodyText}");
+        }
+
+        _logger.LogInformation("🏁 [RabbitMQ] Processing complete-job for DeliveryNo '{DeliveryNo}', CompletedBy '{CompletedBy}'",
+            request.DeliveryNo, request.CompletedBy);
+
+        var result = await mediator.Send(new CompleteDeliveryJobCommand(request), ct);
+
+        _logger.LogInformation("✅ [RabbitMQ] Delivery '{DeliveryNo}' completed successfully. Status: {Status}, CompletedAt: {CompletedAt}",
+            result.DeliveryNo, result.Status, result.CompletedAt);
     }
 }

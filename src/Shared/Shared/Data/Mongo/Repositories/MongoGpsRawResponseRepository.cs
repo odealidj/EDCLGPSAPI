@@ -89,7 +89,12 @@ public class MongoGpsRawResponseRepository : IGpsRawResponseRepository
         }
 
         var pageIndex = filter.PageIndex < 1 ? 1 : filter.PageIndex;
-        var pageSize = filter.PageSize <= 0 ? 20 : (filter.PageSize > 100 ? 100 : filter.PageSize);
+        var pageSize = filter.PageSize switch
+        {
+            <= 0 => 20,
+            > 100 => 100,
+            _ => filter.PageSize
+        };
         var skip = (pageIndex - 1) * pageSize;
 
         var totalCount = await _collection.CountDocumentsAsync(filterDef, cancellationToken: ct);

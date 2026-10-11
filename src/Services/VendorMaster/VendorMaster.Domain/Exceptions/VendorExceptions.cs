@@ -1,6 +1,7 @@
 namespace VendorMaster.Domain.Exceptions;
 
 // exception pas vendor gak ketemu di db
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3925:Update this implementation of 'ISerializable' to conform to the recommended serialization pattern", Justification = "BinaryFormatter is obsolete in .NET 8+")]
 public class VendorNotFoundException : NotFoundException
 {
     public VendorNotFoundException(Guid id) : base("GpsVendor", id) { }
@@ -8,6 +9,7 @@ public class VendorNotFoundException : NotFoundException
 }
 
 // exception pas request client gak valid / duplikat
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3925:Update this implementation of 'ISerializable' to conform to the recommended serialization pattern", Justification = "BinaryFormatter is obsolete in .NET 8+")]
 public class VendorBadRequestException : BadRequestException
 {
     public VendorBadRequestException(string message, string? details = null) 
@@ -17,6 +19,7 @@ public class VendorBadRequestException : BadRequestException
 }
 
 // exception pas ada konflik unique key (misal vendor code udah ada)
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3925:Update this implementation of 'ISerializable' to conform to the recommended serialization pattern", Justification = "BinaryFormatter is obsolete in .NET 8+")]
 public class VendorConflictException : ConflictException
 {
     public VendorConflictException(string message) : base(message) { }

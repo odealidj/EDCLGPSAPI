@@ -111,7 +111,7 @@ public static class GpsCollectorModuleExtensions
         services.AddScoped<IGpsCollectorOrchestrator, GpsCollectorOrchestrator>();
 
         // 6. Background Worker Service
-        var isWorkerEnabled = bool.TryParse(configuration["Worker:Enabled"], out var enabled) ? enabled : true;
+        var isWorkerEnabled = !bool.TryParse(configuration["Worker:Enabled"], out var enabled) || enabled;
         if (isWorkerEnabled)
         {
             services.AddHostedService<GpsCollectorWorker>();

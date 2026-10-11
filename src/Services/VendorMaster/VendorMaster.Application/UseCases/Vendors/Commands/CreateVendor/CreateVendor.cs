@@ -59,72 +59,9 @@ public class CreateVendorHandler(
     {
         var dto = command.Vendor;
 
-        // sinkronisasi shortcut lpcd jika diisi string tunggal atau array string
-        if (!string.IsNullOrWhiteSpace(dto.Lpcd) && !dto.Lpcds.Any(x => x.Lpcd.Equals(dto.Lpcd.Trim(), StringComparison.OrdinalIgnoreCase)))
-        {
-            dto.Lpcds.Add(new VendorLpcdDto { Lpcd = dto.Lpcd.Trim().ToUpperInvariant() });
-        }
-        else if (string.IsNullOrWhiteSpace(dto.Lpcd) && dto.Lpcds.Count > 0)
-        {
-            dto.Lpcd = dto.Lpcds[0].Lpcd.Trim().ToUpperInvariant();
-        }
-
-        if (dto.LpcdCodes is { Count: > 0 })
-        {
-            foreach (var code in dto.LpcdCodes)
-            {
-                if (!string.IsNullOrWhiteSpace(code) && !dto.Lpcds.Any(x => x.Lpcd.Equals(code.Trim(), StringComparison.OrdinalIgnoreCase)))
-                {
-                    dto.Lpcds.Add(new VendorLpcdDto { Lpcd = code.Trim().ToUpperInvariant() });
-                }
-            }
-        }
-
-        if (dto.Lpcds.Count == 0)
-        {
-            throw new VendorBadRequestException("Vendor wajib memiliki minimal satu kode LPCD.");
-        }
-
-        // cek apakah vendor code udah dipake
-        var existingVendor = await repository.GetVendorByCodeAsync(dto.VendorCode, cancellationToken: cancellationToken);
-        if (existingVendor != null)
-        {
-            throw new VendorConflictException($"Vendor dengan kode '{dto.VendorCode}' sudah terdaftar.");
-        }
-
-        // cek duplikasi lpcd di payload request
-        var duplicateLpcds = dto.Lpcds
-            .GroupBy(x => x.Lpcd.Trim().ToUpperInvariant())
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToList();
-
-        if (duplicateLpcds.Count > 0)
-        {
-            throw new VendorBadRequestException($"Duplikat LPCD ditemukan: {string.Join(", ", duplicateLpcds)}");
-        }
-
-        // cek keunikan lpcd terhadap database (lpcd mesti unik global antar vendor)
-        foreach (var l in dto.Lpcds)
-        {
-            var isExists = await repository.IsLpcdExistsAsync(l.Lpcd, cancellationToken: cancellationToken);
-            if (isExists)
-            {
-                throw new VendorConflictException($"LPCD '{l.Lpcd.Trim().ToUpperInvariant()}' sudah terdaftar pada vendor lain.");
-            }
-        }
-
-        // cek duplikasi endpoint base url
-        var duplicateEndpoints = dto.Endpoints
-            .GroupBy(x => x.BaseUrl.Trim().ToLowerInvariant())
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToList();
-
-        if (duplicateEndpoints.Count > 0)
-        {
-            throw new VendorBadRequestException($"Duplikat BaseUrl endpoint ditemukan: {string.Join(", ", duplicateEndpoints)}");
-        }
+        SynchronizeAndValidateLpcds(dto);
+        await ValidateVendorUniquenessAsync(dto, cancellationToken);
+        ValidateEndpoints(dto.Endpoints);
 
         // buat entitas aggregate baru
         var vendor = GpsVendor.Create(
@@ -196,5 +133,76 @@ public class CreateVendorHandler(
         }
 
         return new CreateVendorResult(vendor.Id, vendor.VendorCode, primaryLpcd);
+    }
+
+    private static void SynchronizeAndValidateLpcds(VendorDto dto)
+    {
+        if (!string.IsNullOrWhiteSpace(dto.Lpcd) && !dto.Lpcds.Any(x => x.Lpcd.Equals(dto.Lpcd.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            dto.Lpcds.Add(new VendorLpcdDto { Lpcd = dto.Lpcd.Trim().ToUpperInvariant() });
+        }
+        else if (string.IsNullOrWhiteSpace(dto.Lpcd) && dto.Lpcds.Count > 0)
+        {
+            dto.Lpcd = dto.Lpcds[0].Lpcd.Trim().ToUpperInvariant();
+        }
+
+        if (dto.LpcdCodes is { Count: > 0 })
+        {
+            foreach (var code in dto.LpcdCodes)
+            {
+                if (!string.IsNullOrWhiteSpace(code) && !dto.Lpcds.Any(x => x.Lpcd.Equals(code.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    dto.Lpcds.Add(new VendorLpcdDto { Lpcd = code.Trim().ToUpperInvariant() });
+                }
+            }
+        }
+
+        if (dto.Lpcds.Count == 0)
+        {
+            throw new VendorBadRequestException("Vendor wajib memiliki minimal satu kode LPCD.");
+        }
+
+        var duplicateLpcds = dto.Lpcds
+            .GroupBy(x => x.Lpcd.Trim().ToUpperInvariant())
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateLpcds.Count > 0)
+        {
+            throw new VendorBadRequestException($"Duplikat LPCD ditemukan: {string.Join(", ", duplicateLpcds)}");
+        }
+    }
+
+    private async Task ValidateVendorUniquenessAsync(VendorDto dto, CancellationToken cancellationToken)
+    {
+        var existingVendor = await repository.GetVendorByCodeAsync(dto.VendorCode, cancellationToken: cancellationToken);
+        if (existingVendor != null)
+        {
+            throw new VendorConflictException($"Vendor dengan kode '{dto.VendorCode}' sudah terdaftar.");
+        }
+
+        foreach (var lpcd in dto.Lpcds.Select(l => l.Lpcd))
+        {
+            var isExists = await repository.IsLpcdExistsAsync(lpcd, cancellationToken: cancellationToken);
+            if (isExists)
+            {
+                throw new VendorConflictException($"LPCD '{lpcd.Trim().ToUpperInvariant()}' sudah terdaftar pada vendor lain.");
+            }
+        }
+    }
+
+    private static void ValidateEndpoints(IEnumerable<VendorEndpointDto> endpoints)
+    {
+        var duplicateEndpoints = endpoints
+            .GroupBy(x => x.BaseUrl.Trim().ToLowerInvariant())
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateEndpoints.Count > 0)
+        {
+            throw new VendorBadRequestException($"Duplikat BaseUrl endpoint ditemukan: {string.Join(", ", duplicateEndpoints)}");
+        }
     }
 }

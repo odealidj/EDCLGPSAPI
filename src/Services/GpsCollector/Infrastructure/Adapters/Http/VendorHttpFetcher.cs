@@ -64,7 +64,7 @@ public sealed class VendorHttpFetcher : IVendorHttpFetcher
                     ApplyHeaders(request, endpoint.HeadersJson);
 
                     // Pasang Authorization
-                    await ApplyAuthorizationAsync(client, request, vendor, token);
+                    await ApplyAuthorizationAsync(request, vendor, token);
 
                     return await client.SendAsync(request, token);
                 },
@@ -129,41 +129,56 @@ public sealed class VendorHttpFetcher : IVendorHttpFetcher
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind == JsonValueKind.Object)
             {
-                foreach (var prop in doc.RootElement.EnumerateObject())
-                {
-                    var val = prop.Value.ValueKind switch
-                    {
-                        JsonValueKind.String => prop.Value.GetString(),
-                        JsonValueKind.Number => prop.Value.GetRawText(),
-                        JsonValueKind.True => "true",
-                        JsonValueKind.False => "false",
-                        _ => prop.Value.GetRawText()
-                    };
-                    if (val != null)
-                    {
-                        queryParams.Add($"{Uri.EscapeDataString(prop.Name)}={Uri.EscapeDataString(val)}");
-                    }
-                }
+                AppendObjectProperties(doc.RootElement, queryParams);
             }
             else if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
-                foreach (var item in doc.RootElement.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in item.EnumerateObject())
-                        {
-                            var val = prop.Value.GetRawText().Trim('"');
-                            queryParams.Add($"{Uri.EscapeDataString(prop.Name)}={Uri.EscapeDataString(val)}");
-                        }
-                    }
-                }
+                AppendArrayProperties(doc.RootElement, queryParams);
             }
         }
         catch (JsonException)
         {
             // Abaikan jika json invalid
         }
+    }
+
+    private static void AppendObjectProperties(JsonElement objElement, List<string> queryParams)
+    {
+        foreach (var prop in objElement.EnumerateObject())
+        {
+            var val = GetPrimitiveString(prop.Value);
+            if (val != null)
+            {
+                queryParams.Add($"{Uri.EscapeDataString(prop.Name)}={Uri.EscapeDataString(val)}");
+            }
+        }
+    }
+
+    private static void AppendArrayProperties(JsonElement arrayElement, List<string> queryParams)
+    {
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in item.EnumerateObject())
+                {
+                    var val = prop.Value.GetRawText().Trim('"');
+                    queryParams.Add($"{Uri.EscapeDataString(prop.Name)}={Uri.EscapeDataString(val)}");
+                }
+            }
+        }
+    }
+
+    private static string? GetPrimitiveString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => element.GetRawText()
+        };
     }
 
     private static void ApplyHeaders(HttpRequestMessage request, string? headersJson)
@@ -191,7 +206,7 @@ public sealed class VendorHttpFetcher : IVendorHttpFetcher
         }
     }
 
-    private async Task ApplyAuthorizationAsync(HttpClient client, HttpRequestMessage request, VendorConfig vendor, CancellationToken ct)
+    private async Task ApplyAuthorizationAsync(HttpRequestMessage request, VendorConfig vendor, CancellationToken ct)
     {
         if (!vendor.RequiredAuth) return;
 

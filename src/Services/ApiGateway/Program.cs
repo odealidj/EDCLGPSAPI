@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using ApiGateway;
 using Microsoft.AspNetCore.RateLimiting;
 using Shared.Infrastructure.Telemetry;
 
@@ -70,13 +71,16 @@ app.MapReverseProxy();
 
 app.Run();
 
-public sealed record GatewayStatusDto(
-    string Service,
-    string Engine,
-    string Status,
-    string Version);
-
-[System.Text.Json.Serialization.JsonSerializable(typeof(GatewayStatusDto))]
-internal partial class ApiGatewayJsonSerializerContext : System.Text.Json.Serialization.JsonSerializerContext
+namespace ApiGateway
 {
+    public sealed record GatewayStatusDto(
+        string Service,
+        string Engine,
+        string Status,
+        string Version);
+
+    [System.Text.Json.Serialization.JsonSerializable(typeof(GatewayStatusDto))]
+    internal partial class ApiGatewayJsonSerializerContext : System.Text.Json.Serialization.JsonSerializerContext
+    {
+    }
 }
