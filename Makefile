@@ -3,7 +3,13 @@
 # ==============================================================================
 
 SHELL := /bin/bash
+export PATH := $(PATH):$(HOME)/.dotnet/tools
 COMPOSE_FILES := -f src/docker-compose.yml -f src/docker-compose.override.yml
+SONAR_COMPOSE := -f deploy/sonar/docker-compose.sonar.yml
+SONAR_PROJECT_KEY ?= edcl-gps-telematics-api
+SONAR_PROJECT_NAME ?= "EDCL GPS Telematics API"
+SONAR_HOST_URL ?= http://localhost:9000
+SONAR_TOKEN ?= $(token)
 SOLUTION := src/edcl-gps-api.sln
 PID_DIR := .local-pids
 LOG_DIR := .local-logs
@@ -34,7 +40,8 @@ INFRA_SERVICES := ae031db distributedcache messagebus5672 mongodb mongo-express 
         run-delivery-tracking stop-delivery-tracking restart-delivery-tracking logs-delivery-tracking \
         run-gps-collector stop-gps-collector restart-gps-collector logs-gps-collector \
         run stop restart logs \
-        docker-restart docker-logs docker-stop docker-run
+        docker-restart docker-logs docker-stop docker-run \
+        sonar-up sonar-down sonar-restart sonar-status sonar-logs sonar-scan sonar-clean
 
 default: help
 
@@ -101,6 +108,16 @@ help:
 	@echo -e "  ${GREEN}make docker-build-aot${RESET}      Build ultra-slim Native AOT container (33MB chiseled)"
 	@echo -e "  ${GREEN}make test${RESET}                  Run tests (dotnet test)"
 	@echo -e "  ${GREEN}make clean${RESET}                 Clean build artifacts (bin/obj) & local log/pid files"
+	@echo -e ""
+
+	@echo -e "${BOLD}${YELLOW}🔍 SONARQUBE CODE QUALITY & STATIC ANALYSIS:${RESET}"
+	@echo -e "  ${GREEN}make sonar-up${RESET}              Start SonarQube & dedicated PostgreSQL containers"
+	@echo -e "  ${GREEN}make sonar-down${RESET}            Stop SonarQube containers"
+	@echo -e "  ${GREEN}make sonar-restart${RESET}         Restart SonarQube containers"
+	@echo -e "  ${GREEN}make sonar-status${RESET}          Check SonarQube container health & web status"
+	@echo -e "  ${GREEN}make sonar-logs${RESET}            Tail live logs of SonarQube container"
+	@echo -e "  ${GREEN}make sonar-scan${RESET}            Run full .NET 10 analysis & test coverage (token=<TOKEN>)"
+	@echo -e "  ${GREEN}make sonar-clean${RESET}           Tear down containers & remove SonarQube data volumes"
 	@echo -e ""
 
 # ------------------------------------------------------------------------------
@@ -187,7 +204,7 @@ run-gateway:
 		echo -e "  ${YELLOW}⚠️  ApiGateway is already running (PID: $$(cat $(PID_DIR)/api-gateway.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting ApiGateway (:5000)...${RESET}"; \
-		dotnet run --project src/Services/ApiGateway --launch-profile http > $(LOG_DIR)/api-gateway.log 2>&1 & \
+		nohup dotnet run --no-build --project src/Services/ApiGateway --launch-profile http < /dev/null > $(LOG_DIR)/api-gateway.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/api-gateway.pid; \
 		sleep 1.5; \
@@ -209,7 +226,7 @@ stop-gateway:
 		fi; \
 		rm -f $(PID_DIR)/api-gateway.pid; \
 	fi
-	@pkill -f 'ApiGateway' 2>/dev/null || true
+	@pkill -f 'ApiGateway\.dll' 2>/dev/null || true
 	@echo -e "  ${GREEN}✅ ApiGateway stopped.${RESET}"
 
 restart-gateway: stop-gateway run-gateway
@@ -231,7 +248,7 @@ run-vendor:
 		echo -e "  ${YELLOW}⚠️  VendorMaster.Api is already running (PID: $$(cat $(PID_DIR)/vendor-master.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting VendorMaster.Api (:5001)...${RESET}"; \
-		dotnet run --project src/Services/VendorMaster/VendorMaster.Api --launch-profile http > $(LOG_DIR)/vendor-master.log 2>&1 & \
+		nohup dotnet run --no-build --project src/Services/VendorMaster/VendorMaster.Api --launch-profile http < /dev/null > $(LOG_DIR)/vendor-master.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/vendor-master.pid; \
 		sleep 1.5; \
@@ -298,7 +315,7 @@ run-delivery:
 		echo -e "  ${YELLOW}⚠️  DeliveryTracking.Api is already running (PID: $$(cat $(PID_DIR)/delivery-tracking.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting DeliveryTracking.Api (:5003)...${RESET}"; \
-		dotnet run --project src/Services/DeliveryTracking.Api --launch-profile http > $(LOG_DIR)/delivery-tracking.log 2>&1 & \
+		nohup dotnet run --no-build --project src/Services/DeliveryTracking.Api --launch-profile http < /dev/null > $(LOG_DIR)/delivery-tracking.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/delivery-tracking.pid; \
 		sleep 1.5; \
@@ -342,7 +359,7 @@ run-collector:
 		echo -e "  ${YELLOW}⚠️  GpsCollector is already running (PID: $$(cat $(PID_DIR)/gps-collector.pid))${RESET}"; \
 	else \
 		echo -e "  ${GREEN}▶ Starting GpsCollector Background Worker (:5004)...${RESET}"; \
-		dotnet run --project src/Services/GpsCollector --launch-profile http > $(LOG_DIR)/gps-collector.log 2>&1 & \
+		nohup dotnet run --no-build --project src/Services/GpsCollector --launch-profile http < /dev/null > $(LOG_DIR)/gps-collector.log 2>&1 & \
 		PID=$$!; \
 		echo $$PID > $(PID_DIR)/gps-collector.pid; \
 		sleep 1.5; \
@@ -424,7 +441,7 @@ logs:
 # ------------------------------------------------------------------------------
 # 💻 Local PC Microservices — Orchestration All Targets
 # ------------------------------------------------------------------------------
-run-local-all: infra-up
+run-local-all: infra-up build
 	@echo -e "${BOLD}${CYAN}🚀 Launching Lean Microservices locally on Host PC...${RESET}"
 	@$(MAKE) run-vendor
 	@$(MAKE) run-delivery
@@ -521,3 +538,79 @@ clean:
 	@dotnet clean $(SOLUTION)
 	@rm -rf $(PID_DIR) $(LOG_DIR)
 	@echo -e "${BOLD}${GREEN}✅ Clean completed.${RESET}"
+
+# ------------------------------------------------------------------------------
+# 🔍 SonarQube Static Analysis & Quality Gate Targets
+# ------------------------------------------------------------------------------
+sonar-up:
+	@echo -e "${BOLD}${CYAN}🔍 Checking Linux kernel settings for Elasticsearch/SonarQube...${RESET}"
+	@current_max=$$(sysctl -n vm.max_map_count 2>/dev/null || echo 0); \
+	if [ "$$current_max" -lt 262144 ]; then \
+		echo -e "${YELLOW}⚠️  vm.max_map_count is $$current_max (minimum 262144 required).${RESET}"; \
+		echo -e "${YELLOW}👉 Run: sudo sysctl -w vm.max_map_count=262144${RESET}"; \
+	fi
+	@echo -e "${BOLD}${CYAN}🚀 Starting SonarQube Community Edition & Dedicated PostgreSQL...${RESET}"
+	@docker compose $(SONAR_COMPOSE) up -d
+	@echo -e "${BOLD}${GREEN}⏳ Waiting for SonarQube Web UI to initialize (http://localhost:9000)...${RESET}"
+	@for i in {1..40}; do \
+		status=$$(curl -s http://localhost:9000/api/system/status 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4); \
+		if [ "$$status" = "UP" ]; then \
+			echo -e "${BOLD}${GREEN}✅ SonarQube is UP and Ready! Access at: http://localhost:9000 (Default login: admin/admin)${RESET}"; \
+			exit 0; \
+		fi; \
+		sleep 3; \
+	done; \
+	echo -e "${YELLOW}ℹ️  SonarQube container is starting up in background. Run 'make sonar-status' or 'make sonar-logs' to monitor.${RESET}"
+
+sonar-down:
+	@echo -e "${BOLD}${YELLOW}🛑 Stopping SonarQube containers...${RESET}"
+	@docker compose $(SONAR_COMPOSE) down
+	@echo -e "${BOLD}${GREEN}✅ SonarQube stopped.${RESET}"
+
+sonar-restart: sonar-down sonar-up
+
+sonar-status:
+	@echo -e "${BOLD}${CYAN}📊 SonarQube Containers Status:${RESET}"
+	@docker compose $(SONAR_COMPOSE) ps
+	@echo -e "${BOLD}${CYAN}🔍 System API Status:${RESET}"
+	@curl -s http://localhost:9000/api/system/status 2>/dev/null || echo -e "${RED}❌ SonarQube Web API unreachable on http://localhost:9000${RESET}"
+
+sonar-logs:
+	@docker compose $(SONAR_COMPOSE) logs -f sonarqube
+
+sonar-clean:
+	@echo -e "${BOLD}${RED}🧹 Stopping SonarQube & Deleting Data Volumes...${RESET}"
+	@docker compose $(SONAR_COMPOSE) down -v
+	@echo -e "${BOLD}${GREEN}✅ SonarQube cleaned.${RESET}"
+
+sonar-scan:
+	@echo -e "${BOLD}${CYAN}🔍 Verifying SonarQube scanner environment...${RESET}"
+	@which java > /dev/null 2>&1 || (echo -e "${RED}❌ Java is required for SonarScanner. Please install Java 17+ or ensure it is on PATH.${RESET}" && exit 1)
+	@dotnet tool list -g | grep -q "dotnet-sonarscanner" || (echo -e "${YELLOW}📦 Installing dotnet-sonarscanner global tool...${RESET}" && dotnet tool install --global dotnet-sonarscanner)
+	@curl -s http://localhost:9000/api/system/status > /dev/null 2>&1 || (echo -e "${RED}❌ SonarQube Server is not running at $(SONAR_HOST_URL). Run 'make sonar-up' first!${RESET}" && exit 1)
+	@TOKEN_VAL="$(SONAR_TOKEN)"; \
+	if [ -z "$$TOKEN_VAL" ]; then \
+		TOKEN_VAL="$$SONAR_TOKEN"; \
+	fi; \
+	if [ -z "$$TOKEN_VAL" ]; then \
+		echo -e "${RED}❌ Missing SonarQube Token!${RESET}"; \
+		echo -e "${YELLOW}Usage: make sonar-scan token=<YOUR_SONAR_TOKEN>${RESET}"; \
+		echo -e "${YELLOW}Or:    export SONAR_TOKEN=<YOUR_SONAR_TOKEN> && make sonar-scan${RESET}"; \
+		exit 1; \
+	fi; \
+	echo -e "${BOLD}${CYAN}🚀 [1/4] Initializing SonarQube Scanner Begin...${RESET}"; \
+	dotnet sonarscanner begin \
+		/k:"$(SONAR_PROJECT_KEY)" \
+		/n:"$(SONAR_PROJECT_NAME)" \
+		/d:sonar.host.url="$(SONAR_HOST_URL)" \
+		/d:sonar.token="$$TOKEN_VAL" \
+		/d:sonar.cs.opencover.reportsPaths="tests/**/TestResults/**/coverage.opencover.xml" \
+		/d:sonar.coverage.exclusions="**/Program.cs,**/Dockerfile,**/Migrations/**,**/*.sql,src/Shared/Shared.Contracts/**" \
+		/d:sonar.cpd.exclusions="src/Shared/Shared.Contracts/**" && \
+	echo -e "${BOLD}${CYAN}🔨 [2/4] Building Solution (Release)...${RESET}" && \
+	dotnet build $(SOLUTION) -c Release && \
+	echo -e "${BOLD}${CYAN}🧪 [3/4] Running Tests & Collecting OpenCover Coverage...${RESET}" && \
+	dotnet test $(SOLUTION) -c Release --no-build --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover && \
+	echo -e "${BOLD}${CYAN}📤 [4/4] Finalizing SonarQube Scan & Uploading Report...${RESET}" && \
+	dotnet sonarscanner end /d:sonar.token="$$TOKEN_VAL" && \
+	echo -e "${BOLD}${GREEN}✅ SonarQube Analysis Completed! View results at: $(SONAR_HOST_URL)/dashboard?id=$(SONAR_PROJECT_KEY)${RESET}"

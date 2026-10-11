@@ -18,6 +18,7 @@
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing_&_Metrics-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white)](https://opentelemetry.io)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics_Scraping-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Grafana-Monitoring_Dashboard-F46800?style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com)
+[![SonarQube](https://img.shields.io/badge/SonarQube-Quality_Gate-4B9CD3?style=for-the-badge&logo=sonarqube&logoColor=white)](SONARQUBE_GUIDE.md)
 
 </div>
 
@@ -426,6 +427,22 @@ docker compose -f src/docker-compose.yml up -d --build
 # Run all 133 unit & integration tests
 dotnet test src/edcl-gps-api.sln
 ```
+
+### 4. Code Quality & Static Analysis (SonarQube)
+The platform includes an automated SonarQube Community Edition stack configured via dedicated Docker Compose.
+
+```bash
+# 1. Start isolated SonarQube server and database (http://localhost:9000)
+make sonar-up
+
+# 2. Run .NET 10 compilation, OpenCover test coverage & static analysis
+make sonar-scan token=<YOUR_SONAR_TOKEN>
+
+# 3. Stop SonarQube containers when analysis is complete
+make sonar-down
+```
+
+> 📖 **Deep Dive:** For the complete architecture guide, clean code taxonomy, and metric interpretations, see the **[SonarQube Guide (SONARQUBE_GUIDE.md)](SONARQUBE_GUIDE.md)**.
 
 ---
 
