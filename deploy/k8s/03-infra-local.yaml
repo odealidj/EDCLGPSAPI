@@ -3,19 +3,6 @@
 # PostgreSQL, MongoDB 7, Redis, and RabbitMQ
 # =============================================================================
 
-# --- Infra Secret ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: edcl-infra-secret
-  namespace: edcl-infra
-type: Opaque
-data:
-  # Base64 encoded credentials (postgres, adminpassword, guest)
-  POSTGRES_PASSWORD: cGFzc3dvcmQ=
-  MONGO_ROOT_PASSWORD: YWRtaW5wYXNzd29yZA==
-  RABBITMQ_DEFAULT_PASS: Z3Vlc3Q=
----
 # --- PostgreSQL ---
 apiVersion: apps/v1
 kind: StatefulSet
