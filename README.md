@@ -111,6 +111,8 @@ graph TD
     DeliveryTracking -->|"1. Sub-Millisecond Read"| Redis
     DeliveryTracking -->|"2. Fallback & Route Replay SP"| PG
     DeliveryTracking -->|"3. Query Raw JSON Responses"| Mongo
+    DeliveryTracking -->|"4. Consume delivery.active.*"| RabbitMQ
+    DeliveryTracking -->|"5. Publish delivery.status.delivered"| RabbitMQ
 
     Collector -->|"Check Active Sessions"| PG
     Collector -->|"On-Demand / Anti-Bot Jitter"| Inovatrack & Muliatrack & Puninar & Dunex & Hino
@@ -119,8 +121,9 @@ graph TD
     HealthTracker -->|"Write Alert Log"| PG
     Collector -->|"Binary COPY Stream Ingest"| PG
     Collector -->|"Snapshot Cache delivery:live:*"| Redis
+    Collector -->|"Live Telemetry Pub/Sub Stream"| Redis
     Collector -->|"Leader Lock SET NX EX"| Redis
-    Collector -->|"Archive Raw JSON Payload"| Mongo
+    Collector -->|"MD5 In-Memory Filter & Archive"| Mongo
     Collector -->|"Publish Telemetry Events"| RabbitMQ
 
     Gateway -.-> OTel
@@ -152,6 +155,17 @@ graph TD
 - **Two-Tier Error Handling Observability**:
   The system distinguishes two failure types: **Tier 1 — Vendor Connection Error** (vendor offline, timeout, HTTP 5xx/4xx → Redis status `VENDOR_CONNECTION_ERROR`) and **Tier 2 — Data Mismatch** (HTTP 200 OK but truck not found in payload → Redis status `DATA_MISMATCH`, `WARNING` log). Both are audited to `edcl.m_gps_api_log` for incident investigation.
 
+- **B2B Tri-Channel Integration Architecture (RabbitMQ + Redis Pub/Sub + YARP REST)**:
+  Integrates seamlessly with the core business backend (`EDCL-Web-API`) via three purpose-built communication channels:
+  1. **RabbitMQ Topic Exchange (`edcl.delivery`)**: Handles asynchronous delivery lifecycle events. `DeliveryTracking.Api` runs a dedicated background consumer (`DeliveryEventConsumerWorker`) on queue `edcl.delivery.collector` consuming `delivery.active.started` and `delivery.active.completed`. When geofence calculations confirm delivery arrival, the platform publishes `delivery.status.delivered` back to the core system.
+  2. **Redis Pub/Sub Real-Time Stream (`delivery:live:{deliveryNo}`)**: `GpsCollector` publishes live coordinates directly to Redis pub/sub channels upon matching telemetry points (< 1 ms latency). The core EDCL API subscribes to these channels and relays coordinates straight to user browser screens via WebSocket/SignalR without API gateway polling.
+  3. **YARP API Gateway REST Endpoints**: Utilized for synchronous first-load map queries (`GET /api/v1/deliveries/live/{do}` for latest snapshot, and `GET /api/v1/deliveries/track` for historically sampled route polylines).
+
+- **In-Memory Storage Deduplication & Smart Movement Filter**:
+  To protect storage capacity and database performance from stationary trucks and repetitive polling responses:
+  - **MongoDB In-Memory MD5 Hash Filter**: Computes an MD5 checksum of raw vendor responses in RAM (< 0.05 ms, zero DB round-trip). If the response payload is identical to the prior polling cycle, MongoDB insertion is skipped—saving **70–85%** of disk write operations.
+  - **PostgreSQL Smart Movement & Heartbeat Filter**: When an armada is stationary/parked ($\text{Speed} \le 1.0\text{ km/h}$ and position delta $< 0.0001^\circ \approx 11\text{ m}$), breadcrumb insertions into `edcl.t_delivery_position_history` are suppressed, recording only a single heartbeat point every 10 minutes (eliminating **> 95%** row bloat). Meanwhile, the live snapshot in `edcl.t_delivery_latest_position` and Redis live cache are continuously refreshed every cycle.
+
 - **Dual-Layer Vendor Configuration Caching (Redis + PostgreSQL)**:
   The cache key `vendor:configs:active` is stored permanently in Redis (`expiry: null`) — cold starts or empty Redis instances automatically fall back to PostgreSQL and rehydrate the cache. Every vendor mutation in `VendorMaster.Api` triggers synchronous Redis invalidation and rehydration.
 
@@ -171,7 +185,7 @@ graph TD
   Prevents duplicate mutations (double-clicks or network retries) on critical transaction endpoints. Clients must send the `X-Idempotency-Key: <UUID>` header — identical parallel requests receive `409 Conflict`. The system verifies the **SHA-256 payload hash**: reused keys with different payloads return `422 Unprocessable Entity`. Replays with identical payloads return instantly from Redis cache (`X-Cache: HIT`, `X-Idempotent-Replayed: true`).
 
 - **Event-Driven Messaging & Resilient Queuing (RabbitMQ / Amazon MQ)**:
-  Fleet telematics signals flow through the **AMQP Topic Exchange `gps.vendor.*`** on RabbitMQ 3.13 / Amazon MQ, decoupling ingestion from downstream processing. Failed messages route to `gps.dlq` (Dead-Letter Queue) with exponential backoff retry — ensuring **zero message loss**. Consumer workers can auto-scale based on queue depth via **KEDA** (`rabbitmq-queue-length`).
+  Fleet telematics signals flow through standard exchanges: `edcl.delivery` for delivery lifecycle and `edcl.gps.position` (`gps.truck.{vendor}`) for geofence calculation. Failed messages route to `edcl.dlx` / `edcl.dlq` (Dead-Letter Queue) with exponential backoff retry — ensuring **zero message loss**. Consumer workers can auto-scale based on queue depth via **KEDA** (`rabbitmq-queue-length`).
 
 - **Distributed Tracing & Real-Time Metrics (OpenTelemetry, Prometheus & Grafana)**:
   The **OpenTelemetry .NET SDK** propagates `traceparent`, `X-Trace-Id`, and `X-Correlation-Id` across all microservices — traces can be inspected in Jaeger or AWS X-Ray. The `/metrics` endpoint exposes domain-specific metrics (poll duration, ingestion rate, vendor HTTP ratio) scraped by Prometheus and displayed on a live **Grafana Dashboard**. Structured JSON logs are centralized in **Seq** correlated with `TraceId`, `DeliveryNo`, and `VendorId`.
