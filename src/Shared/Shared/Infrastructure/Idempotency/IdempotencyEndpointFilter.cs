@@ -122,7 +122,7 @@ public class CachedIdempotentResult(int statusCode, string contentType, string r
         httpContext.Response.Headers["X-Cache"] = "HIT";
         httpContext.Response.Headers["X-Idempotent-Replayed"] = "true";
 
-        await httpContext.Response.WriteAsync(responseBody, Encoding.UTF8);
+        await httpContext.Response.WriteAsync(responseBody, Encoding.UTF8, httpContext.RequestAborted);
     }
 }
 
@@ -152,7 +152,7 @@ public class IdempotencyResultExecutor(
             }
 
             memoryStream.Position = 0;
-            var responseBody = await new StreamReader(memoryStream, Encoding.UTF8).ReadToEndAsync();
+            var responseBody = await new StreamReader(memoryStream, Encoding.UTF8).ReadToEndAsync(httpContext.RequestAborted);
             var statusCode = httpContext.Response.StatusCode;
             var contentType = httpContext.Response.ContentType;
 
@@ -175,7 +175,7 @@ public class IdempotencyResultExecutor(
             }
 
             memoryStream.Position = 0;
-            await memoryStream.CopyToAsync(originalBodyStream);
+            await memoryStream.CopyToAsync(originalBodyStream, httpContext.RequestAborted);
         }
         catch (Exception ex)
         {

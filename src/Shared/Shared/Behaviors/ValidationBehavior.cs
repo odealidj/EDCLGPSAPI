@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using MediatR;
 using Shared.Contracts.CQRS;
 
@@ -24,6 +24,6 @@ public class ValidationBehavior<TRequest, TResponse>
         if (failures.Any())
             throw new ValidationException(failures);
 
-        return await next();
+        return await next(cancellationToken);
     }
 }

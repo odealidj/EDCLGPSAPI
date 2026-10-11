@@ -113,7 +113,7 @@ public static class OpenTelemetryExtensions
                 TryInjectTraceInfo(memoryStream, context.Response, traceId, correlationId);
 
                 memoryStream.Position = 0;
-                await memoryStream.CopyToAsync(originalBodyStream);
+                await memoryStream.CopyToAsync(originalBodyStream, context.RequestAborted);
             }
             finally
             {
